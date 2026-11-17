@@ -13,6 +13,9 @@ https://docs.djangoproject.com/en/4.2/ref/settings/
 import os
 from pathlib import Path
 
+import dj_database_url
+from django.core.exceptions import ImproperlyConfigured
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -45,16 +48,36 @@ def _load_dotenv() -> None:
 _load_dotenv()
 
 
-# Quick-start development settings - unsuitable for production
-# See https://docs.djangoproject.com/en/4.2/howto/deployment/checklist/
+def _env_bool(name: str, default: bool) -> bool:
+    value = os.environ.get(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
 
-# SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-o#sugbi_%^b4ocgm4xy0077f)b3cj2ui^9)3jn3k7^1tcn1vxz'
 
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+def _env_list(name: str) -> list[str]:
+    return [item.strip() for item in os.environ.get(name, "").split(",") if item.strip()]
 
-ALLOWED_HOSTS = []
+
+# Render sets RENDER=true on its servers. Locally, DEBUG stays on unless DJANGO_DEBUG says otherwise.
+ON_RENDER = "RENDER" in os.environ
+DEBUG = _env_bool("DJANGO_DEBUG", default=not ON_RENDER)
+
+SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "")
+if not SECRET_KEY:
+    if not DEBUG:
+        raise ImproperlyConfigured("Set DJANGO_SECRET_KEY in production.")
+    SECRET_KEY = "django-insecure-local-development-only"
+
+ALLOWED_HOSTS = _env_list("DJANGO_ALLOWED_HOSTS")
+if os.environ.get("RENDER_EXTERNAL_HOSTNAME"):
+    ALLOWED_HOSTS.append(os.environ["RENDER_EXTERNAL_HOSTNAME"])
+if DEBUG:
+    ALLOWED_HOSTS += ["localhost", "127.0.0.1", "[::1]"]
+
+CSRF_TRUSTED_ORIGINS = [
+    f"https://{host}" for host in ALLOWED_HOSTS if host not in {"localhost", "127.0.0.1", "[::1]"}
+]
 
 
 # Application definition
@@ -76,6 +99,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -109,11 +133,13 @@ WSGI_APPLICATION = 'en_vivo.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/4.2/ref/settings/#databases
 
+# DATABASE_URL (PostgreSQL on Render); falls back to the local SQLite file.
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
-    }
+    "default": dj_database_url.config(
+        default=f"sqlite:///{BASE_DIR / 'db.sqlite3'}",
+        conn_max_age=600,
+        conn_health_checks=True,
+    )
 }
 
 
@@ -152,6 +178,32 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/4.2/howto/static-files/
 
 STATIC_URL = 'static/'
+STATIC_ROOT = BASE_DIR / "staticfiles"
+STORAGES = {
+    "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+    "staticfiles": {
+        "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"
+        if DEBUG
+        else "whitenoise.storage.CompressedManifestStaticFilesStorage"
+    },
+}
+
+# Production security (HTTPS is terminated by Render's proxy).
+if not DEBUG:
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+    SECURE_SSL_REDIRECT = True
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_HSTS_SECONDS = int(os.environ.get("DJANGO_HSTS_SECONDS", "3600"))
+    SECURE_REFERRER_POLICY = "same-origin"
+    ACCOUNT_DEFAULT_HTTP_PROTOCOL = "https"
+
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "handlers": {"console": {"class": "logging.StreamHandler"}},
+    "root": {"handlers": ["console"], "level": os.environ.get("DJANGO_LOG_LEVEL", "INFO")},
+}
 
 # Auth redirects
 LOGIN_REDIRECT_URL = "/"
@@ -179,6 +231,10 @@ SOCIALACCOUNT_PROVIDERS = {
         "AUTH_PARAMS": {"prompt": "select_account"},
     }
 }
+
+# People who become superusers (and so En Vivo admins) when they log in, e.g. "me@example.com".
+# Lets the first admin be set up on hosts without shell access.
+DJANGO_SUPERUSER_EMAILS = [e.lower() for e in _env_list("DJANGO_SUPERUSER_EMAILS")]
 
 # External APIs
 SETLISTFM_API_BASE_URL = os.environ.get("SETLISTFM_API_BASE_URL", "https://api.setlist.fm")

@@ -6,7 +6,7 @@ Concert logging app built with Django.
 
 ```bash
 cd "en-vivo"
-python3 -m venv .venv
+python3.12 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 python manage.py migrate
@@ -58,3 +58,20 @@ Copy `.env.example` to `.env` and fill in `SETLISTFM_API_KEY`, `GOOGLE_CLIENT_ID
 ```bash
 python manage.py test events
 ```
+
+### Deploy (Render)
+
+`render.yaml` defines the web service and a PostgreSQL database; `build.sh` installs dependencies,
+collects static files and runs migrations on every deploy.
+
+1. Push this repository to GitHub (private is fine).
+2. In Render: **New → Blueprint**, pick the repository. Render creates `en-vivo` and `en-vivo-db`.
+3. Fill in the secrets it asks for: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `SETLISTFM_API_KEY`,
+   and `DJANGO_SUPERUSER_EMAILS` (your Google email: you become superuser + admin on first login).
+   `DJANGO_SECRET_KEY` is generated automatically.
+4. In Google Cloud Console add `https://<your-service>.onrender.com/accounts/google/login/callback/`
+   as an authorized redirect URI, and publish the OAuth consent screen.
+5. For a custom domain, add it in Render and set `DJANGO_ALLOWED_HOSTS` to it.
+
+Production behaviour is driven by environment variables: `DEBUG` is off on Render (`DJANGO_DEBUG`
+overrides), `DATABASE_URL` selects PostgreSQL, and HTTPS-only cookies/redirects are enabled.

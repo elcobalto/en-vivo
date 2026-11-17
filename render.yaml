@@ -1,0 +1,34 @@
+# Render Blueprint: creates the web service and its PostgreSQL database.
+# Secrets marked "sync: false" are entered in the Render dashboard, never committed.
+services:
+  - type: web
+    name: en-vivo
+    runtime: python
+    plan: free
+    buildCommand: ./build.sh
+    startCommand: python -m gunicorn en_vivo.wsgi:application
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.9
+      - key: DATABASE_URL
+        fromDatabase:
+          name: en-vivo-db
+          property: connectionString
+      - key: DJANGO_SECRET_KEY
+        generateValue: true
+      - key: WEB_CONCURRENCY
+        value: 2
+      - key: DJANGO_SUPERUSER_EMAILS
+        sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: SETLISTFM_API_KEY
+        sync: false
+
+databases:
+  - name: en-vivo-db
+    plan: free
+    databaseName: en_vivo
+    user: en_vivo

@@ -577,3 +577,17 @@ class AdminRoleTests(BaseTestCase):
         self.assertContains(self.client.get(reverse("events:profile", args=["mod"])), "Admin")
         call_command("make_admin", "mod", "--remove", stdout=open("/dev/null", "w"))
         self.assertFalse(is_admin(get_user_model().objects.get(username="mod")))
+
+
+class SuperuserBootstrapTests(TestCase):
+    @override_settings(DJANGO_SUPERUSER_EMAILS=["boss@example.com"])
+    def test_configured_email_becomes_superuser_on_login(self):
+        boss = get_user_model().objects.create_user("boss", email="Boss@Example.com", password="pw-test-1")
+        other = get_user_model().objects.create_user("other", email="o@example.com", password="pw-test-2")
+        self.client.login(username="boss", password="pw-test-1")
+        self.client.login(username="other", password="pw-test-2")
+        boss.refresh_from_db()
+        other.refresh_from_db()
+        self.assertTrue(boss.is_superuser and boss.is_staff)
+        self.assertTrue(is_admin(boss))
+        self.assertFalse(other.is_superuser)

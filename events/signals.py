@@ -60,3 +60,18 @@ def refresh_titles_after_venue_change(sender, instance, created, **kwargs):
     if not created:
         for event in Event.objects.filter(venue=instance, title_is_auto=True):
             event.refresh_auto_title()
+
+
+# --------------------------------------------------------------------------- bootstrap superusers
+
+from django.contrib.auth.signals import user_logged_in  # noqa: E402
+
+
+@receiver(user_logged_in)
+def promote_configured_superusers(sender, request, user, **kwargs):
+    """Users whose email is in DJANGO_SUPERUSER_EMAILS become superusers on login."""
+    emails = getattr(settings, "DJANGO_SUPERUSER_EMAILS", [])
+    if user.email and user.email.lower() in emails and not (user.is_superuser and user.is_staff):
+        user.is_superuser = True
+        user.is_staff = True
+        user.save(update_fields=["is_superuser", "is_staff"])

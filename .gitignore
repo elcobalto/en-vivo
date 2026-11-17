@@ -9,3 +9,6 @@ _backup/
 
 # Editor / tool logs
 *.log
+
+# Collected static files
+staticfiles/
