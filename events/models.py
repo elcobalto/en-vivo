@@ -15,6 +15,7 @@ from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.db.models import Avg, Count
 from django.urls import reverse
+from django_countries.fields import CountryField
 
 
 class EventType(models.TextChoices):
@@ -50,20 +51,25 @@ class Venue(TimestampedModel):
     address = models.CharField(max_length=255, blank=True, default="")
     city = models.CharField(max_length=120, blank=True, default="")
     region = models.CharField(max_length=120, blank=True, default="")
-    country = models.CharField(
-        max_length=2, blank=True, default="", help_text="ISO 3166-1 alpha-2 code, e.g. CL"
-    )
+    country = CountryField(blank=True, default="")
     capacity = models.PositiveIntegerField(null=True, blank=True)
     latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
     longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
 
     setlistfm_id = models.CharField(max_length=40, null=True, blank=True, unique=True)
+    # Google Places id: venues picked from search are standardized and never duplicated.
+    google_place_id = models.CharField(max_length=255, null=True, blank=True, unique=True, editable=False)
 
     class Meta:
         ordering = ["name", "city"]
 
     def __str__(self) -> str:
-        return ", ".join(bit for bit in [self.name, self.city, self.country] if bit)
+        return ", ".join(bit for bit in [self.name, self.city, self.country.code] if bit)
+
+    @property
+    def location_label(self) -> str:
+        """“Ñuñoa, Región Metropolitana, Chile” — for search results and venue pages."""
+        return ", ".join(bit for bit in [self.city, self.region, self.country.name] if bit)
 
     def get_absolute_url(self) -> str:
         return reverse("events:venue_detail", args=[self.pk])
@@ -125,7 +131,7 @@ class Event(TimestampedModel):
         max_length=240,
         db_index=True,
         blank=True,
-        help_text="Optional. Leave blank to use “Artist in City, date”.",
+        help_text="Optional. Leave blank to use “Artist in Venue, date”.",
     )
     # True when the title was generated from lineup/venue/date and should follow their changes.
     title_is_auto = models.BooleanField(default=False, editable=False)
@@ -170,7 +176,7 @@ class Event(TimestampedModel):
         super().save(*args, **kwargs)
 
     def build_auto_title(self) -> str:
-        """“Green Day in Santiago, 10 Nov 2010”, falling back gracefully when parts are missing."""
+        """“Green Day in Estadio Nacional, 10 Nov 2010”, falling back gracefully when parts are missing."""
         headliner = self.headliner if self.pk else None
         if headliner:
             who = headliner.name
@@ -181,7 +187,8 @@ class Event(TimestampedModel):
 
         title = who
         venue = self.venue if self.venue_id else None
-        place = (venue.city or venue.name) if venue else ""
+        # The venue's name reads best; the city is only a fallback.
+        place = (venue.name or venue.city) if venue else ""
         if place:
             title += f" in {place}"
         if self.date:

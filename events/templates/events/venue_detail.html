@@ -9,7 +9,8 @@
     <h1 class="h3 fw-bold">{{ venue.name }}</h1>
     {% if user|is_admin %}<a class="btn btn-sm btn-outline-secondary mb-2" href="{% url 'events:venue_edit' venue.pk %}">Edit venue</a>{% endif %}
     <div class="text-body-secondary">
-      {% if venue.address %}{{ venue.address }} · {% endif %}{{ venue.city }}{% if venue.region %}, {{ venue.region }}{% endif %}{% if venue.country %}, {{ venue.country }}{% endif %}
+      {% if venue.address %}{{ venue.address }}{% else %}{{ venue.location_label }}{% endif %}
+      {% if venue.latitude and venue.longitude %} · <a href="https://www.google.com/maps/search/?api=1&amp;query={{ venue.latitude }},{{ venue.longitude }}{% if venue.google_place_id %}&amp;query_place_id={{ venue.google_place_id|urlencode }}{% endif %}" target="_blank" rel="noreferrer">Map</a>{% endif %}
       {% if venue.capacity %} · Capacity {{ venue.capacity }}{% endif %}
     </div>
   </div>

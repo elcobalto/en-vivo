@@ -13,6 +13,7 @@ from django.db.models import Avg, Count, F, Prefetch, Q
 from django.db.models.functions import ExtractYear
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
@@ -313,20 +314,20 @@ def event_delete(request: HttpRequest, pk: int) -> HttpResponse:
     return render(request, "events/event_confirm_delete.html", {"event": event, "impact": impact})
 
 
-def _simple_create(request: HttpRequest, form_class, title: str) -> HttpResponse:
+def _simple_create(request: HttpRequest, form_class, title: str,
+                   template: str = "events/simple_form.html") -> HttpResponse:
     form = form_class(request.POST or None)
     if request.method == "POST" and form.is_valid():
         obj = form.save()
         messages.success(request, f"{title} “{obj}” created.")
         return redirect(_safe_next(request, obj.get_absolute_url()))
     return render(
-        request,
-        "events/simple_form.html",
-        {"form": form, "title": f"New {title.lower()}", "next": _safe_next(request, "")},
+        request, template, {"form": form, "title": f"New {title.lower()}", "next": _safe_next(request, "")}
     )
 
 
-def _simple_edit(request: HttpRequest, model, pk: int, form_class, title: str) -> HttpResponse:
+def _simple_edit(request: HttpRequest, model, pk: int, form_class, title: str,
+                 template: str = "events/simple_form.html") -> HttpResponse:
     """Admins only: edit catalog data shared by every event (performers, venues, productions)."""
     if not is_admin(request.user):
         raise PermissionDenied
@@ -336,11 +337,10 @@ def _simple_edit(request: HttpRequest, model, pk: int, form_class, title: str) -
         obj = form.save()
         messages.success(request, f"{title} “{obj}” saved.")
         return redirect(obj.get_absolute_url())
-    return render(
-        request,
-        "events/simple_form.html",
-        {"form": form, "title": f"Edit {title.lower()}", "next": obj.get_absolute_url()},
-    )
+    context = {"form": form, "title": f"Edit {title.lower()}", "next": obj.get_absolute_url()}
+    if model is Venue:
+        context.update(venue=obj, next="", link_url=reverse("events:venue_link_place", args=[obj.pk]))
+    return render(request, template, context)
 
 
 @login_required
@@ -350,7 +350,7 @@ def performer_edit(request: HttpRequest, pk: int) -> HttpResponse:
 
 @login_required
 def venue_edit(request: HttpRequest, pk: int) -> HttpResponse:
-    return _simple_edit(request, Venue, pk, VenueForm, "Venue")
+    return _simple_edit(request, Venue, pk, VenueForm, "Venue", template="events/venue_form.html")
 
 
 @login_required
@@ -365,7 +365,7 @@ def performer_create(request: HttpRequest) -> HttpResponse:
 
 @login_required
 def venue_create(request: HttpRequest) -> HttpResponse:
-    return _simple_create(request, VenueForm, "Venue")
+    return _simple_create(request, VenueForm, "Venue", template="events/venue_form.html")
 
 
 @login_required

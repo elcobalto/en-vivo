@@ -482,20 +482,56 @@ from .roles import ADMINS_GROUP, is_admin  # noqa: E402
 
 
 class AutoTitleTests(BaseTestCase):
-    def test_blank_title_builds_artist_city_date(self):
+    def test_blank_title_builds_artist_venue_date(self):
         event = Event.objects.create(title="", venue=self.venue, date=date(2010, 11, 10))
         self.assertTrue(event.title_is_auto)
-        self.assertEqual(event.title, "Music event in Santiago, 10 Nov 2010")
+        self.assertEqual(event.title, "Music event in Teatro Caupolicán, 10 Nov 2010")
 
         green_day = Performer.objects.create(name="Green Day")
         EventPerformer.objects.create(event=event, performer=green_day)
         event.refresh_from_db()
-        self.assertEqual(event.title, "Green Day in Santiago, 10 Nov 2010")
+        self.assertEqual(event.title, "Green Day in Teatro Caupolicán, 10 Nov 2010")
 
-        self.venue.city = "Valparaíso"
+        self.venue.name = "Estadio Nacional"
         self.venue.save()
         event.refresh_from_db()
-        self.assertEqual(event.title, "Green Day in Valparaíso, 10 Nov 2010")
+        self.assertEqual(event.title, "Green Day in Estadio Nacional, 10 Nov 2010")
+
+    def test_city_is_fallback_when_venue_has_no_name(self):
+        nameless = Venue.objects.create(name="", city="Ñuñoa")
+        event = Event.objects.create(title="", venue=nameless)
+        self.assertEqual(event.title, "Music event in Ñuñoa")
+
+    def test_migration_rebuilds_old_city_titles(self):
+        import importlib
+
+        from django.apps import apps
+
+        event = Event.objects.create(title="", venue=self.venue, date=date(2019, 3, 29))
+        EventPerformer.objects.create(event=event, performer=Performer.objects.create(name="Paul McCartney"))
+        Event.objects.filter(pk=event.pk).update(title="Paul McCartney in Santiago, 29 Mar 2019")
+        custom = Event.objects.create(title="My own title", venue=self.venue)
+
+        migration = importlib.import_module("events.migrations.0007_auto_title_uses_venue_name")
+        migration.rebuild_auto_titles(apps, None)
+
+        event.refresh_from_db()
+        custom.refresh_from_db()
+        self.assertEqual(event.title, "Paul McCartney in Teatro Caupolicán, 29 Mar 2019")
+        self.assertEqual(custom.title, "My own title")
+
+    def test_card_skips_venue_date_already_in_auto_title(self):
+        auto = Event.objects.create(title="", venue=self.venue, date=date(2019, 3, 29),
+                                    image_url="https://example.com/poster.jpg")
+        page = self.client.get(reverse("events:event_list"))
+        html = page.content.decode()
+        self.assertIn("Music event in Teatro Caupolicán, 29 Mar 2019", html)
+        # Custom-titled events still get the venue/date line; the auto one doesn't repeat it.
+        self.assertIn("Teatro Caupolicán · 10 Nov 1992", html)
+        self.assertNotIn("Teatro Caupolicán · 29 Mar 2019", html)
+        # Real posters are no longer covered by the title text.
+        self.assertNotIn('class="poster-title"', html)
+        self.assertTrue(auto.title_is_auto)
 
     def test_custom_title_is_kept(self):
         self.assertFalse(self.event.title_is_auto)
@@ -519,10 +555,10 @@ class AutoTitleTests(BaseTestCase):
         }
         self.client.post(reverse("events:event_create"), data)
         event = Event.objects.get(performers=performer)
-        self.assertEqual(event.title, "Bill Burr in Santiago, 1 Dec 2026")
+        self.assertEqual(event.title, "Bill Burr in Teatro Caupolicán, 1 Dec 2026")
 
         page = self.client.get(reverse("events:event_edit", args=[event.pk]))
-        self.assertContains(page, "Automatic: Bill Burr in Santiago, 1 Dec 2026")
+        self.assertContains(page, "Automatic: Bill Burr in Teatro Caupolicán, 1 Dec 2026")
 
         link = event.eventperformer_set.get()
         edit = dict(data, date="2026-12-02", **{
@@ -531,7 +567,7 @@ class AutoTitleTests(BaseTestCase):
         })
         self.client.post(reverse("events:event_edit", args=[event.pk]), edit)
         event.refresh_from_db()
-        self.assertEqual(event.title, "Bill Burr in Santiago, 2 Dec 2026")
+        self.assertEqual(event.title, "Bill Burr in Teatro Caupolicán, 2 Dec 2026")
 
         self.client.post(reverse("events:event_edit", args=[event.pk]), dict(edit, title="Burr Live"))
         event.refresh_from_db()
@@ -645,11 +681,11 @@ class EventPagePolishTests(BaseTestCase):
 
     def test_new_venue_created_from_event_form(self):
         self.client.post(reverse("events:event_create"), self._payload(
-            date="2026-03-20", new_venue_name="Estadio Nacional", new_venue_city="Santiago", new_venue_country="cl",
+            date="2026-03-20", new_venue_name="Estadio Nacional", new_venue_city="Santiago", new_venue_country="CL",
         ))
         event = Event.objects.get(venue__name="Estadio Nacional")
         self.assertEqual(event.venue.country, "CL")
-        self.assertEqual(event.title, "Music event in Santiago, 20 Mar 2026")
+        self.assertEqual(event.title, "Music event in Estadio Nacional, 20 Mar 2026")
 
         # Same name + city again reuses the venue instead of duplicating it.
         self.client.post(reverse("events:event_create"), self._payload(
@@ -680,3 +716,108 @@ class EventPagePolishTests(BaseTestCase):
         page = self.client.get(reverse("events:home"))
         self.assertContains(page, "Just added")
         self.assertContains(page, "Paul McCartney")
+
+
+
+# --------------------------------------------------------------------------- Google Places venue search
+
+from . import google_places  # noqa: E402
+
+ESTADIO_DETAILS = {
+    "id": "ChIJ_estadio",
+    "displayName": {"text": "Estadio Nacional Julio Martínez Prádanos", "languageCode": "es"},
+    "formattedAddress": "Av. Grecia 2001, 7750000 Ñuñoa, Región Metropolitana, Chile",
+    "location": {"latitude": -33.4645234, "longitude": -70.6107442},
+    "addressComponents": [
+        {"longText": "2001", "shortText": "2001", "types": ["street_number"]},
+        {"longText": "Ñuñoa", "shortText": "Ñuñoa", "types": ["locality", "political"]},
+        {"longText": "Santiago", "shortText": "Santiago", "types": ["administrative_area_level_2", "political"]},
+        {"longText": "Región Metropolitana", "shortText": "RM", "types": ["administrative_area_level_1", "political"]},
+        {"longText": "Chile", "shortText": "CL", "types": ["country", "political"]},
+    ],
+}
+SUGGESTIONS = [
+    {"place_id": "ChIJ_estadio", "main": "Estadio Nacional", "secondary": "Ñuñoa, Chile"},
+    {"place_id": "ChIJ_other", "main": "Estadio Nacional de Lima", "secondary": "Lima, Perú"},
+]
+
+
+@override_settings(GOOGLE_PLACES_API_KEY="test-key", ALLOWED_HOSTS=["testserver"])
+class GooglePlacesTests(BaseTestCase):
+    def setUp(self):
+        super().setUp()
+        self.client.force_login(self.user)
+
+    def test_venue_fields_are_standardized(self):
+        fields = google_places.venue_fields(ESTADIO_DETAILS)
+        self.assertEqual(fields["name"], "Estadio Nacional Julio Martínez Prádanos")
+        self.assertEqual(fields["city"], "Ñuñoa")
+        self.assertEqual(fields["region"], "Región Metropolitana")
+        self.assertEqual(fields["country"], "CL")
+        self.assertEqual(str(fields["latitude"]), "-33.464523")
+
+    @mock.patch("events.google_places.autocomplete", return_value=SUGGESTIONS)
+    def test_search_returns_local_then_google(self, autocomplete):
+        Venue.objects.create(name="Estadio Nacional", city="Ñuñoa", google_place_id="ChIJ_estadio")
+        data = self.client.get(reverse("events:venue_search"), {"q": "estadio", "session": "s1"}).json()
+        self.assertEqual([v["name"] for v in data["local"]], ["Estadio Nacional"])
+        # A place we already have isn't offered again from Google.
+        self.assertEqual([p["place_id"] for p in data["google"]], ["ChIJ_other"])
+        autocomplete.assert_called_once_with("estadio", "s1")
+
+    def test_search_requires_login(self):
+        self.client.logout()
+        self.assertEqual(self.client.get(reverse("events:venue_search"), {"q": "estadio"}).status_code, 302)
+
+    @override_settings(GOOGLE_PLACES_API_KEY="")
+    def test_search_without_key_still_finds_local_venues(self):
+        data = self.client.get(reverse("events:venue_search"), {"q": "caupol"}).json()
+        self.assertFalse(data["google_enabled"])
+        self.assertEqual(data["local"][0]["id"], self.venue.pk)
+
+    @mock.patch("events.google_places.place_details", return_value=ESTADIO_DETAILS)
+    def test_pick_creates_venue_once(self, details):
+        url = reverse("events:venue_from_place")
+        first = self.client.post(url, {"place_id": "ChIJ_estadio", "session": "s1"}).json()
+        second = self.client.post(url, {"place_id": "ChIJ_estadio", "session": "s2"}).json()
+        self.assertEqual(first["id"], second["id"])
+        self.assertEqual(details.call_count, 1)  # the second pick reuses our venue, no extra Google call
+        venue = Venue.objects.get(pk=first["id"])
+        self.assertEqual((venue.city, venue.country.code), ("Ñuñoa", "CL"))
+
+    @mock.patch("events.google_places.place_details", return_value=ESTADIO_DETAILS)
+    def test_pick_standardizes_matching_hand_typed_venue(self, _):
+        typed = Venue.objects.create(name="Estadio Nacional Julio Martínez Prádanos", city="ñuñoa")
+        data = self.client.post(reverse("events:venue_from_place"), {"place_id": "ChIJ_estadio"}).json()
+        self.assertEqual(data["id"], typed.pk)
+        typed.refresh_from_db()
+        self.assertEqual((typed.google_place_id, typed.region), ("ChIJ_estadio", "Región Metropolitana"))
+
+    @mock.patch("events.google_places.place_details", return_value=ESTADIO_DETAILS)
+    def test_admin_links_existing_venue_and_auto_titles_follow(self, _):
+        event = Event.objects.create(title="", venue=self.venue, date=date(2019, 3, 29))
+        url = reverse("events:venue_link_place", args=[self.venue.pk])
+        self.assertEqual(self.client.post(url, {"place_id": "ChIJ_estadio"}).status_code, 403)
+
+        admin = get_user_model().objects.create_user("mod", password="pw-test-000")
+        call_command("make_admin", "mod", stdout=open("/dev/null", "w"))
+        self.client.force_login(admin)
+        response = self.client.post(url, {"place_id": "ChIJ_estadio"})
+        self.assertRedirects(response, self.venue.get_absolute_url())
+        self.venue.refresh_from_db()
+        event.refresh_from_db()
+        self.assertEqual(self.venue.city, "Ñuñoa")
+        self.assertEqual(event.title, "Music event in Estadio Nacional Julio Martínez Prádanos, 29 Mar 2019")
+
+    def test_google_errors_are_reported_not_raised(self):
+        with mock.patch("events.google_places.autocomplete",
+                        side_effect=google_places.PlacesError("Google Places error 403: API key not valid")):
+            data = self.client.get(reverse("events:venue_search"), {"q": "estadio"}).json()
+        self.assertIn("API key not valid", data["error"])
+
+    def test_event_form_shows_search_box(self):
+        page = self.client.get(reverse("events:event_create"))
+        self.assertContains(page, "data-venue-search")
+        self.assertContains(page, "venue-search.js")
+        page = self.client.get(reverse("events:venue_create"))
+        self.assertContains(page, 'data-mode="create"')

@@ -94,6 +94,7 @@ INSTALLED_APPS = [
     'allauth.account',
     'allauth.socialaccount',
     'allauth.socialaccount.providers.google',
+    'django_countries',
     'events',
 ]
 
@@ -237,6 +238,9 @@ SOCIALACCOUNT_PROVIDERS = {
 DJANGO_SUPERUSER_EMAILS = [e.lower() for e in _env_list("DJANGO_SUPERUSER_EMAILS")]
 
 # External APIs
+# Google Places (New) for venue search. Server-side key: restrict it to "Places API (New)".
+GOOGLE_PLACES_API_KEY = os.environ.get("GOOGLE_PLACES_API_KEY", "")
+GOOGLE_PLACES_LANGUAGE = os.environ.get("GOOGLE_PLACES_LANGUAGE", "es")
 SETLISTFM_API_BASE_URL = os.environ.get("SETLISTFM_API_BASE_URL", "https://api.setlist.fm")
 SETLISTFM_API_KEY = os.environ.get("SETLISTFM_API_KEY", "")
 SETLISTFM_SSL_VERIFY = os.environ.get("SETLISTFM_SSL_VERIFY", "1")

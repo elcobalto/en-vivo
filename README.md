@@ -36,6 +36,20 @@ Implemented in `events/models.py`:
   with `ReviewLike` and `Comment`. `/activity/` merges recent actions of people you follow
   (built from existing tables, no separate activity log). Profiles live at `/u/<username>/`.
 
+### Venues (Google Places)
+
+Venues are picked from a search box that shows En Vivo's venues first and then Google Maps results.
+Picking a Google result creates a standardized venue (official name, address, commune, region, country,
+coordinates) keyed by its Google place id, so the same place is never added twice. Admins can link
+hand-typed venues to Google from the venue's edit page. Without `GOOGLE_PLACES_API_KEY` the search
+still finds existing venues and venues can be added by hand.
+
+Key setup (Google Cloud Console, same project as the OAuth client):
+1. Enable **Places API (New)**.
+2. Create an API key and restrict it to **Places API (New)** only (no website restriction: it's used
+   from the server, never sent to browsers).
+3. Set a budget alert under Billing and, optionally, lower the daily quotas for Places API (New).
+
 ### Roles
 
 Every logged-in user can add events and edit the ones they created. Admins (the `Admins` group,
@@ -46,7 +60,7 @@ python manage.py make_admin <username>
 python manage.py make_admin <username> --remove
 ```
 
-Event titles are optional: a blank title becomes “Artist in City, date” and updates itself when the
+Event titles are optional: a blank title becomes “Artist in Venue, date” and updates itself when the
 lineup, venue or date change.
 
 ### Environment

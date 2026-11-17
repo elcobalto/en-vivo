@@ -1,6 +1,7 @@
 Django==4.2.30
 django-allauth[socialaccount]==65.14.3
 certifi==2026.10.23
+django-countries==9.1.0
 
 # Production
 gunicorn==27.0.1

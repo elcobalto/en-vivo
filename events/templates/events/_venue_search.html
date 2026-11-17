@@ -1,0 +1,20 @@
+{% comment %}
+  Venue search box. Include with:
+    mode: "select" (needs `hidden_field`), "create" (optional `next`) or "link" (needs `link_url`)
+    initial: a Venue already chosen (select mode)
+{% endcomment %}
+<div class="position-relative" data-venue-search
+     data-mode="{{ mode }}"
+     data-search-url="{% url 'events:venue_search' %}"
+     data-place-url="{% url 'events:venue_from_place' %}"
+     data-csrf="{{ csrf_token }}"
+     {% if link_url %}data-link-url="{{ link_url }}"{% endif %}
+     {% if next %}data-next="{{ next }}"{% endif %}
+     {% if initial %}data-initial-name="{{ initial.name }}" data-initial-secondary="{{ initial.location_label }}"{% endif %}>
+  {% if hidden_field %}{{ hidden_field }}{% endif %}
+  <input type="search" class="form-control vs-input" autocomplete="off"
+         placeholder="{{ placeholder|default:'Search a venue, e.g. Estadio Nacional' }}"
+         aria-label="{{ placeholder|default:'Search a venue' }}" />
+  <div class="vs-results list-group position-absolute w-100 shadow mt-1" style="z-index:1050;max-height:22rem;overflow:auto" hidden></div>
+  {% if mode == "select" %}<div class="vs-chosen small mt-2"></div>{% endif %}
+</div>

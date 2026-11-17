@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from django import forms
 from django.forms import inlineformset_factory
+from django_countries import countries
 
 from .models import (
     Comment,
@@ -36,8 +37,8 @@ class BootstrapMixin:
 class EventForm(BootstrapMixin, forms.ModelForm):
     new_venue_name = forms.CharField(label="New venue name", max_length=200, required=False)
     new_venue_city = forms.CharField(label="City", max_length=120, required=False)
-    new_venue_country = forms.CharField(
-        label="Country code", max_length=2, required=False, widget=forms.TextInput(attrs={"placeholder": "CL"})
+    new_venue_country = forms.ChoiceField(
+        label="Country", required=False, choices=[("", "—")] + list(countries)
     )
 
     class Meta:
@@ -53,6 +54,7 @@ class EventForm(BootstrapMixin, forms.ModelForm):
             "image_url",
         ]
         widgets = {
+            "venue": forms.HiddenInput(attrs={"class": "vs-value"}),
             "date": forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d"),
             "start_time": forms.TimeInput(attrs={"type": "time"}, format="%H:%M"),
             "description": forms.Textarea(attrs={"rows": 4}),
@@ -63,7 +65,7 @@ class EventForm(BootstrapMixin, forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["title"].required = False
-        placeholder = "Leave blank for “Artist in City, date”"
+        placeholder = "Leave blank for “Artist in Venue, date”"
         if self.instance.pk and self.instance.title_is_auto:
             # Keep generated titles blank in the form so they keep following lineup/venue/date.
             self.initial["title"] = ""
@@ -84,6 +86,13 @@ class EventForm(BootstrapMixin, forms.ModelForm):
         ):
             self.add_error("new_venue_name", "Add the new venue's name.")
         return cleaned
+
+    def selected_venue(self) -> Venue | None:
+        """The venue currently chosen (also after a failed submit), for the search box label."""
+        value = self["venue"].value()
+        if not value:
+            return None
+        return Venue.objects.filter(pk=value).first() if str(value).isdigit() else None
 
     def create_new_venue(self) -> Venue | None:
         """Create the venue typed into the 'new venue' fields (call before save, inside a transaction)."""

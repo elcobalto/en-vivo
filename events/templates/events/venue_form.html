@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{{ title }} · En Vivo{% endblock %}
+
+{% block content %}
+  <div class="row justify-content-center">
+    <div class="col-12 col-md-8 col-lg-6">
+      <h1 class="h4 mb-3">{{ title }}</h1>
+
+      <div class="card mb-3"><div class="card-body">
+        {% if venue %}
+          <h2 class="h6 mb-1">Standardize with Google</h2>
+          <p class="small text-body-secondary mb-2">
+            {% if venue.google_place_id %}This venue is linked to Google Maps. Pick it again to refresh its data, or pick another place to relink it.
+            {% else %}Pick this venue on Google Maps to replace the typed-in data with its official name, address, commune, region, country and coordinates.{% endif %}
+          </p>
+          {% include "events/_venue_search.html" with mode="link" link_url=link_url placeholder="Search Google Maps for this venue" %}
+        {% else %}
+          <h2 class="h6 mb-1">Find the venue</h2>
+          <p class="small text-body-secondary mb-2">Search En Vivo and Google Maps. Picking a Google result creates the venue with standardized data.</p>
+          {% include "events/_venue_search.html" with mode="create" next=next %}
+        {% endif %}
+      </div></div>
+
+      <details class="card" {% if venue or form.errors %}open{% endif %}>
+        <summary class="card-header small">{% if venue %}Edit by hand{% else %}Can't find it? Add it by hand{% endif %}</summary>
+        <form method="post" class="card-body">
+          {% csrf_token %}
+          {% if next %}<input type="hidden" name="next" value="{{ next }}" />{% endif %}
+          {{ form.non_field_errors }}
+          {% for field in form %}
+            <div class="mb-3">
+              <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+              {{ field }}
+              {% if field.help_text %}<div class="form-text">{{ field.help_text }}</div>{% endif %}
+              {% for error in field.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
+            </div>
+          {% endfor %}
+          <div class="d-flex gap-2">
+            <button class="btn btn-success" type="submit">Save</button>
+            <a class="btn btn-outline-secondary" href="{% if next %}{{ next }}{% elif venue %}{{ venue.get_absolute_url }}{% else %}{% url 'events:home' %}{% endif %}">Cancel</a>
+          </div>
+        </form>
+      </details>
+    </div>
+  </div>
+{% endblock %}
+
+{% block scripts %}<script src="{% static 'events/venue-search.js' %}"></script>{% endblock %}
