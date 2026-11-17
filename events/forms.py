@@ -184,12 +184,49 @@ class EventListForm(BootstrapMixin, forms.ModelForm):
         widgets = {"description": forms.Textarea(attrs={"rows": 3})}
 
 
+USERNAME_RE = r"^[A-Za-z0-9_.-]{3,30}$"
+
+
 class ProfileForm(BootstrapMixin, forms.ModelForm):
+    username = forms.RegexField(
+        regex=USERNAME_RE,
+        min_length=3,
+        max_length=30,
+        help_text="3–30 letters, numbers, dots, hyphens or underscores. Your profile lives at /u/<username>/.",
+        error_messages={"invalid": "Use only letters, numbers, dots, hyphens or underscores (3–30 characters)."},
+    )
+
     class Meta:
         model = Profile
         fields = ["display_name", "location", "avatar_url", "bio"]
         widgets = {"bio": forms.Textarea(attrs={"rows": 4})}
         labels = {"avatar_url": "Avatar image URL"}
+
+    field_order = ["username", "display_name", "location", "avatar_url", "bio"]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["username"].initial = self.instance.user.get_username()
+        self.fields["username"].widget.attrs.update(
+            {"autocomplete": "username", "autocapitalize": "none", "spellcheck": "false"}
+        )
+
+    def clean_username(self) -> str:
+        from django.contrib.auth import get_user_model
+
+        username = self.cleaned_data["username"].strip()
+        taken = get_user_model().objects.filter(username__iexact=username).exclude(pk=self.instance.user_id)
+        if taken.exists():
+            raise forms.ValidationError("That username is taken.")
+        return username
+
+    def save(self, commit: bool = True):
+        profile = super().save(commit=commit)
+        user = self.instance.user
+        if commit and user.get_username() != self.cleaned_data["username"]:
+            user.username = self.cleaned_data["username"]
+            user.save(update_fields=["username"])
+        return profile
 
 
 class FavoritesForm(BootstrapMixin, forms.Form):

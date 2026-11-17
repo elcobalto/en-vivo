@@ -376,7 +376,7 @@ class ProfileTests(SocialBase):
         self.client.force_login(self.user)
         hamlet = Event.objects.create(title="Hamlet", event_type=EventType.THEATER)
         response = self.client.post(reverse("events:profile_edit"), {
-            "display_name": "Ana M", "location": "Santiago", "bio": "Front row.",
+            "username": "ana", "display_name": "Ana M", "location": "Santiago", "bio": "Front row.",
             "slot_1": str(hamlet.pk), "slot_2": "", "slot_3": str(self.event.pk), "slot_4": "",
         })
         self.assertRedirects(response, reverse("events:profile", args=["ana"]))
@@ -391,7 +391,7 @@ class ProfileTests(SocialBase):
     def test_duplicate_favorites_rejected(self):
         self.client.force_login(self.user)
         response = self.client.post(reverse("events:profile_edit"), {
-            "slot_1": str(self.event.pk), "slot_2": str(self.event.pk),
+            "username": "ana", "slot_1": str(self.event.pk), "slot_2": str(self.event.pk),
         })
         self.assertContains(response, "different event")
         self.assertFalse(FavoriteEvent.objects.exists())
@@ -935,11 +935,13 @@ class SetlistShowPageTests(BaseTestCase):
         self.client.force_login(self.user)
         self.assertEqual(self.client.get(reverse("events:setlistfm_shows")).status_code, 403)
         self.assertNotContains(self.client.get(reverse("events:event_list")), "Import from setlist.fm")
+        self.assertNotContains(self.client.get(reverse("events:home")), "+ From setlist.fm")
 
     @mock.patch("events.views_venues.search_setlists", return_value=[_setlist()])
     def test_search_then_import_selected(self, search):
         self.client.force_login(self.admin)
         self.assertContains(self.client.get(reverse("events:event_list")), "Import from setlist.fm")
+        self.assertContains(self.client.get(reverse("events:home")), "+ From setlist.fm")  # navbar, every page
         page = self.client.get(reverse("events:setlistfm_shows"), {"artist": "Paul McCartney", "country": "cl"})
         self.assertContains(page, "Freshen Up")
         self.assertContains(page, "3 songs")
@@ -954,3 +956,57 @@ class SetlistShowPageTests(BaseTestCase):
 
         page = self.client.get(reverse("events:setlistfm_shows"), {"artist": "Paul McCartney"})
         self.assertContains(page, "Already imported")
+
+
+class GoogleOnlyLoginTests(TestCase):
+    def test_login_page_offers_only_google(self):
+        page = self.client.get(reverse("login"))
+        self.assertContains(page, "Continue with Google")
+        self.assertNotContains(page, 'type="password"')
+        self.assertNotContains(page, "or use your username")
+
+    def test_password_signup_is_closed_but_google_is_open(self):
+        from allauth.account.adapter import get_adapter
+        from allauth.socialaccount.adapter import get_adapter as get_social_adapter
+        from django.test import RequestFactory
+
+        request = RequestFactory().get("/")
+        self.assertFalse(get_adapter(request).is_open_for_signup(request))
+        self.assertTrue(get_social_adapter(request).is_open_for_signup(request, None))
+        page = self.client.get("/accounts/signup/")
+        self.assertNotContains(page, 'type="password"', status_code=page.status_code)
+
+
+
+class UsernameTests(BaseTestCase):
+    def setUp(self):
+        super().setUp()
+        get_user_model().objects.create_user("bob", password="pw-test-456")
+        self.client.force_login(self.user)
+
+    def _save(self, username):
+        return self.client.post(reverse("events:profile_edit"), {"username": username})
+
+    def test_change_username_moves_profile_url(self):
+        response = self._save("ana.rocks")
+        self.assertRedirects(response, reverse("events:profile", args=["ana.rocks"]))
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.username, "ana.rocks")
+        self.assertEqual(self.client.get(reverse("events:profile", args=["ana"])).status_code, 404)
+
+    def test_taken_and_invalid_usernames_are_rejected(self):
+        self.assertContains(self._save("BOB"), "That username is taken.")
+        self.assertContains(self._save("ana rocks!"), "Use only letters")
+        self.assertContains(self._save("ab"), "Use only letters")
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.username, "ana")
+
+    def test_form_shows_current_username_and_welcome(self):
+        page = self.client.get(reverse("events:profile_edit") + "?welcome=1")
+        self.assertContains(page, 'value="ana"')
+        self.assertContains(page, "Choose your username")
+
+    def test_new_google_users_are_sent_to_pick_a_username(self):
+        from django.conf import settings
+
+        self.assertEqual(settings.ACCOUNT_SIGNUP_REDIRECT_URL, "/settings/profile/?welcome=1")

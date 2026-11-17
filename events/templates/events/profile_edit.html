@@ -5,13 +5,23 @@
 {% block content %}
   <div class="row justify-content-center">
     <div class="col-12 col-md-9 col-lg-7">
-      <h1 class="h4 mb-3">Edit profile</h1>
+      {% if welcome %}
+        <div class="alert alert-success">
+          <strong>Welcome to En Vivo!</strong> Choose your username. You can change it, and everything else here, any time.
+        </div>
+      {% endif %}
+      <h1 class="h4 mb-3">{% if welcome %}Set up your profile{% else %}Edit profile{% endif %}</h1>
       <form method="post" class="card"><div class="card-body">
         {% csrf_token %}
         {% for field in form %}
           <div class="mb-3">
             <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
-            {{ field }}
+            {% if field.name == 'username' %}
+              <div class="input-group"><span class="input-group-text">@</span>{{ field }}</div>
+            {% else %}
+              {{ field }}
+            {% endif %}
+            {% if field.help_text %}<div class="form-text">{{ field.help_text }}</div>{% endif %}
             {% for error in field.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
           </div>
         {% endfor %}

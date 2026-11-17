@@ -219,6 +219,11 @@ AUTHENTICATION_BACKENDS = [
 ACCOUNT_LOGIN_METHODS = {"username", "email"}
 ACCOUNT_SIGNUP_FIELDS = ["email*", "username*", "password1*", "password2*"]
 ACCOUNT_EMAIL_VERIFICATION = "none"
+# Log in / sign up with Google only (Django admin keeps its own password login).
+ACCOUNT_ADAPTER = "events.adapters.AccountAdapter"
+SOCIALACCOUNT_ADAPTER = "events.adapters.SocialAccountAdapter"
+# After their first Google sign-in, new users pick a username on their profile page.
+ACCOUNT_SIGNUP_REDIRECT_URL = "/settings/profile/?welcome=1"
 SOCIALACCOUNT_EMAIL_AUTHENTICATION = True
 SOCIALACCOUNT_EMAIL_AUTHENTICATION_AUTO_CONNECT = True
 SOCIALACCOUNT_AUTO_SIGNUP = True

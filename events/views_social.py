@@ -127,9 +127,14 @@ def profile_edit(request: HttpRequest) -> HttpResponse:
                 ]
             )
         messages.success(request, "Profile saved.")
-        return redirect("events:profile", username=request.user.get_username())
+        # form.instance.user carries the (possibly new) username; request.user is a stale copy.
+        return redirect("events:profile", username=form.instance.user.get_username())
 
-    return render(request, "events/profile_edit.html", {"form": form, "favorites_form": favorites_form})
+    return render(
+        request,
+        "events/profile_edit.html",
+        {"form": form, "favorites_form": favorites_form, "welcome": request.GET.get("welcome") == "1"},
+    )
 
 
 def people(request: HttpRequest) -> HttpResponse:
