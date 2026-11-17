@@ -1,11 +1,15 @@
 {% extends "base.html" %}
+{% load event_extras %}
 
 {% block title %}Events · En Vivo{% endblock %}
 
 {% block content %}
   <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
     <h1 class="h4 m-0">Events{% if f.q %} matching “{{ f.q }}”{% endif %}</h1>
-    {% if user.is_authenticated %}<a class="btn btn-sm btn-success" href="{% url 'events:event_create' %}">+ Add event</a>{% endif %}
+    <div class="d-flex gap-2">
+      {% if user|is_admin %}<a class="btn btn-sm btn-outline-warning" href="{% url 'events:setlistfm_shows' %}">Import from setlist.fm</a>{% endif %}
+      {% if user.is_authenticated %}<a class="btn btn-sm btn-success" href="{% url 'events:event_create' %}">+ Add event</a>{% endif %}
+    </div>
   </div>
 
   <form method="get" class="row g-2 align-items-end mb-4" id="filters">

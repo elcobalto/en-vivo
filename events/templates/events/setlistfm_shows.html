@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+
+{% block title %}Import shows from setlist.fm · En Vivo{% endblock %}
+
+{% block content %}
+  <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+    <h1 class="h4 m-0">Import shows from setlist.fm</h1>
+    <span class="badge text-bg-warning">Admins</span>
+  </div>
+  <p class="small text-body-secondary mb-3">
+    Each setlist becomes a music event with its venue, tour, headliner and songs. Existing venues, tours,
+    performers and events are reused: a setlist for a date and venue that's already on En Vivo is added to that event.
+  </p>
+
+  <form method="get" class="card mb-3"><div class="card-body row g-2 align-items-end">
+    <div class="col-12 col-md-4">
+      <label class="form-label small" for="f-artist">Artist</label>
+      <input class="form-control" id="f-artist" name="artist" value="{{ f.artist }}" placeholder="e.g. Paul McCartney" required />
+    </div>
+    <div class="col-6 col-md-2">
+      <label class="form-label small" for="f-city">City</label>
+      <input class="form-control" id="f-city" name="city" value="{{ f.city }}" placeholder="Santiago" />
+    </div>
+    <div class="col-6 col-md-2">
+      <label class="form-label small" for="f-venue">Venue</label>
+      <input class="form-control" id="f-venue" name="venue" value="{{ f.venue }}" />
+    </div>
+    <div class="col-4 col-md-1">
+      <label class="form-label small" for="f-year">Year</label>
+      <input class="form-control" id="f-year" name="year" value="{{ f.year }}" inputmode="numeric" maxlength="4" />
+    </div>
+    <div class="col-4 col-md-1">
+      <label class="form-label small" for="f-country">Country</label>
+      <input class="form-control text-uppercase" id="f-country" name="country" value="{{ f.country }}" maxlength="2" placeholder="CL" />
+    </div>
+    <div class="col-4 col-md-2 d-grid"><button class="btn btn-primary" type="submit">Search</button></div>
+  </div></form>
+
+  {% if error %}<div class="alert alert-danger">{{ error }}</div>{% endif %}
+
+  {% if f.artist and not error %}
+    {% if results %}
+      <form method="post">
+        {% csrf_token %}
+        <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" id="select-all" />
+            <label class="form-check-label small" for="select-all">Select all on this page (max {{ max_imports }} per import)</label>
+          </div>
+          <button class="btn btn-success" type="submit" id="import-btn">Create selected events</button>
+        </div>
+        <div class="list-group mb-3">
+          {% for s in results %}
+            <label class="list-group-item d-flex gap-3 align-items-start {% if s.imported_event %}opacity-75{% endif %}">
+              {% if s.imported_event %}
+                <input class="form-check-input mt-1" type="checkbox" disabled aria-label="Already imported" />
+              {% else %}
+                <input class="form-check-input mt-1 pick" type="checkbox" name="setlist_id" value="{{ s.id }}" aria-label="Import this setlist" />
+              {% endif %}
+              <span class="flex-grow-1">
+                <span class="fw-semibold">{{ s.artist.name }}</span>
+                {% if s.venue.name %}<span class="text-body-secondary"> · {{ s.venue.name }}</span>{% endif %}
+                <span class="d-block small text-body-secondary">
+                  {% if s.venue.city.name %}{{ s.venue.city.name }}{% endif %}{% if s.venue.city.country.code %}, {{ s.venue.city.country.code }}{% endif %}
+                  {% if s.tour.name %} · {{ s.tour.name }}{% endif %}
+                  · {% if s.song_count %}{{ s.song_count }} song{{ s.song_count|pluralize }}{% else %}<span class="text-warning">no songs listed</span>{% endif %}
+                  {% if s.url %} · <a href="{{ s.url }}" target="_blank" rel="noreferrer">setlist.fm</a>{% endif %}
+                </span>
+                {% if s.imported_event %}<span class="d-block small mt-1">Already imported: <a href="{{ s.imported_event.get_absolute_url }}">{{ s.imported_event.title }}</a></span>{% endif %}
+              </span>
+              <span class="event-date">{% if s.parsed_date %}{{ s.parsed_date|date:"j M Y" }}{% endif %}</span>
+            </label>
+          {% endfor %}
+        </div>
+      </form>
+      <nav class="d-flex justify-content-center gap-2">
+        {% if page > 1 %}<a class="btn btn-sm btn-outline-secondary" href="?artist={{ f.artist|urlencode }}&city={{ f.city|urlencode }}&venue={{ f.venue|urlencode }}&year={{ f.year|urlencode }}&country={{ f.country|urlencode }}&page={{ page|add:'-1' }}">← Previous</a>{% endif %}
+        <span class="small text-body-secondary align-self-center">Page {{ page }}</span>
+        {% if results|length >= 20 %}<a class="btn btn-sm btn-outline-secondary" href="?artist={{ f.artist|urlencode }}&city={{ f.city|urlencode }}&venue={{ f.venue|urlencode }}&year={{ f.year|urlencode }}&country={{ f.country|urlencode }}&page={{ page|add:'1' }}">Next →</a>{% endif %}
+      </nav>
+    {% else %}
+      <div class="alert alert-secondary">No setlists found. Try fewer filters.</div>
+    {% endif %}
+  {% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+  (function () {
+    var all = document.getElementById("select-all");
+    if (!all) return;
+    var max = {{ max_imports }};
+    var picks = function () { return Array.prototype.slice.call(document.querySelectorAll(".pick")); };
+    function limit() {
+      var checked = picks().filter(function (p) { return p.checked; });
+      picks().forEach(function (p) { p.disabled = !p.checked && checked.length >= max; });
+      document.getElementById("import-btn").textContent =
+        checked.length ? "Create " + checked.length + " event" + (checked.length === 1 ? "" : "s") : "Create selected events";
+    }
+    all.addEventListener("change", function () {
+      var n = 0;
+      picks().forEach(function (p) { p.disabled = false; p.checked = all.checked && n++ < max; });
+      limit();
+    });
+    picks().forEach(function (p) { p.addEventListener("change", limit); });
+    document.querySelector("form[method=post]").addEventListener("submit", function () {
+      var b = document.getElementById("import-btn");
+      b.disabled = true;
+      b.textContent = "Importing… (a few seconds per show)";
+    });
+  })();
+</script>
+{% endblock %}

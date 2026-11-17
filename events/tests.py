@@ -842,3 +842,115 @@ class PlacesErrorDetailTests(TestCase):
                 google_places.autocomplete("estadio", "s1")
         self.assertIn("API_KEY_SERVICE_BLOCKED", str(ctx.exception))
         self.assertIn("API restrictions", str(ctx.exception))
+
+
+# --------------------------------------------------------------------------- admins: shows from setlist.fm
+
+from . import setlistfm_events  # noqa: E402
+
+MCCARTNEY_2019 = {
+    "id": "3b8e1c4c",
+    "eventDate": "20-03-2019",
+    "url": "https://www.setlist.fm/setlist/paul-mccartney/2019/x.html",
+    "artist": {"mbid": "ba550d0e-adac-4864-b88b-407cab5e76af", "name": "Paul McCartney"},
+    "tour": {"name": "Freshen Up"},
+    "venue": {
+        "id": "6bd6ca6e",
+        "name": "Estadio Nacional",
+        "city": {"name": "Santiago", "state": "Santiago Metropolitan",
+                 "coords": {"lat": -33.4569, "long": -70.6482}, "country": {"code": "CL", "name": "Chile"}},
+    },
+    "sets": {"set": [{"song": [{"name": "A Hard Day's Night"}, {"name": "Junior's Farm"}]},
+                     {"encore": 1, "song": [{"name": "Birthday"}]}]},
+}
+
+
+def _setlist(**overrides):
+    import copy
+
+    data = copy.deepcopy(MCCARTNEY_2019)
+    data.update(overrides)
+    return data
+
+
+@override_settings(GOOGLE_PLACES_API_KEY="")
+class SetlistShowImportTests(BaseTestCase):
+    def test_creates_event_with_venue_tour_lineup_and_songs(self):
+        result = setlistfm_events.create_event_from_setlist(_setlist(), self.user)
+        event = result.event
+        self.assertTrue(result.created)
+        self.assertEqual(event.title, "Paul McCartney")
+        self.assertEqual(event.date, date(2019, 3, 20))
+        self.assertEqual((event.venue.name, event.venue.city, event.venue.country.code),
+                         ("Estadio Nacional", "Santiago", "CL"))
+        self.assertEqual(event.venue.setlistfm_id, "6bd6ca6e")
+        self.assertEqual(event.production.title, "Freshen Up")
+        self.assertEqual(event.created_by, self.user)
+        self.assertEqual(event.setlists.get().entries.count(), 3)
+
+    def test_reimport_and_second_date_reuse_venue_and_tour(self):
+        first = setlistfm_events.create_event_from_setlist(_setlist(), self.user)
+        again = setlistfm_events.create_event_from_setlist(_setlist(), self.user)
+        self.assertTrue(again.setlist_already_imported)
+        self.assertEqual(again.event, first.event)
+
+        second_night = setlistfm_events.create_event_from_setlist(_setlist(id="43b8e1c8", eventDate="21-03-2019"))
+        self.assertNotEqual(second_night.event, first.event)
+        self.assertEqual(Venue.objects.filter(name="Estadio Nacional").count(), 1)
+        self.assertEqual(Production.objects.filter(title="Freshen Up").count(), 1)
+        self.assertEqual(second_night.event.production, first.event.production)
+
+    def test_joins_event_added_by_hand_and_hand_typed_venue(self):
+        typed_venue = Venue.objects.create(name="estadio nacional", city="santiago")
+        by_hand = Event.objects.create(title="McCartney en Chile", venue=typed_venue, date=date(2019, 3, 20))
+        result = setlistfm_events.create_event_from_setlist(_setlist(), self.user)
+        self.assertFalse(result.created)
+        self.assertEqual(result.event, by_hand)
+        self.assertEqual(result.event.title, "McCartney en Chile")  # custom titles are kept
+        typed_venue.refresh_from_db()
+        self.assertEqual(typed_venue.setlistfm_id, "6bd6ca6e")
+        self.assertEqual(result.event.setlists.count(), 1)
+
+    @override_settings(GOOGLE_PLACES_API_KEY="test-key")
+    def test_uses_google_venue_when_top_match_fits(self):
+        google_venue = Venue.objects.create(name="Estadio Nacional Julio Martínez Prádanos", city="Ñuñoa",
+                                            google_place_id="ChIJ_estadio")
+        with mock.patch("events.google_places.autocomplete", return_value=[
+            {"place_id": "ChIJ_estadio", "main": "Estadio Nacional Julio Martínez Prádanos", "secondary": "Ñuñoa"},
+        ]), mock.patch("events.google_places.venue_from_place", return_value=google_venue):
+            event = setlistfm_events.create_event_from_setlist(_setlist(), self.user).event
+        self.assertEqual(event.venue, google_venue)
+        google_venue.refresh_from_db()
+        self.assertEqual(google_venue.setlistfm_id, "6bd6ca6e")
+
+
+@override_settings(GOOGLE_PLACES_API_KEY="")
+class SetlistShowPageTests(BaseTestCase):
+    def setUp(self):
+        super().setUp()
+        self.admin = get_user_model().objects.create_user("mod", password="pw-test-000")
+        call_command("make_admin", "mod", stdout=open("/dev/null", "w"))
+
+    def test_admins_only(self):
+        self.client.force_login(self.user)
+        self.assertEqual(self.client.get(reverse("events:setlistfm_shows")).status_code, 403)
+        self.assertNotContains(self.client.get(reverse("events:event_list")), "Import from setlist.fm")
+
+    @mock.patch("events.views_venues.search_setlists", return_value=[_setlist()])
+    def test_search_then_import_selected(self, search):
+        self.client.force_login(self.admin)
+        self.assertContains(self.client.get(reverse("events:event_list")), "Import from setlist.fm")
+        page = self.client.get(reverse("events:setlistfm_shows"), {"artist": "Paul McCartney", "country": "cl"})
+        self.assertContains(page, "Freshen Up")
+        self.assertContains(page, "3 songs")
+        search.assert_called_with(artist_name="Paul McCartney", city="", year="", venue="", country_code="cl", page=1)
+
+        with mock.patch("events.setlistfm_events.get_setlist", return_value=_setlist()):
+            response = self.client.post(
+                reverse("events:setlistfm_shows") + "?artist=Paul+McCartney", {"setlist_id": ["3b8e1c4c"]}
+            )
+        self.assertRedirects(response, reverse("events:setlistfm_shows") + "?artist=Paul+McCartney")
+        self.assertTrue(Event.objects.filter(title="Paul McCartney", date=date(2019, 3, 20)).exists())
+
+        page = self.client.get(reverse("events:setlistfm_shows"), {"artist": "Paul McCartney"})
+        self.assertContains(page, "Already imported")

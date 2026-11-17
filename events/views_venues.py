@@ -7,12 +7,13 @@ from django.core.cache import cache
 from django.core.exceptions import PermissionDenied
 from django.db.models import Q
 from django.http import HttpRequest, HttpResponse, JsonResponse
-from django.shortcuts import get_object_or_404, redirect
+from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_GET, require_POST
 
-from . import google_places
-from .models import Venue
+from . import google_places, setlistfm_events
+from .models import Setlist, Venue
 from .roles import is_admin
+from .setlistfm import SetlistFmError, _as_list, parse_event_date, search_setlists
 
 SEARCHES_PER_MINUTE = 60
 
@@ -90,3 +91,73 @@ def venue_link_place(request: HttpRequest, pk: int) -> HttpResponse:
         return redirect("events:venue_edit", pk=venue.pk)
     messages.success(request, f"“{venue.name}” now uses Google's data.")
     return redirect(venue)
+
+
+# --------------------------------------------------------------------------- admins: shows from setlist.fm
+
+MAX_IMPORTS_PER_REQUEST = 10  # each import ~1-2 s; keeps requests under the 30 s worker timeout
+
+
+@login_required
+def setlistfm_shows(request: HttpRequest) -> HttpResponse:
+    """Search setlist.fm and create music events (venue, tour, lineup, songs) from the results."""
+    if not is_admin(request.user):
+        raise PermissionDenied
+
+    if request.method == "POST":
+        ids = [i.strip() for i in request.POST.getlist("setlist_id") if i.strip()][:MAX_IMPORTS_PER_REQUEST]
+        if not ids:
+            messages.error(request, "Select at least one setlist.")
+        else:
+            created = joined = skipped = 0
+            for setlist_id, result, error in setlistfm_events.import_many(ids, request.user):
+                if error:
+                    messages.error(request, f"{setlist_id}: {error}")
+                elif result.setlist_already_imported:
+                    skipped += 1
+                elif result.created:
+                    created += 1
+                else:
+                    joined += 1
+            summary = [f"{created} event{'s' if created != 1 else ''} created"]
+            if joined:
+                summary.append(f"{joined} added to existing events")
+            if skipped:
+                summary.append(f"{skipped} already imported")
+            messages.success(request, ", ".join(summary) + ".")
+        return redirect(request.get_full_path())
+
+    filters = {k: (request.GET.get(k) or "").strip() for k in ["artist", "city", "year", "venue", "country"]}
+    try:
+        page = max(1, min(int(request.GET.get("page") or 1), 50))
+    except ValueError:
+        page = 1
+    results, error = [], None
+    if filters["artist"]:
+        try:
+            results = search_setlists(
+                artist_name=filters["artist"],
+                city=filters["city"],
+                year=filters["year"],
+                venue=filters["venue"],
+                country_code=filters["country"],
+                page=page,
+            )
+        except SetlistFmError as e:
+            error = str(e)
+
+    imported = {
+        s.setlistfm_id: s.event
+        for s in Setlist.objects.filter(setlistfm_id__in=[r.get("id") for r in results]).select_related("event")
+    }
+    for r in results:
+        r["parsed_date"] = parse_event_date(r.get("eventDate"))
+        r["song_count"] = sum(len(_as_list(s.get("song"))) for s in _as_list((r.get("sets") or {}).get("set")))
+        r["imported_event"] = imported.get(r.get("id"))
+
+    return render(
+        request,
+        "events/setlistfm_shows.html",
+        {"f": filters, "page": page, "results": results, "error": error,
+         "max_imports": MAX_IMPORTS_PER_REQUEST},
+    )

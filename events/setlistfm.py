@@ -80,8 +80,24 @@ def _request_json(path: str, query: dict[str, str] | None = None) -> dict[str, A
         raise SetlistFmError(f"Setlist.fm request failed: {e.reason}") from e
 
 
-def search_setlists(*, artist_name: str, on_date: date | None = None, page: int = 1) -> list[dict]:
-    query = {"artistName": artist_name, "p": str(page)}
+def search_setlists(
+    *,
+    artist_name: str,
+    on_date: date | None = None,
+    page: int = 1,
+    city: str = "",
+    year: str = "",
+    venue: str = "",
+    country_code: str = "",
+) -> list[dict]:
+    query = {
+        "artistName": artist_name,
+        "p": str(page),
+        "cityName": city,
+        "year": year,
+        "venueName": venue,
+        "countryCode": country_code.upper(),
+    }
     if on_date:
         query["date"] = on_date.strftime("%d-%m-%Y")
     return _request_json("/rest/1.0/search/setlists", query).get("setlist") or []
