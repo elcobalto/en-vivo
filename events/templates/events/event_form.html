@@ -66,10 +66,11 @@
         {% for f in formset %}
           <div class="row g-2 align-items-end mb-2">
             {{ f.id }}
-            <div class="col-12 col-md-5">{% if forloop.first %}<label class="form-label small">Performer</label>{% endif %}{{ f.performer }}</div>
-            <div class="col-6 col-md-3">{% if forloop.first %}<label class="form-label small">Role</label>{% endif %}{{ f.role }}</div>
-            <div class="col-3 col-md-2">{% if forloop.first %}<label class="form-label small">Order</label>{% endif %}{{ f.billing_order }}</div>
-            <div class="col-3 col-md-2">{% if f.instance.pk %}<div class="form-check">{{ f.DELETE }} <label class="form-check-label small" for="{{ f.DELETE.id_for_label }}">Remove</label></div>{% endif %}</div>
+            <div class="col-12 col-md-4">{% if forloop.first %}<label class="form-label small">Performer</label>{% endif %}{{ f.performer }}{{ f.new_performer }}</div>
+            <div class="col-5 col-md-3">{% if forloop.first %}<label class="form-label small">Role</label>{% endif %}{{ f.role }}</div>
+            <div class="col-3 col-md-1">{% if forloop.first %}<label class="form-label small">Order</label>{% endif %}{{ f.billing_order }}</div>
+            <div class="col-4 col-md-2">{% if forloop.first %}<label class="form-label small">Set time</label>{% endif %}{{ f.start_time }}</div>
+            <div class="col-12 col-md-2">{% if f.instance.pk %}<div class="form-check">{{ f.DELETE }} <label class="form-check-label small" for="{{ f.DELETE.id_for_label }}">Remove</label></div>{% endif %}</div>
             {% for error in f.non_field_errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
             {% for field in f %}{% for error in field.errors %}<div class="text-danger small">{{ field.label }}: {{ error }}</div>{% endfor %}{% endfor %}
           </div>

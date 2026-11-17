@@ -19,21 +19,31 @@
       <div class="card"><div class="card-body text-center">
         {% if avg_rating %}<div class="display-6 fw-bold">{{ avg_rating|avg_stars }}</div><div class="stars">{{ avg_rating|stars }}</div>{% else %}<div class="small text-body-secondary">No ratings yet</div>{% endif %}
         <div class="small text-body-secondary mt-1">{{ log_count }} log{{ log_count|pluralize }} across all dates</div>
+        <div class="mt-3 text-start">{% rating_histogram production_logs %}</div>
       </div></div>
     </div>
   </div>
 
-  <h2 class="section-title mb-2">Dates</h2>
+  {% regroup events by date.year as years %}
+  {% for year in years %}
+  <h2 class="section-title mb-2">{{ year.grouper|default:"Date TBA" }}{% if year.list|length > 1 %} · {{ year.list|length }} {% if production.event_type == "festival" %}days{% else %}dates{% endif %}{% endif %}</h2>
   <div class="list-group mb-4">
-    {% for event in events %}
-      <a class="list-group-item list-group-item-action d-flex justify-content-between" href="{{ event.get_absolute_url }}">
-        <span>{% if event.date %}{{ event.date|date:"j M Y" }}{% else %}Date TBA{% endif %}{% if event.venue %} · {{ event.venue }}{% endif %}</span>
+    {% for event in year.list %}
+      <a class="list-group-item list-group-item-action d-flex justify-content-between gap-3" href="{{ event.get_absolute_url }}">
+        <span>
+          <span class="event-date me-2">{% if event.date %}{{ event.date|date:"D j M" }}{% else %}TBA{% endif %}</span>{% if event.venue %}{{ event.venue.name }}{% endif %}
+          {% with acts=event.eventperformer_set.all %}{% if acts %}<span class="d-block small text-body-secondary">{% for link in acts %}{{ link.performer.name }}{% if not forloop.last %} · {% endif %}{% endfor %}</span>{% endif %}{% endwith %}
+        </span>
         {% if event.avg_rating %}<span class="stars">{{ event.avg_rating|stars }}</span>{% endif %}
       </a>
-    {% empty %}
-      <div class="list-group-item text-body-secondary">No dates yet.</div>
     {% endfor %}
   </div>
+  {% empty %}
+  <h2 class="section-title mb-2">Dates</h2>
+  <div class="list-group mb-4">
+      <div class="list-group-item text-body-secondary">No dates yet.</div>
+  </div>
+  {% endfor %}
 
   <h2 class="section-title mb-1">Reviews</h2>
   {% for log in reviews %}{% include "events/_review.html" with show_event=True %}{% empty %}<p class="small text-body-secondary mt-2">No reviews yet.</p>{% endfor %}

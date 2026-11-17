@@ -145,7 +145,6 @@ class Event(TimestampedModel):
         Venue, on_delete=models.SET_NULL, null=True, blank=True, related_name="events"
     )
     date = models.DateField(null=True, blank=True, db_index=True)
-    start_time = models.TimeField(null=True, blank=True)
     description = models.TextField(blank=True, default="")
     image_url = models.URLField(max_length=1000, blank=True, default="")
 
@@ -184,6 +183,8 @@ class Event(TimestampedModel):
         Falls back to the production's title, then to “Music event”, “Comedy event”…
         """
         headliner = self.headliner if self.pk else None
+        if self.event_type == EventType.FESTIVAL and self.production_id:
+            return self.production.title[:240]  # festival days are named after their festival
         if self.pk and self.event_type == EventType.FESTIVAL and not self.production_id:
             names = list(
                 self.eventperformer_set.filter(role=EventPerformer.Role.HEADLINER)
@@ -260,6 +261,7 @@ class EventPerformer(models.Model):
     performer = models.ForeignKey(Performer, on_delete=models.CASCADE)
     role = models.CharField(max_length=20, choices=Role.choices, default=Role.HEADLINER)
     billing_order = models.PositiveIntegerField(default=1)
+    start_time = models.TimeField("Set time", null=True, blank=True)
 
     class Meta:
         constraints = [

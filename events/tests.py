@@ -1427,3 +1427,139 @@ class NewVenueDefaultsIgnoredTests(BaseTestCase):
         self.assertRedirects(response, event.get_absolute_url())
         self.assertIsNone(event.venue)
         self.assertEqual(Venue.objects.count(), 1)  # nothing new created
+
+
+class SetTimesAndFestivalTests(BaseTestCase):
+    def test_set_times_per_performer_in_form_and_lineup(self):
+        self.client.force_login(self.user)
+        opener = Performer.objects.create(name="Opener")
+        star = Performer.objects.create(name="Star")
+        self.client.post(reverse("events:event_create"), {
+            "title": "", "event_type": "music", "date": "2020-01-10",
+            "eventperformer_set-TOTAL_FORMS": "2", "eventperformer_set-INITIAL_FORMS": "0",
+            "eventperformer_set-MIN_NUM_FORMS": "0", "eventperformer_set-MAX_NUM_FORMS": "1000",
+            "eventperformer_set-0-performer": str(star.pk), "eventperformer_set-0-role": "headliner",
+            "eventperformer_set-0-billing_order": "1", "eventperformer_set-0-start_time": "21:30",
+            "eventperformer_set-1-performer": str(opener.pk), "eventperformer_set-1-role": "support",
+            "eventperformer_set-1-billing_order": "2", "eventperformer_set-1-start_time": "19:00",
+        })
+        event = Event.objects.get(performers=star)
+        page = self.client.get(event.get_absolute_url())
+        self.assertEqual([l.performer.name for l in page.context["lineup"]], ["Opener", "Star"])  # running order
+        self.assertContains(page, "21:30")
+
+    def test_migration_moves_event_time_to_headliner(self):
+        import importlib
+        from datetime import time
+
+        from django.apps import apps
+
+        migration = importlib.import_module("events.migrations.0013_set_times_per_performer")
+        self.assertTrue(callable(migration.copy_event_times_to_headliners))  # moved via RunPython
+        link = EventPerformer.objects.create(event=self.event, performer=Performer.objects.create(name="GD"),
+                                             start_time=time(21, 0))
+        self.assertEqual(link.start_time.hour, 21)
+        self.assertIsNotNone(apps.get_model("events", "EventPerformer")._meta.get_field("start_time"))
+
+    def test_group_nearby_festival_days(self):
+        self.client.force_login(self.user)
+        day1 = Event.objects.create(title="", event_type=EventType.FESTIVAL, venue=self.venue,
+                                    date=date(2024, 3, 15), created_by=self.user)
+        day2 = Event.objects.create(title="", event_type=EventType.FESTIVAL, venue=self.venue,
+                                    date=date(2024, 3, 16), created_by=self.user)
+        far = Event.objects.create(title="", event_type=EventType.FESTIVAL, venue=self.venue, date=date(2024, 9, 1))
+        page = self.client.get(day1.get_absolute_url())
+        self.assertContains(page, "Other festival days")
+        self.assertEqual(page.context["festival_suggestion"]["days"], [day2])
+
+        response = self.client.post(reverse("events:festival_group", args=[day1.pk]), {"name": "Lollapalooza Chile"})
+        festival = Production.objects.get(title="Lollapalooza Chile")
+        self.assertRedirects(response, festival.get_absolute_url())
+        day1.refresh_from_db(); day2.refresh_from_db(); far.refresh_from_db()
+        self.assertEqual((day1.production, day2.production, far.production), (festival, festival, None))
+        self.assertEqual(day1.title, "Lollapalooza Chile")
+        self.assertNotContains(self.client.get(day1.get_absolute_url()), "Other festival days")
+        festival_page = self.client.get(festival.get_absolute_url())
+        self.assertContains(festival_page, "2024 · 2 days")
+
+
+class RatingHistogramTests(BaseTestCase):
+    def test_histogram_counts_and_average(self):
+        from .templatetags.event_extras import rating_histogram
+
+        for i, rating in enumerate([10, 10, 8, 7, None]):
+            u = get_user_model().objects.create_user(f"u{i}", password="pw-test-000")
+            Log.objects.create(user=u, event=self.event, rating=rating)
+        data = rating_histogram(self.event.logs.all())
+        self.assertEqual(data["total"], 4)  # unrated logs are left out
+        self.assertEqual([b["count"] for b in data["bars"]], [0, 0, 0, 0, 0, 0, 1, 1, 0, 2])
+        self.assertEqual([b["height"] for b in data["bars"]][-1], 100)
+        self.assertAlmostEqual(data["average"], 8.75)
+
+        for url in [self.event.get_absolute_url(), reverse("events:profile", args=["u0"])]:
+            with self.subTest(url=url):
+                self.assertContains(self.client.get(url), 'class="rating-bars')
+
+    def test_no_chart_without_ratings(self):
+        self.assertNotContains(self.client.get(self.event.get_absolute_url()), 'class="rating-bars')
+
+
+
+class FavoriteChoicesTests(BaseTestCase):
+    def test_sorted_by_performer_with_venue_and_date(self):
+        zz = Event.objects.create(title="", venue=self.venue, date=date(2019, 3, 20))
+        EventPerformer.objects.create(event=zz, performer=Performer.objects.create(name="Zappa Tribute"))
+        aa = Event.objects.create(title="", date=None)
+        EventPerformer.objects.create(event=aa, performer=Performer.objects.create(name="ABBA"))
+        self.client.force_login(self.user)
+        field = self.client.get(reverse("events:profile_edit")).context["favorites_form"].fields["slot_1"]
+        labels = [label for _, label in field.choices][1:]
+        self.assertEqual(labels[0], "ABBA — date not added")
+        self.assertEqual(labels[-1], "Zappa Tribute — Teatro Caupolicán · 20 Mar 2019")
+        self.assertIn("Green Day in Chile — Teatro Caupolicán · 10 Nov 1992", labels)  # no lineup: uses title
+
+
+class NewArtistInLineupTests(BaseTestCase):
+    def _post(self, **rows):
+        data = {
+            "title": "", "event_type": "music", "date": "2020-01-10",
+            "eventperformer_set-TOTAL_FORMS": "3", "eventperformer_set-INITIAL_FORMS": "0",
+            "eventperformer_set-MIN_NUM_FORMS": "0", "eventperformer_set-MAX_NUM_FORMS": "1000",
+        }
+        data.update(rows)
+        self.client.force_login(self.user)
+        return self.client.post(reverse("events:event_create"), data)
+
+    def test_typing_a_new_artist_creates_it(self):
+        self._post(**{"eventperformer_set-0-new_performer": "Los Bunkers", "eventperformer_set-0-role": "headliner",
+                      "eventperformer_set-0-billing_order": "1"})
+        event = Event.objects.get(performers__name="Los Bunkers")
+        self.assertEqual(event.title, "Los Bunkers")
+
+    def test_existing_artist_is_reused_ignoring_case(self):
+        existing = Performer.objects.create(name="Los Bunkers")
+        self._post(**{"eventperformer_set-0-new_performer": "los bunkers"})
+        self.assertEqual(Performer.objects.filter(name__iexact="los bunkers").count(), 1)
+        self.assertTrue(Event.objects.filter(performers=existing).exists())
+
+    def test_picking_and_typing_is_rejected(self):
+        p = Performer.objects.create(name="A")
+        page = self._post(**{"eventperformer_set-0-performer": str(p.pk), "eventperformer_set-0-new_performer": "B"})
+        self.assertContains(page, "not both")
+        self.assertFalse(Performer.objects.filter(name="B").exists())
+
+
+class UpcomingSortTests(BaseTestCase):
+    def test_upcoming_defaults_to_soonest_first(self):
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        today = timezone.localdate()
+        far = Event.objects.create(title="Far", date=today + timedelta(days=200))
+        soon = Event.objects.create(title="Soon", date=today + timedelta(days=3))
+        titles = lambda q: [e.title for e in self.client.get(reverse("events:event_list") + q).context["page"].object_list]  # noqa: E731
+        self.assertEqual(titles("?when=upcoming"), ["Soon", "Far"])
+        self.assertEqual(titles("?when=upcoming&sort=newest"), ["Far", "Soon"])  # explicit choice wins
+        self.assertEqual(titles("")[:2], ["Far", "Soon"])  # everything: latest date first
+        self.assertTrue(far.pk and soon.pk)

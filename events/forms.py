@@ -47,7 +47,6 @@ class EventForm(BootstrapMixin, forms.ModelForm):
             "title",
             "event_type",
             "date",
-            "start_time",
             "venue",
             "production",
             "description",
@@ -56,7 +55,6 @@ class EventForm(BootstrapMixin, forms.ModelForm):
         widgets = {
             "venue": forms.HiddenInput(attrs={"class": "vs-value"}),
             "date": forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d"),
-            "start_time": forms.TimeInput(attrs={"type": "time"}, format="%H:%M"),
             "description": forms.Textarea(attrs={"rows": 4}),
         }
         labels = {"event_type": "Type", "image_url": "Poster / image URL"}
@@ -105,21 +103,48 @@ class EventForm(BootstrapMixin, forms.ModelForm):
 
 
 class EventPerformerForm(BootstrapMixin, forms.ModelForm):
+    new_performer = forms.CharField(
+        label="New artist", max_length=200, required=False,
+        widget=forms.TextInput(attrs={"placeholder": "…or type a new artist", "class": "form-control form-control-sm mt-1"}),
+    )
+
     class Meta:
         model = EventPerformer
-        fields = ["performer", "role", "billing_order"]
-        labels = {"billing_order": "Order"}
+        fields = ["performer", "role", "billing_order", "start_time"]
+        labels = {"billing_order": "Order", "start_time": "Time"}
+        widgets = {"start_time": forms.TimeInput(attrs={"type": "time"}, format="%H:%M")}
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["role"].required = False
         self.fields["billing_order"].required = False
+        self.fields["performer"].required = False
 
     def has_changed(self) -> bool:
-        # A new row without a performer is an unused blank row, whatever role/order say.
-        if not self.instance.pk and not self.data.get(self.add_prefix("performer")):
+        # A new row without a performer (picked or typed) is an unused blank row, whatever role/order say.
+        if (not self.instance.pk and not self.data.get(self.add_prefix("performer"))
+                and not (self.data.get(self.add_prefix("new_performer")) or "").strip()):
             return False
         return super().has_changed()
+
+    def clean(self):
+        cleaned = super().clean()
+        name = (cleaned.get("new_performer") or "").strip()
+        if cleaned.get("performer") and name:
+            self.add_error("new_performer", "Pick an artist or type a new one, not both.")
+        elif not cleaned.get("performer") and not name and not cleaned.get("DELETE"):
+            self.add_error("performer", "Pick an artist or type a new one.")
+        return cleaned
+
+    def save(self, commit: bool = True):
+        name = (self.cleaned_data.get("new_performer") or "").strip()
+        if name and not self.cleaned_data.get("performer"):
+            existing = next(
+                (p for p in Performer.objects.filter(name__icontains=name[:3]) if p.name.casefold() == name.casefold()),
+                None,
+            )
+            self.instance.performer = existing or Performer.objects.create(name=name[:200])
+        return super().save(commit=commit)
 
     def clean_role(self) -> str:
         return self.cleaned_data.get("role") or EventPerformer.Role.HEADLINER
@@ -230,14 +255,42 @@ class ProfileForm(BootstrapMixin, forms.ModelForm):
         return profile
 
 
+def favorite_choices():
+    """All events sorted by headliner (then date), with the headliner's name annotated."""
+    from django.db.models import F, OuterRef, Subquery, Value
+    from django.db.models.functions import Coalesce, Lower
+
+    headliner = EventPerformer.objects.filter(event=OuterRef("pk")).order_by("billing_order", "pk")
+    return (
+        Event.objects.select_related("venue")
+        .annotate(headliner_name=Coalesce(Subquery(headliner.values("performer__name")[:1]), F("title"), Value("")))
+        .order_by(Lower("headliner_name"), F("date").asc(nulls_last=True))
+    )
+
+
+class EventChoiceField(forms.ModelChoiceField):
+    """“Paul McCartney — Estadio Nacional · 20 Mar 2019”."""
+
+    def label_from_instance(self, event):
+        name = getattr(event, "headliner_name", "") or event.title
+        if event.title and event.title != name:
+            name = f"{name} ({event.title})"
+        details = " · ".join(
+            bit for bit in [event.venue.name if event.venue_id else "",
+                            f"{event.date.day} {event.date:%b %Y}" if event.date else "date not added"] if bit
+        )
+        return f"{name} — {details}"
+
+
 class FavoritesForm(BootstrapMixin, forms.Form):
     """Four optional slots for a user's favourite events."""
 
     def __init__(self, *args, events=None, **kwargs):
         super().__init__(*args, **kwargs)
-        events = events if events is not None else Event.objects.all()
+        if events is None:
+            events = favorite_choices()
         for i in range(1, FavoriteEvent.MAX + 1):
-            self.fields[f"slot_{i}"] = forms.ModelChoiceField(
+            self.fields[f"slot_{i}"] = EventChoiceField(
                 queryset=events, required=False, label=f"Favourite {i}", empty_label="—"
             )
             self.fields[f"slot_{i}"].widget.attrs["class"] = "form-select"

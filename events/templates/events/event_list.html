@@ -25,7 +25,7 @@
     </div>
     <div class="col-6 col-md">
       <label class="form-label small text-body-secondary mb-1" for="f-when">When</label>
-      <select class="form-select form-select-sm" id="f-when" name="when" onchange="this.form.submit()">
+      <select class="form-select form-select-sm" id="f-when" name="when" onchange="this.form.sort.selectedIndex = -1; this.form.submit()">
         {% for value, label in whens %}<option value="{{ value }}" {% if f.when == value %}selected{% endif %}>{{ label }}</option>{% endfor %}
       </select>
     </div>

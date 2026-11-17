@@ -33,14 +33,14 @@ from .models import (
 )
 
 SORTS = {
-    "newest": ("Newest first", [F("date").desc(nulls_last=True), "title"]),
-    "oldest": ("Oldest first", [F("date").asc(nulls_last=True), "title"]),
+    "newest": ("Latest date first", [F("date").desc(nulls_last=True), "title"]),
+    "oldest": ("Earliest date first", [F("date").asc(nulls_last=True), "title"]),
     "popular": ("Most logged", ["-log_count", F("date").desc(nulls_last=True)]),
     "rating": ("Highest rated", [F("avg_rating").desc(nulls_last=True), "-log_count"]),
 }
 WHEN = {"": "Any time", "upcoming": "Upcoming", "past": "Past"}
 from .roles import can_delete_event, can_edit_event, home_place, is_admin
-from .views_merge import suggestions_for
+from .views_merge import festival_suggestion, suggestions_for
 from .setlistfm import SetlistFmError, get_setlist, import_setlist, parse_event_date, search_setlists
 
 
@@ -115,9 +115,11 @@ def event_list(request: HttpRequest) -> HttpResponse:
     city = (request.GET.get("city") or "").strip()
     year = request.GET.get("year") or ""
     when = request.GET.get("when") or ""
-    sort = request.GET.get("sort") or "newest"
+    # Upcoming shows read best soonest-first; everything else newest-first.
+    default_sort = "oldest" if when == "upcoming" else "newest"
+    sort = request.GET.get("sort") or default_sort
     if sort not in SORTS:
-        sort = "newest"
+        sort = default_sort
 
     events = Event.objects.select_related("venue", "production")
     if event_type in EventType.values:
@@ -172,7 +174,9 @@ def event_detail(request: HttpRequest, pk: int) -> HttpResponse:
     event = get_object_or_404(
         Event.objects.with_stats().select_related("venue", "production"), pk=pk
     )
-    lineup = EventPerformer.objects.filter(event=event).select_related("performer")
+    lineup = EventPerformer.objects.filter(event=event).select_related("performer").order_by(
+        F("start_time").asc(nulls_last=True), "billing_order", "performer__name"
+    )
     setlists = event.setlists.select_related("performer").prefetch_related(
         Prefetch("entries", queryset=SetlistSong.objects.select_related("song"))
     )
@@ -198,6 +202,7 @@ def event_detail(request: HttpRequest, pk: int) -> HttpResponse:
             "can_edit": _can_edit(request.user, event),
             "can_delete": can_delete_event(request.user, event),
             "slot_suggestions": suggestions_for(request.user, event),
+            "festival_suggestion": festival_suggestion(request.user, event),
             "wanted": wanted,
             "my_lists": my_lists,
             "in_lists": in_lists[:5],
@@ -216,8 +221,12 @@ def production_detail(request: HttpRequest, pk: int) -> HttpResponse:
         "events/production_detail.html",
         {
             "production": production,
-            "events": production.events.with_stats().select_related("venue").order_by("date"),
+            "events": production.events.with_stats().select_related("venue")
+            .prefetch_related(Prefetch("eventperformer_set", queryset=EventPerformer.objects.select_related("performer")
+                                       .filter(role=EventPerformer.Role.HEADLINER)))
+            .order_by(F("date").asc(nulls_last=True)),
             "reviews": _reviews(logs),
+            "production_logs": logs,
             **stats,
         },
     )

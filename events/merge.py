@@ -41,7 +41,8 @@ def _move_lineup(keep: Event, remove: Event, role: str | None) -> None:
         if keep.eventperformer_set.filter(performer_id=link.performer_id).exists():
             continue
         EventPerformer.objects.create(
-            event=keep, performer_id=link.performer_id, role=role or link.role, billing_order=next_order
+            event=keep, performer_id=link.performer_id, role=role or link.role, billing_order=next_order,
+            start_time=link.start_time,
         )
         next_order += 1
 
@@ -116,8 +117,6 @@ def merge_events(keep: Event, remove: Event, *, mode: str) -> Event:
             setattr(keep, field, getattr(remove, field))
     if not keep.production_id and remove.production_id:
         keep.production_id = remove.production_id
-    if not keep.start_time and remove.start_time:
-        keep.start_time = remove.start_time
 
     keep.separate_from.add(*remove.separate_from.exclude(pk=keep.pk))
     remove.delete()

@@ -95,6 +95,7 @@ def profile(request: HttpRequest, username: str) -> HttpResponse:
             "favorites": favorites,
             "recent": recent,
             "reviews": reviews,
+            "owner_logs": Log.objects.filter(user=owner),
             "top_artists": Performer.objects.filter(events__logs__user=owner)
             .annotate(n=Count("events__logs", filter=Q(events__logs__user=owner), distinct=True))
             .order_by("-n", "name")[:5],

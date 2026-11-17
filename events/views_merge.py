@@ -98,3 +98,60 @@ def event_separate(request: HttpRequest, pk: int) -> HttpResponse:
     event.separate_from.add(other)
     messages.info(request, f"Got it: “{event.title}” and “{other.title}” are separate shows.")
     return redirect(event)
+
+
+# --------------------------------------------------------------------------- multi-day festivals
+
+FESTIVAL_DAY_WINDOW = 4  # days either side that can belong to the same festival edition
+
+
+def festival_days(event: Event):
+    """Other festival events at this venue within a few days that aren't grouped with it yet."""
+    from datetime import timedelta
+
+    from .models import EventType
+
+    if event.event_type != EventType.FESTIVAL or not (event.date and event.venue_id):
+        return Event.objects.none()
+    window = timedelta(days=FESTIVAL_DAY_WINDOW)
+    others = Event.objects.filter(
+        event_type=EventType.FESTIVAL,
+        venue_id=event.venue_id,
+        date__gte=event.date - window,
+        date__lte=event.date + window,
+    ).exclude(pk=event.pk).exclude(date=event.date)
+    if event.production_id:
+        others = others.exclude(production_id=event.production_id)
+    return others.order_by("date")
+
+
+def festival_suggestion(user, event: Event) -> dict | None:
+    days = list(festival_days(event))
+    if not days or not user.is_authenticated:
+        return None
+    if not (can_edit_event(user, event) or any(can_edit_event(user, d) for d in days)):
+        return None
+    existing = event.production or next((d.production for d in days if d.production_id), None)
+    return {"days": days, "name": existing.title if existing else event.title, "existing": existing}
+
+
+@login_required
+@require_POST
+def festival_group(request: HttpRequest, pk: int) -> HttpResponse:
+    """Group nearby festival days under one festival (a Production of type festival)."""
+    from .models import EventType, Production
+
+    event = get_object_or_404(Event, pk=pk)
+    suggestion = festival_suggestion(request.user, event)
+    if not suggestion:
+        raise PermissionDenied
+    festival = suggestion["existing"]
+    if not festival:
+        name = (request.POST.get("name") or "").strip()[:240] or event.title
+        festival = Production.objects.create(title=name, event_type=EventType.FESTIVAL)
+    for day in [event, *suggestion["days"]]:
+        if day.production_id != festival.pk:
+            day.production = festival
+            day.save()
+    messages.success(request, f"Grouped {len(suggestion['days']) + 1} days as “{festival.title}”.")
+    return redirect(festival)

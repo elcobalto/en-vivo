@@ -32,3 +32,24 @@ def is_admin(user) -> bool:
     from ..roles import is_admin as _is_admin
 
     return _is_admin(user)
+
+
+@register.inclusion_tag("events/_rating_histogram.html")
+def rating_histogram(logs, title: str = "Ratings", show_average: bool = False):
+    """Letterboxd-style bars for ½★ … ★★★★★ from a queryset of logs (ratings stored 1–10)."""
+    from django.db.models import Count
+
+    counts = dict(logs.exclude(rating=None).values_list("rating").annotate(n=Count("id")).values_list("rating", "n"))
+    total = sum(counts.values())
+    peak = max(counts.values(), default=0)
+    bars = [
+        {
+            "rating": r,
+            "label": stars(r),
+            "count": counts.get(r, 0),
+            "height": round(counts.get(r, 0) / peak * 100) if peak else 0,
+        }
+        for r in range(1, 11)
+    ]
+    average = sum(r * n for r, n in counts.items()) / total if total else None
+    return {"bars": bars, "total": total, "average": average, "title": title, "show_average": show_average}
