@@ -16,9 +16,21 @@
     <div class="col-12 col-md-6 order-3 order-md-2">
       <div class="mb-1"><span class="badge text-bg-secondary type-badge">{{ event.get_event_type_display }}</span></div>
       <h1 class="h3 fw-bold mb-1">{{ event.title }}</h1>
-      <div class="text-body-secondary mb-3">
-        {% if event.date %}{{ event.date|date:"l j F Y" }}{% if event.start_time %}, {{ event.start_time|time:"H:i" }}{% endif %}{% endif %}
-        {% if event.venue %} · <a href="{{ event.venue.get_absolute_url }}">{{ event.venue }}</a>{% endif %}
+      <div class="fs-5 text-body-secondary mb-3">
+        {% if event.venue %}
+          <a class="link-secondary link-underline-opacity-0 link-underline-opacity-75-hover" href="{{ event.venue.get_absolute_url }}">{{ event.venue.name }}</a>{% if event.venue.city %}, {{ event.venue.city }}{% endif %}
+        {% else %}
+          <span class="fst-italic opacity-50">Venue not added</span>
+        {% endif %}
+        <span class="opacity-50 mx-1">·</span>
+        {% if event.date %}
+          {{ event.date|date:"j F Y" }}{% if event.start_time %}, {{ event.start_time|time:"H:i" }}{% endif %}
+        {% else %}
+          <span class="fst-italic opacity-50">Date not added</span>
+        {% endif %}
+        {% if can_edit and not event.venue or can_edit and not event.date %}
+          <a class="small ms-2" href="{% url 'events:event_edit' event.pk %}">Add {% if not event.venue %}venue{% if not event.date %} &amp; date{% endif %}{% else %}date{% endif %}</a>
+        {% endif %}
       </div>
       {% if event.production %}
         <p class="small">Part of <a class="fw-semibold" href="{{ event.production.get_absolute_url }}">{{ event.production.title }}</a></p>

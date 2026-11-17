@@ -17,10 +17,13 @@ urlpatterns = [
     path("events/<int:pk>/setlist/import/", views.setlist_import, name="setlist_import"),
     path("productions/new/", views.production_create, name="production_create"),
     path("productions/<int:pk>/", views.production_detail, name="production_detail"),
+    path("productions/<int:pk>/edit/", views.production_edit, name="production_edit"),
     path("performers/new/", views.performer_create, name="performer_create"),
     path("performers/<int:pk>/", views.performer_detail, name="performer_detail"),
+    path("performers/<int:pk>/edit/", views.performer_edit, name="performer_edit"),
     path("venues/new/", views.venue_create, name="venue_create"),
     path("venues/<int:pk>/", views.venue_detail, name="venue_detail"),
+    path("venues/<int:pk>/edit/", views.venue_edit, name="venue_edit"),
     path("diary/", views.diary, name="diary"),
     path("u/<str:username>/diary/", views.diary, name="user_diary"),
     # Phase 2 — discovery

@@ -11,6 +11,7 @@
     <div class="col-12 col-md-6">
       <div class="mb-1"><span class="badge text-bg-secondary type-badge">{{ production.get_event_type_display }}</span></div>
       <h1 class="h3 fw-bold">{{ production.title }}</h1>
+      {% if user|is_admin %}<a class="btn btn-sm btn-outline-secondary mb-2" href="{% url 'events:production_edit' production.pk %}">Edit production</a>{% endif %}
       {% if production.description %}<p>{{ production.description|linebreaksbr }}</p>{% endif %}
       {% if user.is_authenticated %}<a class="btn btn-sm btn-outline-secondary" href="{% url 'events:event_create' %}?production={{ production.pk }}">+ Add a date</a>{% endif %}
     </div>

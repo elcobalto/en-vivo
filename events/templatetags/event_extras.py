@@ -24,3 +24,11 @@ def avg_stars(value) -> str:
     if value is None:
         return ""
     return f"{float(value) / 2:.1f}"
+
+
+@register.filter
+def is_admin(user) -> bool:
+    """{% if user|is_admin %} — members of the Admins group and superusers."""
+    from ..roles import is_admin as _is_admin
+
+    return _is_admin(user)

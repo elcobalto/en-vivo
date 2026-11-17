@@ -591,3 +591,92 @@ class SuperuserBootstrapTests(TestCase):
         self.assertTrue(boss.is_superuser and boss.is_staff)
         self.assertTrue(is_admin(boss))
         self.assertFalse(other.is_superuser)
+
+
+# --------------------------------------------------------------------------- catalog editing + event page polish
+
+
+class CatalogEditTests(BaseTestCase):
+    def setUp(self):
+        super().setUp()
+        self.performer = Performer.objects.create(name="Paul McCartny")
+        self.production = Production.objects.create(title="Got Back Tour")
+        self.admin = get_user_model().objects.create_user("mod", password="pw-test-000")
+        call_command("make_admin", "mod", stdout=open("/dev/null", "w"))
+
+    def test_regular_users_cannot_edit_catalog(self):
+        self.client.force_login(self.user)
+        for name, obj in [("performer", self.performer), ("venue", self.venue), ("production", self.production)]:
+            with self.subTest(name=name):
+                self.assertEqual(self.client.get(reverse(f"events:{name}_edit", args=[obj.pk])).status_code, 403)
+                self.assertNotContains(self.client.get(obj.get_absolute_url()), f"Edit {name}")
+
+    def test_admin_edits_performer_and_venue(self):
+        self.client.force_login(self.admin)
+        self.assertContains(self.client.get(self.performer.get_absolute_url()), "Edit performer")
+        response = self.client.post(
+            reverse("events:performer_edit", args=[self.performer.pk]), {"name": "Paul McCartney", "kind": "person"}
+        )
+        self.assertRedirects(response, self.performer.get_absolute_url())
+        self.performer.refresh_from_db()
+        self.assertEqual(self.performer.name, "Paul McCartney")
+
+        self.client.post(
+            reverse("events:venue_edit", args=[self.venue.pk]),
+            {"name": "Estadio Nacional", "city": "Santiago", "country": "CL"},
+        )
+        self.venue.refresh_from_db()
+        self.assertEqual(self.venue.name, "Estadio Nacional")
+
+
+class EventPagePolishTests(BaseTestCase):
+    def setUp(self):
+        super().setUp()
+        self.client.force_login(self.user)
+
+    def _payload(self, **extra):
+        data = {
+            "title": "", "event_type": "music", "date": "",
+            "eventperformer_set-TOTAL_FORMS": "0", "eventperformer_set-INITIAL_FORMS": "0",
+            "eventperformer_set-MIN_NUM_FORMS": "0", "eventperformer_set-MAX_NUM_FORMS": "1000",
+        }
+        data.update(extra)
+        return data
+
+    def test_new_venue_created_from_event_form(self):
+        self.client.post(reverse("events:event_create"), self._payload(
+            date="2026-03-20", new_venue_name="Estadio Nacional", new_venue_city="Santiago", new_venue_country="cl",
+        ))
+        event = Event.objects.get(venue__name="Estadio Nacional")
+        self.assertEqual(event.venue.country, "CL")
+        self.assertEqual(event.title, "Music event in Santiago, 20 Mar 2026")
+
+        # Same name + city again reuses the venue instead of duplicating it.
+        self.client.post(reverse("events:event_create"), self._payload(
+            new_venue_name="estadio nacional", new_venue_city="Santiago",
+        ))
+        self.assertEqual(Venue.objects.filter(name__iexact="estadio nacional").count(), 1)
+
+    def test_cannot_pick_and_add_venue_at_once(self):
+        page = self.client.post(reverse("events:event_create"), self._payload(
+            venue=str(self.venue.pk), new_venue_name="Other",
+        ))
+        self.assertContains(page, "not both")
+        self.assertEqual(Event.objects.count(), 1)
+
+    def test_detail_shows_venue_date_or_placeholders(self):
+        page = self.client.get(self.event.get_absolute_url())
+        self.assertContains(page, "Teatro Caupolicán</a>, Santiago")
+        self.assertContains(page, "10 November 1992")
+
+        bare = Event.objects.create(title="Paul McCartney", created_by=self.user)
+        page = self.client.get(bare.get_absolute_url())
+        self.assertContains(page, "Venue not added")
+        self.assertContains(page, "Date not added")
+        self.assertContains(page, "Add venue &amp; date")
+
+    def test_undated_events_appear_on_home(self):
+        Event.objects.create(title="Paul McCartney")
+        page = self.client.get(reverse("events:home"))
+        self.assertContains(page, "Just added")
+        self.assertContains(page, "Paul McCartney")

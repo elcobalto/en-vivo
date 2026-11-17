@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load event_extras %}
 
 {% block title %}{{ venue.name }} · En Vivo{% endblock %}
 
@@ -6,6 +7,7 @@
   <div class="mb-4">
     <div class="small text-body-secondary text-uppercase">Venue</div>
     <h1 class="h3 fw-bold">{{ venue.name }}</h1>
+    {% if user|is_admin %}<a class="btn btn-sm btn-outline-secondary mb-2" href="{% url 'events:venue_edit' venue.pk %}">Edit venue</a>{% endif %}
     <div class="text-body-secondary">
       {% if venue.address %}{{ venue.address }} · {% endif %}{{ venue.city }}{% if venue.region %}, {{ venue.region }}{% endif %}{% if venue.country %}, {{ venue.country }}{% endif %}
       {% if venue.capacity %} · Capacity {{ venue.capacity }}{% endif %}

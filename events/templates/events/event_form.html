@@ -11,14 +11,38 @@
         {{ form.non_field_errors }}
         <div class="row g-3">
           {% for field in form %}
+            {% if field.name|slice:":10" != "new_venue_" %}
             <div class="{% if field.name in 'title description image_url' %}col-12{% else %}col-12 col-md-6{% endif %}">
               <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
               {{ field }}
               {% if field.name == 'title' %}<div class="form-text">Optional. Leave blank and it becomes “Artist in City, date”, updating itself if the lineup, venue or date change.</div>{% endif %}
-              {% if field.name == 'venue' %}<div class="form-text"><a href="{% url 'events:venue_create' %}?next={{ request.get_full_path|urlencode }}">+ New venue</a></div>{% endif %}
+              {% if field.name == 'venue' %}<div class="form-text">Not in the list? Add it below.</div>{% endif %}
               {% if field.name == 'production' %}<div class="form-text">{{ field.help_text }} <a href="{% url 'events:production_create' %}?next={{ request.get_full_path|urlencode }}">+ New production</a></div>{% endif %}
               {% for error in field.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
             </div>
+            {% endif %}
+            {% if field.name == 'venue' %}
+              <div class="col-12">
+                <details {% if form.new_venue_name.value or form.new_venue_name.errors %}open{% endif %}>
+                  <summary class="small">+ Add a new venue</summary>
+                  <div class="row g-2 mt-1">
+                    <div class="col-12 col-md-6">
+                      <label class="form-label small" for="{{ form.new_venue_name.id_for_label }}">Venue name</label>
+                      {{ form.new_venue_name }}
+                      {% for error in form.new_venue_name.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
+                    </div>
+                    <div class="col-8 col-md-4">
+                      <label class="form-label small" for="{{ form.new_venue_city.id_for_label }}">City</label>
+                      {{ form.new_venue_city }}
+                    </div>
+                    <div class="col-4 col-md-2">
+                      <label class="form-label small" for="{{ form.new_venue_country.id_for_label }}">Country</label>
+                      {{ form.new_venue_country }}
+                    </div>
+                  </div>
+                </details>
+              </div>
+            {% endif %}
           {% endfor %}
         </div>
 

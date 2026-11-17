@@ -38,7 +38,7 @@ SORTS = {
     "rating": ("Highest rated", [F("avg_rating").desc(nulls_last=True), "-log_count"]),
 }
 WHEN = {"": "Any time", "upcoming": "Upcoming", "past": "Past"}
-from .roles import can_delete_event, can_edit_event
+from .roles import can_delete_event, can_edit_event, is_admin
 from .setlistfm import SetlistFmError, get_setlist, import_setlist, parse_event_date, search_setlists
 
 
@@ -74,6 +74,7 @@ def home(request: HttpRequest) -> HttpResponse:
         {
             "upcoming": events.filter(date__gte=today).order_by("date")[:6],
             "recent": events.filter(date__lt=today).order_by("-date")[:6],
+            "just_added": events.order_by("-created_at")[:6],
             "reviews": _reviews(Log.objects.exclude(review=""))[:6],
             "lists": EventList.objects.filter(items__isnull=False).select_related("user")
             .annotate(item_count=Count("items")).order_by("-updated_at")[:6],
@@ -278,6 +279,7 @@ def event_form(request: HttpRequest, pk: int | None = None) -> HttpResponse:
 
     if request.method == "POST" and form.is_valid() and formset.is_valid():
         with transaction.atomic():
+            form.create_new_venue()
             saved = form.save(commit=False)
             if not saved.created_by_id:
                 saved.created_by = request.user
@@ -322,6 +324,38 @@ def _simple_create(request: HttpRequest, form_class, title: str) -> HttpResponse
         "events/simple_form.html",
         {"form": form, "title": f"New {title.lower()}", "next": _safe_next(request, "")},
     )
+
+
+def _simple_edit(request: HttpRequest, model, pk: int, form_class, title: str) -> HttpResponse:
+    """Admins only: edit catalog data shared by every event (performers, venues, productions)."""
+    if not is_admin(request.user):
+        raise PermissionDenied
+    obj = get_object_or_404(model, pk=pk)
+    form = form_class(request.POST or None, instance=obj)
+    if request.method == "POST" and form.is_valid():
+        obj = form.save()
+        messages.success(request, f"{title} “{obj}” saved.")
+        return redirect(obj.get_absolute_url())
+    return render(
+        request,
+        "events/simple_form.html",
+        {"form": form, "title": f"Edit {title.lower()}", "next": obj.get_absolute_url()},
+    )
+
+
+@login_required
+def performer_edit(request: HttpRequest, pk: int) -> HttpResponse:
+    return _simple_edit(request, Performer, pk, PerformerForm, "Performer")
+
+
+@login_required
+def venue_edit(request: HttpRequest, pk: int) -> HttpResponse:
+    return _simple_edit(request, Venue, pk, VenueForm, "Venue")
+
+
+@login_required
+def production_edit(request: HttpRequest, pk: int) -> HttpResponse:
+    return _simple_edit(request, Production, pk, ProductionForm, "Production")
 
 
 @login_required

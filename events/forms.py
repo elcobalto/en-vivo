@@ -34,6 +34,12 @@ class BootstrapMixin:
 
 
 class EventForm(BootstrapMixin, forms.ModelForm):
+    new_venue_name = forms.CharField(label="New venue name", max_length=200, required=False)
+    new_venue_city = forms.CharField(label="City", max_length=120, required=False)
+    new_venue_country = forms.CharField(
+        label="Country code", max_length=2, required=False, widget=forms.TextInput(attrs={"placeholder": "CL"})
+    )
+
     class Meta:
         model = Event
         fields = [
@@ -68,6 +74,28 @@ class EventForm(BootstrapMixin, forms.ModelForm):
         title = (self.cleaned_data.get("title") or "").strip()
         self.instance.title_is_auto = not title
         return title
+
+    def clean(self):
+        cleaned = super().clean()
+        if cleaned.get("venue") and (cleaned.get("new_venue_name") or "").strip():
+            self.add_error("new_venue_name", "Pick an existing venue or add a new one, not both.")
+        if not (cleaned.get("new_venue_name") or "").strip() and (
+            (cleaned.get("new_venue_city") or "").strip() or (cleaned.get("new_venue_country") or "").strip()
+        ):
+            self.add_error("new_venue_name", "Add the new venue's name.")
+        return cleaned
+
+    def create_new_venue(self) -> Venue | None:
+        """Create the venue typed into the 'new venue' fields (call before save, inside a transaction)."""
+        name = (self.cleaned_data.get("new_venue_name") or "").strip()
+        if not name:
+            return None
+        city = (self.cleaned_data.get("new_venue_city") or "").strip()
+        venue = Venue.objects.filter(name__iexact=name, city__iexact=city).first() or Venue.objects.create(
+            name=name, city=city, country=(self.cleaned_data.get("new_venue_country") or "").strip().upper()
+        )
+        self.instance.venue = venue
+        return venue
 
 
 class EventPerformerForm(BootstrapMixin, forms.ModelForm):
