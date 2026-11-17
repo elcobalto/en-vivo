@@ -26,6 +26,7 @@
               <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
               {{ field }}
               {% if field.name == 'title' %}<div class="form-text">Optional. Leave blank to use the headliner's name; it follows changes to the lineup.</div>{% endif %}
+              {% if field.name == 'image_url' and event %}<div class="form-text"><a href="{% url 'events:event_photo' event.pk %}">Find a photo automatically</a></div>{% endif %}
               {% if field.name == 'production' %}<div class="form-text">{{ field.help_text }} <a href="{% url 'events:production_create' %}?next={{ request.get_full_path|urlencode }}">+ New production</a></div>{% endif %}
               {% for error in field.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
             </div>

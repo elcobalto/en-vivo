@@ -84,7 +84,7 @@ class Performer(TimestampedModel):
     name = models.CharField(max_length=200, db_index=True)
     kind = models.CharField(max_length=20, choices=Kind.choices, default=Kind.PERSON)
     bio = models.TextField(blank=True, default="")
-    image_url = models.URLField(blank=True, default="")
+    image_url = models.URLField(max_length=1000, blank=True, default="")
 
     # MusicBrainz id: what setlist.fm uses to identify artists.
     mbid = models.CharField("MusicBrainz ID", max_length=36, null=True, blank=True, unique=True)
@@ -105,7 +105,7 @@ class Production(TimestampedModel):
     title = models.CharField(max_length=240, db_index=True)
     event_type = models.CharField(max_length=20, choices=EventType.choices, default=EventType.MUSIC)
     description = models.TextField(blank=True, default="")
-    image_url = models.URLField(blank=True, default="")
+    image_url = models.URLField(max_length=1000, blank=True, default="")
 
     objects = LogStatsQuerySet.as_manager()
 
@@ -147,7 +147,7 @@ class Event(TimestampedModel):
     date = models.DateField(null=True, blank=True, db_index=True)
     start_time = models.TimeField(null=True, blank=True)
     description = models.TextField(blank=True, default="")
-    image_url = models.URLField(blank=True, default="")
+    image_url = models.URLField(max_length=1000, blank=True, default="")
 
     performers = models.ManyToManyField(Performer, through="EventPerformer", related_name="events")
 
@@ -199,6 +199,20 @@ class Event(TimestampedModel):
 
     def get_absolute_url(self) -> str:
         return reverse("events:event_detail", args=[self.pk])
+
+    @property
+    def has_happened(self) -> bool:
+        """Can it be logged yet? Undated events count as happened (many past shows lack a date)."""
+        from django.utils import timezone
+
+        return self.date is None or self.date <= timezone.localdate()
+
+    @property
+    def is_upcoming(self) -> bool:
+        """Dated today or later: the only events you can add to Want to go."""
+        from django.utils import timezone
+
+        return self.date is not None and self.date >= timezone.localdate()
 
     @property
     def is_music(self) -> bool:

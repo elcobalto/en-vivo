@@ -6,7 +6,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
 from django.db import transaction
-from django.db.models import Count, F, Max, Prefetch, Q
+from django.db.models import Count, Max, Prefetch, Q
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
@@ -40,7 +40,9 @@ def _lists_with_preview(qs):
 def want_to_go_toggle(request: HttpRequest, pk: int) -> HttpResponse:
     event = get_object_or_404(Event, pk=pk)
     deleted, _ = WantToGo.objects.filter(user=request.user, event=event).delete()
-    if not deleted:
+    if not deleted and not event.is_upcoming:
+        messages.error(request, "Want to go is only for upcoming events.")
+    elif not deleted:
         WantToGo.objects.create(user=request.user, event=event)
         messages.success(request, "Added to your Want to go.")
     else:
@@ -58,7 +60,7 @@ def user_want_to_go(request: HttpRequest, username: str) -> HttpResponse:
         {
             "owner": owner,
             "tab": "want",
-            "upcoming": wanted.filter(Q(date__gte=today) | Q(date__isnull=True)).order_by(F("date").asc(nulls_last=True)),
+            "upcoming": wanted.filter(date__gte=today).order_by("date"),
             "past": wanted.filter(date__lt=today).order_by("-date"),
         },
     )

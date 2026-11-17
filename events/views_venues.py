@@ -10,9 +10,9 @@ from django.http import HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_GET, require_POST
 
-from . import google_places, setlistfm_events
-from .models import Setlist, Venue
-from .roles import is_admin
+from . import google_places, image_search, setlistfm_events
+from .models import Event, Setlist, Venue
+from .roles import can_edit_event, is_admin
 from .setlistfm import SetlistFmError, _as_list, parse_event_date, search_setlists
 
 SEARCHES_PER_MINUTE = 60
@@ -93,7 +93,7 @@ def venue_link_place(request: HttpRequest, pk: int) -> HttpResponse:
     return redirect(venue)
 
 
-# --------------------------------------------------------------------------- admins: shows from setlist.fm
+# --------------------------------------------------------------------------- shows from setlist.fm (any logged-in user)
 
 MAX_IMPORTS_PER_REQUEST = 10  # each import ~1-2 s; keeps requests under the 30 s worker timeout
 
@@ -101,9 +101,6 @@ MAX_IMPORTS_PER_REQUEST = 10  # each import ~1-2 s; keeps requests under the 30 
 @login_required
 def setlistfm_shows(request: HttpRequest) -> HttpResponse:
     """Search setlist.fm and create music events (venue, tour, lineup, songs) from the results."""
-    if not is_admin(request.user):
-        raise PermissionDenied
-
     if request.method == "POST":
         ids = [i.strip() for i in request.POST.getlist("setlist_id") if i.strip()][:MAX_IMPORTS_PER_REQUEST]
         if not ids:
@@ -160,4 +157,55 @@ def setlistfm_shows(request: HttpRequest) -> HttpResponse:
         "events/setlistfm_shows.html",
         {"f": filters, "page": page, "results": results, "error": error,
          "max_imports": MAX_IMPORTS_PER_REQUEST},
+    )
+
+
+# --------------------------------------------------------------------------- "Find photo" for events
+
+PHOTO_SEARCHES_PER_HOUR = 30  # Google's free tier is ~100 searches/day for the whole site
+
+
+@login_required
+def event_photo(request: HttpRequest, pk: int) -> HttpResponse:
+    """Show image matches for an event and save the one the person picks."""
+    event = get_object_or_404(Event.objects.select_related("venue"), pk=pk)
+    if not can_edit_event(request.user, event):
+        raise PermissionDenied
+
+    if request.method == "POST":
+        url = (request.POST.get("url") or "").strip()
+        if not url.startswith("https://") or len(url) > 1000:
+            messages.error(request, "That photo can't be used (it needs a secure https link).")
+            return redirect("events:event_photo", pk=event.pk)
+        event.image_url = url
+        event.save(update_fields=["image_url", "updated_at"])
+        messages.success(request, "Photo updated.")
+        return redirect(event)
+
+    query = (request.GET.get("q") or image_search.default_query(event)).strip()[:200]
+    headliner = event.headliner if event.is_music else None
+    artist = headliner.name if headliner else ""
+
+    candidates, errors = [], []
+    key = f"photo-search:{request.user.pk}"
+    used = cache.get_or_set(key, 0, timeout=60 * 60)
+    if used >= PHOTO_SEARCHES_PER_HOUR:
+        errors.append("You've searched a lot in the last hour; try again later.")
+    elif query:
+        try:
+            cache.incr(key)
+        except ValueError:
+            cache.set(key, 1, timeout=60 * 60)
+        candidates, errors = image_search.find_candidates(query, artist)
+
+    return render(
+        request,
+        "events/event_photo.html",
+        {
+            "event": event,
+            "query": query,
+            "candidates": candidates,
+            "errors": errors,
+            "google_enabled": image_search.google_enabled(),
+        },
     )

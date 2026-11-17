@@ -50,6 +50,16 @@ Key setup (Google Cloud Console, same project as the OAuth client):
    from the server, never sent to browsers).
 3. Set a budget alert under Billing and, optionally, lower the daily quotas for Places API (New).
 
+### Event photos ("Find photo")
+
+People who can edit an event get a **Find photo** button: it shows image matches and saves the link
+of the one they pick. Sources: Google Images (optional, Custom Search JSON API), Deezer artist
+pictures and Wikimedia Commons (both free, no key). Searches are cached for a day and limited to
+30 per user per hour.
+
+To enable Google Images: create a Programmable Search Engine with image search on, enable the
+**Custom Search API** in Google Cloud, and set `GOOGLE_SEARCH_API_KEY` and `GOOGLE_SEARCH_ENGINE_ID`.
+
 ### Roles
 
 Every logged-in user can add events and edit the ones they created. Admins (the `Admins` group,

@@ -209,19 +209,40 @@ from .models import EventList, EventListItem, WantToGo  # noqa: E402
 
 class WantToGoTests(BaseTestCase):
     def test_toggle_and_profile_page(self):
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        upcoming = Event.objects.create(title="Next tour", date=timezone.localdate() + timedelta(days=60))
         self.client.force_login(self.user)
-        url = reverse("events:want_to_go_toggle", args=[self.event.pk])
+        url = reverse("events:want_to_go_toggle", args=[upcoming.pk])
         self.client.post(url)
-        self.assertTrue(WantToGo.objects.filter(user=self.user, event=self.event).exists())
-        page = self.client.get(self.event.get_absolute_url())
-        self.assertContains(page, "In your Want to go")
+        self.assertTrue(WantToGo.objects.filter(user=self.user, event=upcoming).exists())
+        self.assertContains(self.client.get(upcoming.get_absolute_url()), "In your Want to go")
 
-        # The 1992 show is in the past, so it appears under "Missed it".
         page = self.client.get(reverse("events:user_want_to_go", args=["ana"]))
-        self.assertContains(page, "Missed it")
-        self.assertContains(page, "Green Day in Chile")
+        self.assertContains(page, "Coming up")
+        self.assertContains(page, "Next tour")
 
         self.client.post(url)
+        self.assertFalse(WantToGo.objects.exists())
+
+    def test_past_and_undated_events_cannot_be_wanted(self):
+        self.client.force_login(self.user)
+        undated = Event.objects.create(title="Someday")
+        for event in [self.event, undated]:
+            with self.subTest(event=event.title):
+                self.assertNotContains(self.client.get(event.get_absolute_url()), "+ Want to go")
+                response = self.client.post(reverse("events:want_to_go_toggle", args=[event.pk]), follow=True)
+                self.assertContains(response, "only for upcoming events")
+        self.assertFalse(WantToGo.objects.exists())
+
+    def test_saved_event_that_already_happened_can_still_be_removed(self):
+        self.client.force_login(self.user)
+        WantToGo.objects.create(user=self.user, event=self.event)  # saved before the show
+        self.assertContains(self.client.get(self.event.get_absolute_url()), "Remove from Want to go")
+        self.assertContains(self.client.get(reverse("events:user_want_to_go", args=["ana"])), "Missed it")
+        self.client.post(reverse("events:want_to_go_toggle", args=[self.event.pk]))
         self.assertFalse(WantToGo.objects.exists())
 
     def test_toggle_requires_login(self):
@@ -931,11 +952,13 @@ class SetlistShowPageTests(BaseTestCase):
         self.admin = get_user_model().objects.create_user("mod", password="pw-test-000")
         call_command("make_admin", "mod", stdout=open("/dev/null", "w"))
 
-    def test_admins_only(self):
-        self.client.force_login(self.user)
-        self.assertEqual(self.client.get(reverse("events:setlistfm_shows")).status_code, 403)
-        self.assertNotContains(self.client.get(reverse("events:event_list")), "Import from setlist.fm")
+    def test_any_logged_in_user_can_import(self):
+        self.assertEqual(self.client.get(reverse("events:setlistfm_shows")).status_code, 302)  # anonymous
         self.assertNotContains(self.client.get(reverse("events:home")), "+ From setlist.fm")
+        self.client.force_login(self.user)  # regular user, not an admin
+        self.assertEqual(self.client.get(reverse("events:setlistfm_shows")).status_code, 200)
+        self.assertContains(self.client.get(reverse("events:home")), "+ From setlist.fm")
+        self.assertContains(self.client.get(reverse("events:event_list")), "Import from setlist.fm")
 
     @mock.patch("events.views_venues.search_setlists", return_value=[_setlist()])
     def test_search_then_import_selected(self, search):
@@ -1010,3 +1033,128 @@ class UsernameTests(BaseTestCase):
         from django.conf import settings
 
         self.assertEqual(settings.ACCOUNT_SIGNUP_REDIRECT_URL, "/settings/profile/?welcome=1")
+
+
+class FutureEventLogTests(BaseTestCase):
+    def setUp(self):
+        super().setUp()
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        self.today = timezone.localdate()
+        self.future = Event.objects.create(title="Next year's show", date=self.today + timedelta(days=30))
+        self.client.force_login(self.user)
+
+    def test_cannot_log_future_event(self):
+        response = self.client.post(reverse("events:log_save", args=[self.future.pk]), {"rating": "10"}, follow=True)
+        self.assertFalse(Log.objects.filter(event=self.future).exists())
+        self.assertContains(response, "hasn&#x27;t happened yet")
+
+    def test_future_event_page_hides_log_form(self):
+        page = self.client.get(self.future.get_absolute_url())
+        self.assertContains(page, "Coming up")
+        self.assertNotContains(page, "Log it</button>")
+        self.assertContains(page, "+ Want to go")
+
+    def test_today_past_and_undated_events_can_be_logged(self):
+        today = Event.objects.create(title="Tonight", date=self.today)
+        undated = Event.objects.create(title="Some old show")
+        for event in [today, undated, self.event]:
+            with self.subTest(event=event.title):
+                self.client.post(reverse("events:log_save", args=[event.pk]), {"rating": "8"})
+                self.assertTrue(Log.objects.filter(event=event, user=self.user).exists())
+
+
+# --------------------------------------------------------------------------- "Find photo"
+
+from django.core.cache import cache  # noqa: E402
+
+from . import image_search  # noqa: E402
+
+GOOGLE_IMAGES = {"items": [
+    {"link": "https://img.example/mccartney-2019.jpg", "title": "McCartney en el Nacional", "displayLink": "example.cl",
+     "image": {"thumbnailLink": "https://encrypted-tbn0.gstatic.com/x", "contextLink": "https://example.cl/nota"}},
+    {"link": "http://insecure.example/x.jpg", "image": {}},
+]}
+DEEZER_ARTISTS = {"data": [
+    {"name": "Paul McCartney", "picture_xl": "https://cdn.deezer.example/xl.jpg",
+     "picture_medium": "https://cdn.deezer.example/m.jpg", "link": "https://www.deezer.com/artist/1"},
+    {"name": "Paul McCartney Tribute", "picture_xl": "https://cdn.deezer.example/other.jpg"},
+]}
+COMMONS = {"query": {"pages": {"1": {"index": 1, "title": "File:Paul McCartney 2019.jpg", "imageinfo": [{
+    "thumburl": "https://upload.wikimedia.org/thumb/pm.jpg", "descriptionurl": "https://commons.wikimedia.org/wiki/File:PM.jpg",
+    "extmetadata": {"Artist": {"value": "<a href='x'>Jane Doe</a>"}, "LicenseShortName": {"value": "CC BY-SA 4.0"}}}]}}}}
+
+
+def _fake_get_json(url, params):
+    if "googleapis" in url:
+        return GOOGLE_IMAGES
+    if "deezer" in url:
+        return DEEZER_ARTISTS
+    return COMMONS
+
+
+@override_settings(GOOGLE_SEARCH_API_KEY="", GOOGLE_SEARCH_ENGINE_ID="")
+class FindPhotoTests(BaseTestCase):
+    def setUp(self):
+        super().setUp()
+        cache.clear()
+        self.event.created_by = self.user
+        self.event.save()
+        EventPerformer.objects.create(event=self.event, performer=Performer.objects.create(name="Paul McCartney"))
+        self.client.force_login(self.user)
+
+    def test_parsers(self):
+        with mock.patch("events.image_search._get_json", side_effect=_fake_get_json):
+            google = image_search.google_images("x")
+            deezer = image_search.deezer_artist_pictures("paul mccartney")
+            commons = image_search.commons_images("x")
+        self.assertEqual([c.url for c in google], ["https://img.example/mccartney-2019.jpg"])  # http dropped
+        self.assertEqual([c.url for c in deezer], ["https://cdn.deezer.example/xl.jpg"])  # exact name only
+        self.assertEqual(commons[0].credit, "Jane Doe · CC BY-SA 4.0")
+        self.assertEqual(commons[0].title, "Paul McCartney 2019.jpg")
+
+    @mock.patch("events.image_search._get_json", side_effect=_fake_get_json)
+    def test_picker_without_google_uses_free_sources(self, get_json):
+        page = self.client.get(reverse("events:event_photo", args=[self.event.pk]))
+        self.assertContains(page, "Google Images isn't set up yet")
+        self.assertContains(page, "Deezer")
+        self.assertContains(page, "Wikimedia Commons")
+        self.assertNotContains(page, "img.example")
+        called = [c.args[0] for c in get_json.call_args_list]
+        self.assertFalse(any("googleapis" in u for u in called))
+        self.assertEqual(page.context["query"], "Green Day in Chile Teatro Caupolicán 1992")
+
+    @override_settings(GOOGLE_SEARCH_API_KEY="k", GOOGLE_SEARCH_ENGINE_ID="cx")
+    @mock.patch("events.image_search._get_json", side_effect=_fake_get_json)
+    def test_picker_with_google_lists_google_first(self, _):
+        page = self.client.get(reverse("events:event_photo", args=[self.event.pk]), {"q": "mccartney nacional"})
+        self.assertEqual(page.context["candidates"][0]["source"], "Google")
+
+    def test_pick_saves_photo(self):
+        url = "https://img.example/" + "a" * 400 + ".jpg"  # long Google links fit
+        response = self.client.post(reverse("events:event_photo", args=[self.event.pk]), {"url": url})
+        self.assertRedirects(response, self.event.get_absolute_url())
+        self.event.refresh_from_db()
+        self.assertEqual(self.event.image_url, url)
+
+        self.client.post(reverse("events:event_photo", args=[self.event.pk]), {"url": "javascript:alert(1)"})
+        self.event.refresh_from_db()
+        self.assertEqual(self.event.image_url, url)
+
+    def test_only_people_who_can_edit(self):
+        other = get_user_model().objects.create_user("bob", password="pw-test-456")
+        self.client.force_login(other)
+        self.assertEqual(self.client.get(reverse("events:event_photo", args=[self.event.pk])).status_code, 403)
+        self.assertNotContains(self.client.get(self.event.get_absolute_url()), "Find photo")
+
+    @mock.patch("events.image_search._get_json", side_effect=image_search.ImageSearchError("error 503: down"))
+    def test_source_errors_are_shown_not_raised(self, _):
+        page = self.client.get(reverse("events:event_photo", args=[self.event.pk]))
+        self.assertEqual(page.status_code, 200)
+        self.assertContains(page, "error 503")
+
+    def test_event_page_offers_find_photo(self):
+        page = self.client.get(self.event.get_absolute_url())
+        self.assertContains(page, "Find photo")

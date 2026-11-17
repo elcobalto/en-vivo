@@ -1,5 +1,5 @@
 """
-Admins: create music events straight from setlist.fm setlists.
+Create music events straight from setlist.fm setlists (any logged-in user).
 
 One setlist becomes (or joins) an Event with its venue, tour (as a Production),
 headliner and songs. Existing data is reused whenever possible so imports never

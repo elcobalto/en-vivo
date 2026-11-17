@@ -7,9 +7,17 @@
   <div class="row g-4">
     <div class="col-5 col-md-3">
       <div class="poster position-relative">
-        {% if event.image_url %}<img src="{{ event.image_url }}" alt="" />{% endif %}
+        {% if event.image_url %}<img src="{{ event.image_url }}" alt="" referrerpolicy="no-referrer" />
+        {% elif can_edit %}
+          <a class="poster-placeholder text-decoration-none flex-column gap-1" href="{% url 'events:event_photo' event.pk %}">
+            <span class="fs-4">＋</span><span>Find photo</span>
+          </a>
+        {% else %}<div class="poster-placeholder">{{ event.get_event_type_display }}</div>{% endif %}
       </div>
-      {% if can_edit %}<a class="btn btn-sm btn-outline-secondary w-100 mt-2" href="{% url 'events:event_edit' event.pk %}">Edit event</a>{% endif %}
+      {% if can_edit %}
+        <a class="btn btn-sm {% if event.image_url %}btn-outline-secondary{% else %}btn-outline-warning{% endif %} w-100 mt-2" href="{% url 'events:event_photo' event.pk %}">{% if event.image_url %}Change photo{% else %}Find photo{% endif %}</a>
+        <a class="btn btn-sm btn-outline-secondary w-100 mt-2" href="{% url 'events:event_edit' event.pk %}">Edit event</a>
+      {% endif %}
       {% if can_delete %}<a class="btn btn-sm btn-outline-danger w-100 mt-2" href="{% url 'events:event_delete' event.pk %}">Delete event</a>{% endif %}
     </div>
 
@@ -90,7 +98,19 @@
 
       <div class="card">
         <div class="card-body">
-          {% if user.is_authenticated %}
+          {% if not event.has_happened %}
+            <h2 class="h6 mb-1">Coming up</h2>
+            <p class="small text-body-secondary mb-0">
+              This event hasn't happened yet. You can log and rate it from
+              <span class="event-date">{{ event.date|date:"j M Y" }}</span>.
+            </p>
+            {% if my_log %}
+              <form method="post" action="{% url 'events:log_delete' event.pk %}" class="mt-2">
+                {% csrf_token %}
+                <button class="btn btn-link btn-sm text-danger p-0" type="submit">Remove your early log</button>
+              </form>
+            {% endif %}
+          {% elif user.is_authenticated %}
             <h2 class="h6">{% if my_log %}Your log{% else %}I was there{% endif %}</h2>
             <form method="post" action="{% url 'events:log_save' event.pk %}">
               {% csrf_token %}
@@ -113,12 +133,19 @@
       </div>
 
       {% if user.is_authenticated %}
-        <form method="post" action="{% url 'events:want_to_go_toggle' event.pk %}" class="mt-3">
-          {% csrf_token %}
-          <button class="btn w-100 {% if wanted %}btn-info{% else %}btn-outline-info{% endif %}" type="submit">
-            {% if wanted %}✓ In your Want to go{% else %}+ Want to go{% endif %}
-          </button>
-        </form>
+        {% if event.is_upcoming %}
+          <form method="post" action="{% url 'events:want_to_go_toggle' event.pk %}" class="mt-3">
+            {% csrf_token %}
+            <button class="btn w-100 {% if wanted %}btn-info{% else %}btn-outline-info{% endif %}" type="submit">
+              {% if wanted %}✓ In your Want to go{% else %}+ Want to go{% endif %}
+            </button>
+          </form>
+        {% elif wanted %}
+          <form method="post" action="{% url 'events:want_to_go_toggle' event.pk %}" class="mt-3">
+            {% csrf_token %}
+            <button class="btn btn-link btn-sm w-100 text-body-secondary" type="submit">Remove from Want to go</button>
+          </form>
+        {% endif %}
 
         <div class="card mt-3">
           <div class="card-body">

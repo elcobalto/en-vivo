@@ -68,7 +68,7 @@
           </form>
           <div class="d-flex gap-2 text-nowrap">
             {% if user.is_authenticated %}
-              {% if user|is_admin %}<a class="btn btn-sm btn-outline-warning" href="{% url 'events:setlistfm_shows' %}" title="Admins: create events from setlist.fm">+ From setlist.fm</a>{% endif %}
+              <a class="btn btn-sm btn-outline-warning" href="{% url 'events:setlistfm_shows' %}" title="Create events from setlist.fm">+ From setlist.fm</a>
               <a class="btn btn-sm btn-success" href="{% url 'events:event_create' %}">+ Event</a>
               <a class="btn btn-sm btn-outline-light d-flex align-items-center gap-2" href="{% url 'events:profile' user.get_username %}">{% avatar user 20 %}{{ user|display_name }}</a>
               <form method="post" action="{% url 'logout' %}">

@@ -380,6 +380,11 @@ def production_create(request: HttpRequest) -> HttpResponse:
 @require_POST
 def log_save(request: HttpRequest, pk: int) -> HttpResponse:
     event = get_object_or_404(Event, pk=pk)
+    if not event.has_happened:
+        messages.error(
+            request, f"“{event.title}” hasn't happened yet. You can log it from {event.date.day} {event.date:%b %Y}."
+        )
+        return redirect(event)
     log = Log.objects.filter(user=request.user, event=event).first()
     form = LogForm(request.POST, instance=log)
     if form.is_valid():

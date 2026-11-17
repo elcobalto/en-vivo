@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+
+{% block title %}Find a photo · {{ event.title }} · En Vivo{% endblock %}
+
+{% block content %}
+  <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+    <h1 class="h4 m-0">Find a photo for “{{ event.title }}”</h1>
+    <a class="btn btn-sm btn-outline-secondary" href="{{ event.get_absolute_url }}">Back to event</a>
+  </div>
+  <p class="small text-body-secondary mb-3">
+    Pick the image that fits best: a poster, the artist, or the show itself.
+    {% if not google_enabled %}Google Images isn't set up yet, so results come from Deezer and Wikimedia Commons.{% endif %}
+  </p>
+
+  <form method="get" class="d-flex gap-2 mb-3">
+    <input class="form-control" type="search" name="q" value="{{ query }}" aria-label="Search for a photo" />
+    <button class="btn btn-primary" type="submit">Search</button>
+  </form>
+
+  {% for error in errors %}<div class="alert alert-warning py-2 small">{{ error }}</div>{% endfor %}
+
+  {% if candidates %}
+    <div class="row row-cols-2 row-cols-sm-3 row-cols-lg-5 g-3">
+      {% for c in candidates %}
+        <div class="col">
+          <form method="post" class="h-100 d-flex flex-column">
+            {% csrf_token %}
+            <input type="hidden" name="url" value="{{ c.url }}" />
+            <button class="btn p-0 border-0 text-start" type="submit" title="Use this photo">
+              <div class="poster position-relative"><img src="{{ c.thumb }}" alt="{{ c.title }}" loading="lazy" referrerpolicy="no-referrer" /></div>
+            </button>
+            <div class="small mt-1 d-flex align-items-center gap-1">
+              <span class="badge text-bg-secondary">{{ c.source }}</span>
+              {% if c.page %}<a class="text-body-secondary text-truncate" href="{{ c.page }}" target="_blank" rel="noreferrer">{{ c.credit|default:"source" }}</a>
+              {% else %}<span class="text-body-secondary text-truncate">{{ c.credit }}</span>{% endif %}
+            </div>
+            <button class="btn btn-sm btn-outline-success mt-1" type="submit">Use this photo</button>
+          </form>
+        </div>
+      {% endfor %}
+    </div>
+  {% elif query and not errors %}
+    <p class="text-body-secondary">No photos found. Try a shorter search, like just the artist's name.</p>
+  {% endif %}
+
+  <p class="small text-body-secondary mt-4">
+    Photos stay on their original site; En Vivo only saves the link. Make sure you're happy to use the image.
+    You can always paste your own link in <a href="{% url 'events:event_edit' event.pk %}">Edit event</a>.
+  </p>
+{% endblock %}
