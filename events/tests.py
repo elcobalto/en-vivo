@@ -320,7 +320,7 @@ class SearchAndBrowseTests(BaseTestCase):
         self.assertContains(page, "Green Day in Chile")
         self.assertContains(page, "Performers")
         self.assertContains(page, "Green Room Sessions")
-        self.assertContains(page, "Teatro Caupolicán", count=1)  # shown on the event card only
+        self.assertContains(page, "Teatro Caupolicán", count=2)  # event card only (text + hover title), not under Venues
         self.assertContains(self.client.get(reverse("events:search") + "?q=zzz"), "Nothing found")
 
     def _titles(self, query):
@@ -527,8 +527,13 @@ class AutoTitleTests(BaseTestCase):
         EventPerformer.objects.create(event=auto, performer=Performer.objects.create(name="Paul McCartney"))
         html = self.client.get(reverse("events:event_list")).content.decode()
         self.assertIn("Paul McCartney</a>", html)
-        self.assertIn("Teatro Caupolicán · 29 Mar 2019", html)
-        self.assertIn("Teatro Caupolicán · 10 Nov 1992", html)
+        # Date on its own line (never cut off), venue below it.
+        self.assertIn("29 Mar 2019", html)
+        self.assertIn("10 Nov 1992", html)
+        self.assertIn('title="Teatro Caupolicán">Teatro Caupolicán</div>', html)
+        undated = Event.objects.create(title="Someday")
+        self.assertContains(self.client.get(reverse("events:event_list")), "Date not added")
+        self.assertTrue(undated.pk)
         # Real posters are not covered by the title text.
         self.assertNotIn('class="poster-title"', html)
 
