@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+
+{% block title %}{{ owner.get_username }}'s Want to go · En Vivo{% endblock %}
+
+{% block content %}
+  {% include "events/_profile_nav.html" %}
+
+  <h2 class="section-title mb-3">Coming up</h2>
+  {% if upcoming %}
+    <div class="row row-cols-2 row-cols-sm-3 row-cols-lg-6 g-3 mb-5">
+      {% for event in upcoming %}<div class="col">{% include "events/_event_card.html" %}</div>{% endfor %}
+    </div>
+  {% else %}
+    <p class="text-body-secondary mb-5">Nothing upcoming yet.{% if owner == user %} Tap “Want to go” on any event to save it here.{% endif %}</p>
+  {% endif %}
+
+  {% if past %}
+    <h2 class="section-title mb-3">Missed it</h2>
+    <div class="row row-cols-2 row-cols-sm-3 row-cols-lg-6 g-3">
+      {% for event in past %}<div class="col">{% include "events/_event_card.html" %}</div>{% endfor %}
+    </div>
+  {% endif %}
+{% endblock %}

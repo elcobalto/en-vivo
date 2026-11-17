@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+
+{% block title %}{{ owner.get_username }} · {{ tab|capfirst }} · En Vivo{% endblock %}
+
+{% block content %}
+  {% include "events/_profile_nav.html" %}
+  {% for person in people %}{% include "events/_person_row.html" %}{% empty %}
+    <p class="text-body-secondary">{% if tab == 'followers' %}No followers yet.{% else %}Not following anyone yet. <a href="{% url 'events:people' %}">Find people</a>.{% endif %}</p>
+  {% endfor %}
+{% endblock %}

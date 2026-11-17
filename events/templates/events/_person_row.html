@@ -1,0 +1,19 @@
+{% load social %}
+<div class="d-flex align-items-center gap-3 py-2 border-bottom border-secondary-subtle">
+  <a href="{% url 'events:profile' person.get_username %}">{% avatar person 40 %}</a>
+  <div class="flex-grow-1">
+    <a class="fw-semibold" href="{% url 'events:profile' person.get_username %}">{{ person|display_name }}</a>
+    <div class="small text-body-secondary">@{{ person.get_username }} · {{ person.log_count }} event{{ person.log_count|pluralize }}</div>
+  </div>
+  {% if user.is_authenticated and user != person %}
+    <form method="post" action="{% url 'events:follow_toggle' person.get_username %}">
+      {% csrf_token %}
+      <input type="hidden" name="next" value="{{ request.get_full_path }}" />
+      {% if person.pk in following_ids %}
+        <button class="btn btn-sm btn-outline-light" type="submit">Following ✓</button>
+      {% else %}
+        <button class="btn btn-sm btn-success" type="submit">Follow</button>
+      {% endif %}
+    </form>
+  {% endif %}
+</div>

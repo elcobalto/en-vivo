@@ -1,0 +1,11 @@
+.DS_Store
+.venv/
+__pycache__/
+*.py[cod]
+db.sqlite3
+.env
+
+_backup/
+
+# Editor / tool logs
+*.log

@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% load socialaccount %}
+
+{% block title %}Login · En Vivo{% endblock %}
+
+{% block content %}
+  <div class="row justify-content-center">
+    <div class="col-12 col-md-7 col-lg-5">
+      <div class="card shadow-sm">
+        <div class="card-body">
+          <h1 class="h4 mb-3">Login</h1>
+
+          <form method="post" action="{% provider_login_url 'google' %}{% if next %}?next={{ next|urlencode }}{% endif %}">
+            {% csrf_token %}
+            <button class="btn btn-outline-dark w-100" type="submit">Continue with Google</button>
+          </form>
+
+          <div class="text-center text-muted small my-3">or use your username</div>
+
+          {% if form.errors %}
+            <div class="alert alert-danger">Invalid username or password.</div>
+          {% endif %}
+
+          <form method="post">
+            {% csrf_token %}
+
+            <div class="mb-3">
+              <label class="form-label" for="{{ form.username.id_for_label }}">Username</label>
+              {{ form.username }}
+            </div>
+
+            <div class="mb-3">
+              <label class="form-label" for="{{ form.password.id_for_label }}">Password</label>
+              {{ form.password }}
+            </div>
+
+            {% if next %}
+              <input type="hidden" name="next" value="{{ next }}" />
+            {% endif %}
+
+            <button class="btn btn-primary w-100" type="submit">Login</button>
+          </form>
+
+          <div class="text-muted small mt-3">
+            Tip: create a user via the Django admin, then login here.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock %}
+

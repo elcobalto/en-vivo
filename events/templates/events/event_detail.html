@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+{% load event_extras %}
+
+{% block title %}{{ event.title }} · En Vivo{% endblock %}
+
+{% block content %}
+  <div class="row g-4">
+    <div class="col-5 col-md-3">
+      <div class="poster position-relative">
+        {% if event.image_url %}<img src="{{ event.image_url }}" alt="" />{% endif %}
+      </div>
+      {% if can_edit %}<a class="btn btn-sm btn-outline-secondary w-100 mt-2" href="{% url 'events:event_edit' event.pk %}">Edit event</a>{% endif %}
+    </div>
+
+    <div class="col-12 col-md-6 order-3 order-md-2">
+      <div class="mb-1"><span class="badge text-bg-secondary type-badge">{{ event.get_event_type_display }}</span></div>
+      <h1 class="h3 fw-bold mb-1">{{ event.title }}</h1>
+      <div class="text-body-secondary mb-3">
+        {% if event.date %}{{ event.date|date:"l j F Y" }}{% if event.start_time %}, {{ event.start_time|time:"H:i" }}{% endif %}{% endif %}
+        {% if event.venue %} · <a href="{{ event.venue.get_absolute_url }}">{{ event.venue }}</a>{% endif %}
+      </div>
+      {% if event.production %}
+        <p class="small">Part of <a class="fw-semibold" href="{{ event.production.get_absolute_url }}">{{ event.production.title }}</a></p>
+      {% endif %}
+      {% if event.description %}<p>{{ event.description|linebreaksbr }}</p>{% endif %}
+
+      <h2 class="section-title mt-4 mb-2">Lineup</h2>
+      {% if lineup %}
+        <ul class="list-unstyled">
+          {% for link in lineup %}
+            <li class="mb-1"><a href="{{ link.performer.get_absolute_url }}">{{ link.performer.name }}</a> <span class="small text-body-secondary">{{ link.get_role_display }}</span></li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p class="small text-body-secondary">No performers added yet.</p>
+      {% endif %}
+
+      {% if event.is_music or setlists %}
+        <div class="d-flex align-items-center justify-content-between mt-4 mb-2">
+          <h2 class="section-title flex-grow-1 m-0">Setlist{{ setlists|length|pluralize }}</h2>
+          {% if user.is_authenticated and event.is_music %}
+            <a class="btn btn-sm btn-outline-secondary ms-2" href="{% url 'events:setlist_search' event.pk %}">Import from setlist.fm</a>
+          {% endif %}
+        </div>
+        {% for setlist in setlists %}
+          <div class="mb-3">
+            <div class="fw-semibold">{{ setlist.performer.name }}</div>
+            <ol class="mb-1">
+              {% for entry in setlist.entries.all %}
+                {% ifchanged entry.set_name %}{% if entry.set_name %}</ol><div class="small text-uppercase text-body-secondary mt-2">{{ entry.set_name }}</div><ol start="{{ entry.position }}" class="mb-1">{% endif %}{% endifchanged %}
+                <li>{{ entry.song.title }}{% if entry.note %} <span class="small text-body-secondary">({{ entry.note }})</span>{% endif %}</li>
+              {% endfor %}
+            </ol>
+            {% if setlist.source_url %}<a class="small" href="{{ setlist.source_url }}" target="_blank" rel="noreferrer">Source: setlist.fm</a>{% endif %}
+          </div>
+        {% empty %}
+          <p class="small text-body-secondary">No setlist yet.</p>
+        {% endfor %}
+      {% endif %}
+
+      <h2 class="section-title mt-4 mb-1">Reviews</h2>
+      {% for log in reviews %}{% include "events/_review.html" %}{% empty %}<p class="small text-body-secondary mt-2">No reviews yet.</p>{% endfor %}
+    </div>
+
+    <div class="col-7 col-md-3 order-2 order-md-3">
+      <div class="card mb-3">
+        <div class="card-body text-center">
+          {% if event.avg_rating %}
+            <div class="display-6 fw-bold">{{ event.avg_rating|avg_stars }}</div>
+            <div class="stars">{{ event.avg_rating|stars }}</div>
+          {% else %}
+            <div class="text-body-secondary small">No ratings yet</div>
+          {% endif %}
+          <div class="small text-body-secondary mt-1">{{ event.log_count }} log{{ event.log_count|pluralize }}</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-body">
+          {% if user.is_authenticated %}
+            <h2 class="h6">{% if my_log %}Your log{% else %}I was there{% endif %}</h2>
+            <form method="post" action="{% url 'events:log_save' event.pk %}">
+              {% csrf_token %}
+              <div class="mb-2">{{ log_form.rating }}</div>
+              <div class="form-check mb-2">{{ log_form.liked }} <label class="form-check-label" for="{{ log_form.liked.id_for_label }}">{{ log_form.liked.label }}</label></div>
+              <div class="mb-2">{{ log_form.review }}</div>
+              <div class="form-check mb-2">{{ log_form.contains_spoilers }} <label class="form-check-label small" for="{{ log_form.contains_spoilers.id_for_label }}">{{ log_form.contains_spoilers.label }}</label></div>
+              <button class="btn btn-success w-100" type="submit">{% if my_log %}Update{% else %}Log it{% endif %}</button>
+            </form>
+            {% if my_log %}
+              <form method="post" action="{% url 'events:log_delete' event.pk %}" class="mt-2">
+                {% csrf_token %}
+                <button class="btn btn-link btn-sm text-danger w-100" type="submit">Remove from diary</button>
+              </form>
+            {% endif %}
+          {% else %}
+            <a class="btn btn-success w-100" href="{% url 'login' %}?next={{ request.path|urlencode }}">Login to log this</a>
+          {% endif %}
+        </div>
+      </div>
+
+      {% if user.is_authenticated %}
+        <form method="post" action="{% url 'events:want_to_go_toggle' event.pk %}" class="mt-3">
+          {% csrf_token %}
+          <button class="btn w-100 {% if wanted %}btn-info{% else %}btn-outline-info{% endif %}" type="submit">
+            {% if wanted %}✓ In your Want to go{% else %}+ Want to go{% endif %}
+          </button>
+        </form>
+
+        <div class="card mt-3">
+          <div class="card-body">
+            <h2 class="h6">Add to a list</h2>
+            <form method="post" action="{% url 'events:list_add_event' event.pk %}">
+              {% csrf_token %}
+              {% if my_lists %}
+                <select class="form-select form-select-sm mb-2" name="list_id" aria-label="Your lists">
+                  {% for l in my_lists %}<option value="{{ l.pk }}">{{ l.title }}</option>{% endfor %}
+                </select>
+                <div class="small text-body-secondary mb-1">or a new list:</div>
+              {% endif %}
+              <input class="form-control form-control-sm mb-2" name="new_list_title" placeholder="New list title" {% if not my_lists %}required{% endif %} aria-label="New list title" />
+              <input class="form-control form-control-sm mb-2" name="note" placeholder="Note (optional)" maxlength="300" aria-label="Note" />
+              <button class="btn btn-sm btn-outline-light w-100" type="submit">Add</button>
+            </form>
+          </div>
+        </div>
+      {% endif %}
+
+      <div class="small text-body-secondary mt-3">
+        {% if want_count %}<div>{{ want_count }} want{{ want_count|pluralize:"s," }} to go</div>{% endif %}
+        {% if in_lists %}
+          <div class="mt-2">In {{ in_lists_count }} list{{ in_lists_count|pluralize }}:</div>
+          <ul class="list-unstyled mb-0">
+            {% for l in in_lists %}<li><a href="{{ l.get_absolute_url }}">{{ l.title }}</a> by {{ l.user.get_username }}</li>{% endfor %}
+          </ul>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+{% endblock %}

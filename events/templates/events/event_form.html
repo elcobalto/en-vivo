@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+
+{% block title %}{% if event %}Edit {{ event.title }}{% else %}New event{% endif %} · En Vivo{% endblock %}
+
+{% block content %}
+  <div class="row justify-content-center">
+    <div class="col-12 col-lg-8">
+      <h1 class="h4 mb-3">{% if event %}Edit event{% else %}New event{% endif %}</h1>
+      <form method="post" class="card"><div class="card-body">
+        {% csrf_token %}
+        {{ form.non_field_errors }}
+        <div class="row g-3">
+          {% for field in form %}
+            <div class="{% if field.name in 'title description image_url' %}col-12{% else %}col-12 col-md-6{% endif %}">
+              <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+              {{ field }}
+              {% if field.name == 'venue' %}<div class="form-text"><a href="{% url 'events:venue_create' %}?next={{ request.get_full_path|urlencode }}">+ New venue</a></div>{% endif %}
+              {% if field.name == 'production' %}<div class="form-text">{{ field.help_text }} <a href="{% url 'events:production_create' %}?next={{ request.get_full_path|urlencode }}">+ New production</a></div>{% endif %}
+              {% for error in field.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
+            </div>
+          {% endfor %}
+        </div>
+
+        <h2 class="section-title mt-4 mb-2">Lineup</h2>
+        <p class="small text-body-secondary">
+          Bands, artists, cast, comedians… <a href="{% url 'events:performer_create' %}?next={{ request.get_full_path|urlencode }}">+ New performer</a>
+          <span class="d-block">Tip: create any new venue, production or performer before filling this form.</span>
+        </p>
+        {{ formset.management_form }}
+        {{ formset.non_form_errors }}
+        {% for f in formset %}
+          <div class="row g-2 align-items-end mb-2">
+            {{ f.id }}
+            <div class="col-12 col-md-5">{% if forloop.first %}<label class="form-label small">Performer</label>{% endif %}{{ f.performer }}</div>
+            <div class="col-6 col-md-3">{% if forloop.first %}<label class="form-label small">Role</label>{% endif %}{{ f.role }}</div>
+            <div class="col-3 col-md-2">{% if forloop.first %}<label class="form-label small">Order</label>{% endif %}{{ f.billing_order }}</div>
+            <div class="col-3 col-md-2">{% if f.instance.pk %}<div class="form-check">{{ f.DELETE }} <label class="form-check-label small" for="{{ f.DELETE.id_for_label }}">Remove</label></div>{% endif %}</div>
+            {% for error in f.non_field_errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
+            {% for field in f %}{% for error in field.errors %}<div class="text-danger small">{{ field.label }}: {{ error }}</div>{% endfor %}{% endfor %}
+          </div>
+        {% endfor %}
+
+        <div class="d-flex gap-2 mt-4">
+          <button class="btn btn-success" type="submit">Save event</button>
+          <a class="btn btn-outline-secondary" href="{% if event %}{{ event.get_absolute_url }}{% else %}{% url 'events:event_list' %}{% endif %}">Cancel</a>
+        </div>
+      </div></form>
+    </div>
+  </div>
+{% endblock %}

@@ -1,0 +1,22 @@
+{% load event_extras social %}
+<div class="py-3 border-bottom border-secondary-subtle d-flex gap-3">
+  <a href="{% url 'events:profile' log.user.get_username %}" class="flex-shrink-0">{% avatar log.user 36 %}</a>
+  <div class="flex-grow-1">
+    <div class="small mb-1">
+      {% if show_event %}<a class="fw-semibold" href="{{ log.event.get_absolute_url }}">{{ log.event.title }}</a> · {% endif %}
+      Review by <a href="{% url 'events:profile' log.user.get_username %}">{{ log.user|display_name }}</a>
+      {% if log.rating %}<span class="stars ms-1">{{ log.rating|stars }}</span>{% endif %}
+      {% if log.liked %}<span class="liked ms-1" title="Liked">♥</span>{% endif %}
+    </div>
+    {% if log.review %}
+      {% if log.contains_spoilers %}
+        <details><summary class="text-warning small">This review contains spoilers</summary><div class="mt-2">{{ log.review|linebreaksbr }}</div></details>
+      {% else %}
+        <div>{{ log.review|linebreaksbr|truncatewords_html:80 }}</div>
+      {% endif %}
+      <a class="small text-body-secondary text-decoration-none d-inline-block mt-1" href="{% url 'events:review_detail' log.pk %}">
+        ♥ {{ log.like_count|default:0 }} like{{ log.like_count|default:0|pluralize }} · 💬 {{ log.comment_count|default:0 }} repl{{ log.comment_count|default:0|pluralize:"y,ies" }}
+      </a>
+    {% endif %}
+  </div>
+</div>

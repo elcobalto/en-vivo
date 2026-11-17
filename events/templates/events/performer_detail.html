@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% load event_extras %}
+
+{% block title %}{{ performer.name }} · En Vivo{% endblock %}
+
+{% block content %}
+  <div class="mb-4">
+    <div class="small text-body-secondary text-uppercase">{{ performer.get_kind_display }}</div>
+    <h1 class="h3 fw-bold">{{ performer.name }}</h1>
+    {% if avg_rating %}<div><span class="stars">{{ avg_rating|stars }}</span> <span class="small text-body-secondary">{{ avg_rating|avg_stars }} average from {{ log_count }} log{{ log_count|pluralize }}</span></div>{% endif %}
+    {% if performer.bio %}<p class="mt-2">{{ performer.bio|linebreaksbr }}</p>{% endif %}
+  </div>
+
+  <h2 class="section-title mb-3">Events</h2>
+  {% if events %}
+    <div class="row row-cols-2 row-cols-sm-3 row-cols-lg-6 g-3">
+      {% for event in events %}<div class="col">{% include "events/_event_card.html" %}</div>{% endfor %}
+    </div>
+  {% else %}
+    <p class="text-body-secondary">No events yet.</p>
+  {% endif %}
+{% endblock %}

@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% load event_extras %}
+
+{% block title %}{{ event_list.title }} · En Vivo{% endblock %}
+
+{% block content %}
+  <div class="mb-4">
+    <div class="small text-body-secondary">List by <a href="{% url 'events:user_lists' event_list.user.get_username %}">{{ event_list.user.get_username }}</a></div>
+    <h1 class="h3 fw-bold">{{ event_list.title }}</h1>
+    {% if event_list.description %}<p>{{ event_list.description|linebreaksbr }}</p>{% endif %}
+    {% if is_owner %}
+      <div class="d-flex gap-2">
+        <a class="btn btn-sm btn-outline-secondary" href="{% url 'events:list_edit' event_list.pk %}">Edit list</a>
+        <form method="post" action="{% url 'events:list_delete' event_list.pk %}" onsubmit="return confirm('Delete this list? This cannot be undone.');">
+          {% csrf_token %}<button class="btn btn-sm btn-outline-danger" type="submit">Delete list</button>
+        </form>
+      </div>
+    {% endif %}
+  </div>
+
+  {% for item in items %}
+    <div class="d-flex gap-3 align-items-start py-3 border-bottom border-secondary-subtle">
+      {% if event_list.is_ranked %}<div class="h4 text-body-secondary m-0" style="width:2.2rem">{{ item.position }}</div>{% endif %}
+      <a href="{{ item.event.get_absolute_url }}" style="width:70px" class="flex-shrink-0">
+        <div class="poster position-relative" style="padding:0">{% if item.event.image_url %}<img src="{{ item.event.image_url }}" alt="" loading="lazy" />{% endif %}</div>
+      </a>
+      <div class="flex-grow-1">
+        <a class="fw-semibold" href="{{ item.event.get_absolute_url }}">{{ item.event.title }}</a>
+        <div class="small text-body-secondary">
+          {{ item.event.get_event_type_display }}{% if item.event.date %} · {{ item.event.date|date:"j M Y" }}{% endif %}{% if item.event.venue %} · {{ item.event.venue.name }}{% endif %}
+        </div>
+        {% if item.note %}<div class="mt-1">{{ item.note }}</div>{% endif %}
+      </div>
+      {% if is_owner %}
+        <div class="d-flex gap-1">
+          {% if not forloop.first %}<form method="post" action="{% url 'events:list_item_move' event_list.pk item.pk %}">{% csrf_token %}<input type="hidden" name="direction" value="up" /><button class="btn btn-sm btn-outline-secondary" title="Move up" aria-label="Move up">↑</button></form>{% endif %}
+          {% if not forloop.last %}<form method="post" action="{% url 'events:list_item_move' event_list.pk item.pk %}">{% csrf_token %}<input type="hidden" name="direction" value="down" /><button class="btn btn-sm btn-outline-secondary" title="Move down" aria-label="Move down">↓</button></form>{% endif %}
+          <form method="post" action="{% url 'events:list_item_remove' event_list.pk item.pk %}">{% csrf_token %}<button class="btn btn-sm btn-outline-danger" title="Remove" aria-label="Remove">×</button></form>
+        </div>
+      {% endif %}
+    </div>
+  {% empty %}
+    <p class="text-body-secondary">This list is empty.{% if is_owner %} Open any event and use “Add to list”.{% endif %}</p>
+  {% endfor %}
+{% endblock %}

@@ -1,0 +1,51 @@
+from django.urls import path
+
+from . import views, views_discovery, views_social
+
+app_name = "events"
+
+urlpatterns = [
+    path("", views.home, name="home"),
+    path("events/", views.event_list, name="event_list"),
+    path("events/new/", views.event_form, name="event_create"),
+    path("events/<int:pk>/", views.event_detail, name="event_detail"),
+    path("events/<int:pk>/edit/", views.event_form, name="event_edit"),
+    path("events/<int:pk>/log/", views.log_save, name="log_save"),
+    path("events/<int:pk>/log/delete/", views.log_delete, name="log_delete"),
+    path("events/<int:pk>/setlist/", views.setlist_search, name="setlist_search"),
+    path("events/<int:pk>/setlist/import/", views.setlist_import, name="setlist_import"),
+    path("productions/new/", views.production_create, name="production_create"),
+    path("productions/<int:pk>/", views.production_detail, name="production_detail"),
+    path("performers/new/", views.performer_create, name="performer_create"),
+    path("performers/<int:pk>/", views.performer_detail, name="performer_detail"),
+    path("venues/new/", views.venue_create, name="venue_create"),
+    path("venues/<int:pk>/", views.venue_detail, name="venue_detail"),
+    path("diary/", views.diary, name="diary"),
+    path("u/<str:username>/diary/", views.diary, name="user_diary"),
+    # Phase 2 — discovery
+    path("search/", views_discovery.search, name="search"),
+    path("events/<int:pk>/want/", views_discovery.want_to_go_toggle, name="want_to_go_toggle"),
+    path("events/<int:pk>/add-to-list/", views_discovery.list_add_event, name="list_add_event"),
+    path("u/<str:username>/want-to-go/", views_discovery.user_want_to_go, name="user_want_to_go"),
+    path("u/<str:username>/lists/", views_discovery.user_lists, name="user_lists"),
+    path("lists/", views_discovery.list_index, name="list_index"),
+    path("lists/new/", views_discovery.list_form, name="list_create"),
+    path("lists/<int:pk>/", views_discovery.list_detail, name="list_detail"),
+    path("lists/<int:pk>/edit/", views_discovery.list_form, name="list_edit"),
+    path("lists/<int:pk>/delete/", views_discovery.list_delete, name="list_delete"),
+    path("lists/<int:pk>/items/<int:item_pk>/remove/", views_discovery.list_item_remove, name="list_item_remove"),
+    path("lists/<int:pk>/items/<int:item_pk>/move/", views_discovery.list_item_move, name="list_item_move"),
+    # Phase 3 — social
+    path("activity/", views_social.activity, name="activity"),
+    path("people/", views_social.people, name="people"),
+    path("settings/profile/", views_social.profile_edit, name="profile_edit"),
+    path("u/<str:username>/", views_social.profile, name="profile"),
+    path("u/<str:username>/reviews/", views_social.user_reviews, name="user_reviews"),
+    path("u/<str:username>/follow/", views_social.follow_toggle, name="follow_toggle"),
+    path("u/<str:username>/followers/", views_social.followers, name="followers"),
+    path("u/<str:username>/following/", views_social.following, name="following"),
+    path("reviews/<int:pk>/", views_social.review_detail, name="review_detail"),
+    path("reviews/<int:pk>/like/", views_social.review_like_toggle, name="review_like_toggle"),
+    path("reviews/<int:pk>/comments/", views_social.comment_add, name="comment_add"),
+    path("reviews/<int:pk>/comments/<int:comment_pk>/delete/", views_social.comment_delete, name="comment_delete"),
+]

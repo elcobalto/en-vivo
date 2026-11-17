@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% load event_extras social %}
+
+{% block title %}{{ log.user|display_name }}'s review of {{ log.event.title }} · En Vivo{% endblock %}
+
+{% block content %}
+  <div class="row g-4">
+    <div class="col-4 col-md-2">
+      <a href="{{ log.event.get_absolute_url }}" class="d-block">
+        <div class="poster position-relative">{% if log.event.image_url %}<img src="{{ log.event.image_url }}" alt="" />{% endif %}</div>
+      </a>
+    </div>
+    <div class="col-12 col-md-8">
+      <div class="d-flex align-items-center gap-2 mb-2">
+        {% avatar log.user 28 %}
+        <span class="small">Review by <a class="fw-semibold" href="{% url 'events:profile' log.user.get_username %}">{{ log.user|display_name }}</a></span>
+      </div>
+      <h1 class="h4 fw-bold mb-0"><a class="text-decoration-none" href="{{ log.event.get_absolute_url }}">{{ log.event.title }}</a></h1>
+      <div class="small text-body-secondary mb-2">
+        {{ log.event.get_event_type_display }}{% if log.event.date %} · {{ log.event.date|date:"j M Y" }}{% endif %}{% if log.event.venue %} · {{ log.event.venue.name }}{% endif %}
+      </div>
+      <div class="mb-3">
+        {% if log.rating %}<span class="stars fs-5">{{ log.rating|stars }}</span>{% endif %}
+        {% if log.liked %}<span class="liked ms-1 fs-5" title="Liked">♥</span>{% endif %}
+      </div>
+      {% if log.review %}
+        {% if log.contains_spoilers %}
+          <details><summary class="text-warning">This review contains spoilers</summary><div class="mt-2 fs-6">{{ log.review|linebreaksbr }}</div></details>
+        {% else %}
+          <div class="fs-6">{{ log.review|linebreaksbr }}</div>
+        {% endif %}
+      {% else %}
+        <p class="text-body-secondary">No written review.</p>
+      {% endif %}
+
+      <div class="d-flex align-items-center gap-3 mt-3">
+        {% if user.is_authenticated %}
+          <form method="post" action="{% url 'events:review_like_toggle' log.pk %}">
+            {% csrf_token %}
+            <button class="btn btn-sm {% if liked %}btn-danger{% else %}btn-outline-danger{% endif %}" type="submit">♥ {% if liked %}Liked{% else %}Like review{% endif %}</button>
+          </form>
+        {% endif %}
+        <span class="small text-body-secondary">{{ log.like_count }} like{{ log.like_count|pluralize }}</span>
+        {% if likers %}<span class="d-flex gap-1">{% for u in likers %}<a href="{% url 'events:profile' u.get_username %}" title="{{ u|display_name }}">{% avatar u 22 %}</a>{% endfor %}</span>{% endif %}
+      </div>
+
+      <h2 class="section-title mt-5 mb-1">{{ log.comment_count }} repl{{ log.comment_count|pluralize:"y,ies" }}</h2>
+      {% for comment in comments %}
+        <div class="d-flex gap-2 py-3 border-bottom border-secondary-subtle">
+          {% avatar comment.user 28 %}
+          <div class="flex-grow-1">
+            <div class="small"><a class="fw-semibold" href="{% url 'events:profile' comment.user.get_username %}">{{ comment.user|display_name }}</a> <span class="text-body-secondary">· {{ comment.created_at|timesince }} ago</span></div>
+            <div>{{ comment.body|linebreaksbr }}</div>
+          </div>
+          {% if user.pk == comment.user_id or user.pk == log.user_id %}
+            <form method="post" action="{% url 'events:comment_delete' log.pk comment.pk %}">
+              {% csrf_token %}<button class="btn btn-sm btn-link text-danger p-0" type="submit" title="Delete reply" aria-label="Delete reply">×</button>
+            </form>
+          {% endif %}
+        </div>
+      {% endfor %}
+
+      {% if user.is_authenticated %}
+        <form method="post" action="{% url 'events:comment_add' log.pk %}" class="mt-3">
+          {% csrf_token %}
+          {{ comment_form.body }}
+          <button class="btn btn-sm btn-success mt-2" type="submit">Post reply</button>
+        </form>
+      {% else %}
+        <p class="small mt-3"><a href="{% url 'login' %}?next={{ request.path|urlencode }}">Log in</a> to reply.</p>
+      {% endif %}
+    </div>
+  </div>
+{% endblock %}

@@ -1,0 +1,13 @@
+{% load event_extras %}
+<a class="text-decoration-none d-block" href="{{ event.get_absolute_url }}">
+  <div class="poster position-relative">
+    {% if event.image_url %}<img src="{{ event.image_url }}" alt="" loading="lazy" />{% endif %}
+    <div class="poster-title">{{ event.title }}</div>
+  </div>
+</a>
+<div class="small mt-1">
+  <span class="badge text-bg-secondary type-badge">{{ event.get_event_type_display }}</span>
+  {% if event.date %}<span class="text-body-secondary">{{ event.date|date:"j M Y" }}</span>{% endif %}
+</div>
+{% if event.venue %}<div class="small text-body-secondary text-truncate">{{ event.venue.name }}{% if event.venue.city %}, {{ event.venue.city }}{% endif %}</div>{% endif %}
+{% if event.avg_rating %}<div class="small"><span class="stars">{{ event.avg_rating|stars }}</span> <span class="text-body-secondary">· {{ event.log_count }}</span></div>{% endif %}

@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% load event_extras %}
+
+{% block title %}{{ owner.get_username }}'s diary · En Vivo{% endblock %}
+
+{% block content %}
+  {% include "events/_profile_nav.html" %}
+  <div class="d-flex flex-wrap justify-content-end gap-3 mb-4">
+    <div class="d-flex gap-4 text-center">
+      <div><div class="h4 m-0">{{ log_count }}</div><div class="small text-body-secondary">Events</div></div>
+      {% if avg_rating %}<div><div class="h4 m-0">{{ avg_rating|avg_stars }}</div><div class="small text-body-secondary">Avg rating</div></div>{% endif %}
+      {% for label, n in by_type %}<div><div class="h4 m-0">{{ n }}</div><div class="small text-body-secondary">{{ label }}</div></div>{% endfor %}
+    </div>
+  </div>
+
+  {% if logs %}
+    <div class="table-responsive">
+      <table class="table table-hover align-middle">
+        <thead><tr class="small text-body-secondary"><th>Date</th><th>Event</th><th>Type</th><th>Rating</th><th></th><th>Review</th></tr></thead>
+        <tbody>
+          {% for log in logs %}
+            {% ifchanged log.event.date.year %}<tr><td colspan="6" class="section-title pt-4">{{ log.event.date.year|default:"Undated" }}</td></tr>{% endifchanged %}
+            <tr>
+              <td class="text-nowrap small">{{ log.event.date|date:"j M"|default:"—" }}</td>
+              <td><a class="fw-semibold" href="{{ log.event.get_absolute_url }}">{{ log.event.title }}</a>{% if log.event.venue %}<div class="small text-body-secondary">{{ log.event.venue.name }}</div>{% endif %}</td>
+              <td class="small">{{ log.event.get_event_type_display }}</td>
+              <td class="stars">{{ log.rating|stars }}</td>
+              <td>{% if log.liked %}<span class="liked">♥</span>{% endif %}</td>
+              <td class="small">{% if log.review %}{% if log.contains_spoilers %}<span class="text-warning">Spoilers</span>{% else %}{{ log.review|truncatewords:14 }}{% endif %}{% endif %}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <p class="text-body-secondary">No events logged yet.{% if owner == user %} <a href="{% url 'events:event_list' %}">Find an event you went to</a> and log it.{% endif %}</p>
+  {% endif %}
+{% endblock %}

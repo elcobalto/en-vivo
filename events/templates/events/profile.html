@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% load event_extras %}
+
+{% block title %}{{ owner.get_username }} · En Vivo{% endblock %}
+
+{% block content %}
+  {% include "events/_profile_nav.html" %}
+
+  <h2 class="section-title mb-3">Favourite events</h2>
+  {% if favorites %}
+    <div class="row row-cols-2 row-cols-md-4 g-3 mb-5">
+      {% for fav in favorites %}{% with event=fav.event %}<div class="col">{% include "events/_event_card.html" %}</div>{% endwith %}{% endfor %}
+    </div>
+  {% else %}
+    <p class="text-body-secondary mb-5">
+      No favourites yet.{% if user == owner %} <a href="{% url 'events:profile_edit' %}">Pick up to four</a>.{% endif %}
+    </p>
+  {% endif %}
+
+  <div class="d-flex justify-content-between align-items-end mb-3">
+    <h2 class="section-title flex-grow-1 m-0">Recent activity</h2>
+    <a class="small ms-2" href="{% url 'events:user_diary' owner.get_username %}">Diary →</a>
+  </div>
+  {% if recent %}
+    <div class="row row-cols-3 row-cols-md-6 g-3 mb-5">
+      {% for log in recent %}
+        <div class="col">
+          <a class="text-decoration-none d-block" href="{{ log.event.get_absolute_url }}">
+            <div class="poster position-relative">{% if log.event.image_url %}<img src="{{ log.event.image_url }}" alt="" loading="lazy" />{% endif %}<div class="poster-title">{{ log.event.title }}</div></div>
+          </a>
+          <div class="small"><span class="stars">{{ log.rating|stars }}</span>{% if log.liked %} <span class="liked">♥</span>{% endif %}</div>
+        </div>
+      {% endfor %}
+    </div>
+  {% else %}
+    <p class="text-body-secondary mb-5">Nothing logged yet.</p>
+  {% endif %}
+
+  {% if reviews %}
+    <div class="d-flex justify-content-between align-items-end mb-1">
+      <h2 class="section-title flex-grow-1 m-0">Recent reviews</h2>
+      <a class="small ms-2" href="{% url 'events:user_reviews' owner.get_username %}">All reviews →</a>
+    </div>
+    {% for log in reviews %}{% include "events/_review.html" with show_event=True %}{% endfor %}
+  {% endif %}
+{% endblock %}

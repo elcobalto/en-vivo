@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+
+{% block title %}Edit profile · En Vivo{% endblock %}
+
+{% block content %}
+  <div class="row justify-content-center">
+    <div class="col-12 col-md-9 col-lg-7">
+      <h1 class="h4 mb-3">Edit profile</h1>
+      <form method="post" class="card"><div class="card-body">
+        {% csrf_token %}
+        {% for field in form %}
+          <div class="mb-3">
+            <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+            {{ field }}
+            {% for error in field.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
+          </div>
+        {% endfor %}
+
+        <h2 class="section-title mt-4 mb-2">Favourite events</h2>
+        <p class="small text-body-secondary">Up to four, shown at the top of your profile in this order.</p>
+        {% for error in favorites_form.non_field_errors %}<div class="alert alert-danger py-2">{{ error }}</div>{% endfor %}
+        <div class="row g-2">
+          {% for field in favorites_form %}
+            <div class="col-12 col-sm-6">
+              <label class="form-label small" for="{{ field.id_for_label }}">{{ field.label }}</label>
+              {{ field }}
+            </div>
+          {% endfor %}
+        </div>
+
+        <div class="d-flex gap-2 mt-4">
+          <button class="btn btn-success" type="submit">Save profile</button>
+          <a class="btn btn-outline-secondary" href="{% url 'events:profile' user.get_username %}">Cancel</a>
+        </div>
+      </div></form>
+    </div>
+  </div>
+{% endblock %}
