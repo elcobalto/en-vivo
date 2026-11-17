@@ -158,6 +158,9 @@ class Event(TimestampedModel):
         blank=True,
         related_name="events_created",
     )
+    # Events at the same venue and date that someone confirmed are different shows
+    # (so we stop suggesting to merge them).
+    separate_from = models.ManyToManyField("self", symmetrical=True, blank=True)
 
     objects = EventQuerySet.as_manager()
 
@@ -181,6 +184,17 @@ class Event(TimestampedModel):
         Falls back to the production's title, then to “Music event”, “Comedy event”…
         """
         headliner = self.headliner if self.pk else None
+        if self.pk and self.event_type == EventType.FESTIVAL and not self.production_id:
+            names = list(
+                self.eventperformer_set.filter(role=EventPerformer.Role.HEADLINER)
+                .order_by("billing_order", "performer__name")
+                .values_list("performer__name", flat=True)[:4]
+            )
+            if len(names) > 1:
+                # “Green Day & Foo Fighters”, “A, B & C”, “A, B, C & more”
+                shown = names[:3]
+                tail = "more" if len(names) > 3 else shown.pop()
+                return f"{', '.join(shown)} & {tail}"[:240]
         if headliner:
             title = headliner.name
         elif self.production_id:

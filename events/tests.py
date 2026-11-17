@@ -1158,3 +1158,101 @@ class FindPhotoTests(BaseTestCase):
     def test_event_page_offers_find_photo(self):
         page = self.client.get(self.event.get_absolute_url())
         self.assertContains(page, "Find photo")
+
+
+# --------------------------------------------------------------------------- same venue, same day
+
+from .merge import merge_events  # noqa: E402
+from .models import Comment, ReviewLike  # noqa: E402, F811
+
+
+class SameSlotTests(BaseTestCase):
+    def setUp(self):
+        super().setUp()
+        self.green_day = Performer.objects.create(name="Green Day")
+        self.foo = Performer.objects.create(name="Foo Fighters")
+        self.opener = Performer.objects.create(name="Opener Band")
+        self.a = Event.objects.create(title="", venue=self.venue, date=date(2019, 3, 20), created_by=self.user)
+        EventPerformer.objects.create(event=self.a, performer=self.green_day)
+        self.b = Event.objects.create(title="", venue=self.venue, date=date(2019, 3, 20), created_by=self.user,
+                                      image_url="https://img.example/foo.jpg")
+        EventPerformer.objects.create(event=self.b, performer=self.foo)
+        EventPerformer.objects.create(event=self.b, performer=self.opener, role="support", billing_order=2)
+        self.a.refresh_from_db()
+        self.b.refresh_from_db()
+
+    def test_page_suggests_merging(self):
+        self.client.force_login(self.user)
+        page = self.client.get(self.b.get_absolute_url())
+        self.assertContains(page, "Same venue, same day")
+        self.assertContains(page, "Make it one festival")
+        self.assertContains(page, "Foo Fighters opened for Green Day")
+        self.assertContains(page, "Green Day opened for Foo Fighters")
+
+    def test_no_suggestion_for_visitors_other_days_or_separate_shows(self):
+        self.assertNotContains(self.client.get(self.b.get_absolute_url()), "Same venue, same day")
+        self.client.force_login(self.user)
+        other_day = Event.objects.create(title="Other day", venue=self.venue, date=date(2019, 3, 21))
+        self.assertNotContains(self.client.get(other_day.get_absolute_url()), "Same venue, same day")
+
+        self.client.post(reverse("events:event_separate", args=[self.b.pk]), {"other": self.a.pk})
+        self.assertNotContains(self.client.get(self.b.get_absolute_url()), "Same venue, same day")
+        self.assertNotContains(self.client.get(self.a.get_absolute_url()), "Same venue, same day")
+
+    def test_festival_merge_moves_everything(self):
+        bob = get_user_model().objects.create_user("bob", password="pw-test-456")
+        log_a = Log.objects.create(user=bob, event=self.a, rating=8)
+        log_b = Log.objects.create(user=bob, event=self.b, review="Both were great")
+        Comment.objects.create(user=self.user, log=log_b, body="Agreed")
+        ReviewLike.objects.create(user=self.user, log=log_b)
+        Log.objects.create(user=self.user, event=self.b, rating=10)
+        WantToGo.objects.create(user=bob, event=self.b)
+        event_list = EventList.objects.create(user=bob, title="2019")
+        EventListItem.objects.create(event_list=event_list, event=self.a, position=1)
+        EventListItem.objects.create(event_list=event_list, event=self.b, position=2)
+
+        kept = merge_events(self.a, self.b, mode="festival")
+        self.assertFalse(Event.objects.filter(pk=self.b.pk).exists())
+        self.assertEqual(kept.event_type, EventType.FESTIVAL)
+        self.assertEqual(kept.title, "Green Day & Foo Fighters")  # kept event's headliner billed first
+        self.assertEqual(kept.image_url, "https://img.example/foo.jpg")
+        roles = dict(kept.eventperformer_set.values_list("performer__name", "role"))
+        self.assertEqual(roles, {"Green Day": "headliner", "Foo Fighters": "headliner", "Opener Band": "support"})
+
+        bob_log = Log.objects.get(user=bob, event=kept)  # one entry, gaps filled
+        self.assertEqual((bob_log.rating, bob_log.review), (8, "Both were great"))
+        self.assertEqual(bob_log.pk, log_a.pk)
+        self.assertEqual(bob_log.comments.count(), 1)
+        self.assertEqual(bob_log.likes.count(), 1)
+        self.assertTrue(Log.objects.filter(user=self.user, event=kept, rating=10).exists())
+        self.assertTrue(WantToGo.objects.filter(user=bob, event=kept).exists())
+        self.assertEqual(list(event_list.items.values_list("event_id", "position")), [(kept.pk, 1)])
+
+    def test_support_merge_from_the_page(self):
+        self.client.force_login(self.user)
+        response = self.client.post(
+            reverse("events:event_merge", args=[self.b.pk]), {"other": self.a.pk, "action": "this_supports_other"}
+        )
+        self.assertRedirects(response, self.a.get_absolute_url())
+        self.assertFalse(Event.objects.filter(pk=self.b.pk).exists())
+        roles = dict(self.a.eventperformer_set.values_list("performer__name", "role"))
+        self.assertEqual(roles["Green Day"], "headliner")
+        self.assertEqual(roles["Foo Fighters"], "support")
+        self.a.refresh_from_db()
+        self.assertEqual(self.a.title, "Green Day")
+
+    def test_cannot_merge_away_someone_elses_event(self):
+        bob = get_user_model().objects.create_user("bob", password="pw-test-456")
+        self.client.force_login(bob)
+        # bob's own event at the same slot: he may fold it into ours, not ours into his.
+        mine = Event.objects.create(title="", venue=self.venue, date=date(2019, 3, 20), created_by=bob)
+        response = self.client.post(
+            reverse("events:event_merge", args=[mine.pk]), {"other": self.a.pk, "action": "other_supports_this"}
+        )
+        self.assertEqual(response.status_code, 403)
+        self.assertTrue(Event.objects.filter(pk=self.a.pk).exists())
+        page = self.client.get(mine.get_absolute_url())
+        self.assertNotContains(page, "Green Day opened for")
+        self.client.post(reverse("events:event_merge", args=[mine.pk]), {"other": self.a.pk, "action": "festival"})
+        self.assertFalse(Event.objects.filter(pk=mine.pk).exists())  # his event merged into ours
+        self.assertEqual(Event.objects.get(pk=self.a.pk).event_type, EventType.FESTIVAL)

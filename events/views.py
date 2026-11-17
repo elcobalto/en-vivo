@@ -40,6 +40,7 @@ SORTS = {
 }
 WHEN = {"": "Any time", "upcoming": "Upcoming", "past": "Past"}
 from .roles import can_delete_event, can_edit_event, is_admin
+from .views_merge import suggestions_for
 from .setlistfm import SetlistFmError, get_setlist, import_setlist, parse_event_date, search_setlists
 
 
@@ -182,6 +183,7 @@ def event_detail(request: HttpRequest, pk: int) -> HttpResponse:
             "log_form": LogForm(instance=my_log),
             "can_edit": _can_edit(request.user, event),
             "can_delete": can_delete_event(request.user, event),
+            "slot_suggestions": suggestions_for(request.user, event),
             "wanted": wanted,
             "my_lists": my_lists,
             "in_lists": in_lists[:5],
