@@ -1256,3 +1256,19 @@ class SameSlotTests(BaseTestCase):
         self.client.post(reverse("events:event_merge", args=[mine.pk]), {"other": self.a.pk, "action": "festival"})
         self.assertFalse(Event.objects.filter(pk=mine.pk).exists())  # his event merged into ours
         self.assertEqual(Event.objects.get(pk=self.a.pk).event_type, EventType.FESTIVAL)
+
+
+class EventPhotoProportionsTests(BaseTestCase):
+    def test_event_page_shows_full_photo_cards_stay_uniform(self):
+        self.event.image_url = "https://img.example/wide.jpg"
+        self.event.save()
+        page = self.client.get(self.event.get_absolute_url()).content.decode()
+        self.assertIn('class="event-photo" src="https://img.example/wide.jpg"', page)
+        listing = self.client.get(reverse("events:event_list")).content.decode()
+        self.assertIn('<div class="poster position-relative">', listing)  # cards keep the poster crop
+
+
+class HomeOrderTests(BaseTestCase):
+    def test_recently_happened_comes_before_just_added(self):
+        html = self.client.get(reverse("events:home")).content.decode()
+        self.assertLess(html.index("Recently happened"), html.index("Just added"))

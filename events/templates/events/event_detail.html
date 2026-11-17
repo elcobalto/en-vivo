@@ -6,14 +6,20 @@
 {% block content %}
   <div class="row g-4">
     <div class="col-5 col-md-3">
-      <div class="poster position-relative">
-        {% if event.image_url %}<img src="{{ event.image_url }}" alt="" referrerpolicy="no-referrer" />
-        {% elif can_edit %}
-          <a class="poster-placeholder text-decoration-none flex-column gap-1" href="{% url 'events:event_photo' event.pk %}">
-            <span class="fs-4">＋</span><span>Find photo</span>
-          </a>
-        {% else %}<div class="poster-placeholder">{{ event.get_event_type_display }}</div>{% endif %}
-      </div>
+      {% if event.image_url %}
+        {# Full photo in its own proportions (cards elsewhere crop to a uniform poster shape). #}
+        <a href="{{ event.image_url }}" target="_blank" rel="noreferrer" title="Open full size">
+          <img class="event-photo" src="{{ event.image_url }}" alt="{{ event.title }}" referrerpolicy="no-referrer" />
+        </a>
+      {% else %}
+        <div class="poster position-relative">
+          {% if can_edit %}
+            <a class="poster-placeholder text-decoration-none flex-column gap-1" href="{% url 'events:event_photo' event.pk %}">
+              <span class="fs-4">＋</span><span>Find photo</span>
+            </a>
+          {% else %}<div class="poster-placeholder">{{ event.get_event_type_display }}</div>{% endif %}
+        </div>
+      {% endif %}
       {% if can_edit %}
         <a class="btn btn-sm {% if event.image_url %}btn-outline-secondary{% else %}btn-outline-warning{% endif %} w-100 mt-2" href="{% url 'events:event_photo' event.pk %}">{% if event.image_url %}Change photo{% else %}Find photo{% endif %}</a>
         <a class="btn btn-sm btn-outline-secondary w-100 mt-2" href="{% url 'events:event_edit' event.pk %}">Edit event</a>
