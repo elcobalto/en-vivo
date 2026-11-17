@@ -44,7 +44,7 @@ if user_signed_up is not None:
 
 from django.db.models.signals import post_delete  # noqa: E402
 
-from .models import Event, EventPerformer, Venue  # noqa: E402
+from .models import Event, EventPerformer  # noqa: E402
 
 
 @receiver(post_save, sender=EventPerformer)
@@ -53,13 +53,6 @@ def refresh_title_after_lineup_change(sender, instance, **kwargs):
     event = Event.objects.filter(pk=instance.event_id, title_is_auto=True).first()
     if event:
         event.refresh_auto_title()
-
-
-@receiver(post_save, sender=Venue)
-def refresh_titles_after_venue_change(sender, instance, created, **kwargs):
-    if not created:
-        for event in Event.objects.filter(venue=instance, title_is_auto=True):
-            event.refresh_auto_title()
 
 
 # --------------------------------------------------------------------------- bootstrap superusers

@@ -60,8 +60,8 @@ python manage.py make_admin <username>
 python manage.py make_admin <username> --remove
 ```
 
-Event titles are optional: a blank title becomes “Artist in Venue, date” and updates itself when the
-lineup, venue or date change.
+Event titles are optional: a blank title becomes the headliner's name and updates itself when the
+lineup changes. Venue and date are always shown next to the title.
 
 ### Environment
 

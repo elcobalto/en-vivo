@@ -131,7 +131,7 @@ class Event(TimestampedModel):
         max_length=240,
         db_index=True,
         blank=True,
-        help_text="Optional. Leave blank to use “Artist in Venue, date”.",
+        help_text="Optional. Leave blank to use the headliner's name.",
     )
     # True when the title was generated from lineup/venue/date and should follow their changes.
     title_is_auto = models.BooleanField(default=False, editable=False)
@@ -176,27 +176,21 @@ class Event(TimestampedModel):
         super().save(*args, **kwargs)
 
     def build_auto_title(self) -> str:
-        """“Green Day in Estadio Nacional, 10 Nov 2010”, falling back gracefully when parts are missing."""
+        """The headliner's name (venue and date are shown next to the title, not in it).
+
+        Falls back to the production's title, then to “Music event”, “Comedy event”…
+        """
         headliner = self.headliner if self.pk else None
         if headliner:
-            who = headliner.name
+            title = headliner.name
         elif self.production_id:
-            who = self.production.title
+            title = self.production.title
         else:
-            who = f"{self.get_event_type_display()} event"
-
-        title = who
-        venue = self.venue if self.venue_id else None
-        # The venue's name reads best; the city is only a fallback.
-        place = (venue.name or venue.city) if venue else ""
-        if place:
-            title += f" in {place}"
-        if self.date:
-            title += f", {self.date.day} {self.date:%b %Y}"
+            title = f"{self.get_event_type_display()} event"
         return title[:240]
 
     def refresh_auto_title(self) -> None:
-        """Recompute a generated title after its lineup or venue changed."""
+        """Recompute a generated title after its lineup changed."""
         if self.title_is_auto:
             new_title = self.build_auto_title()
             if new_title != self.title:

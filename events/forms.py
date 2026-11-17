@@ -65,7 +65,7 @@ class EventForm(BootstrapMixin, forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["title"].required = False
-        placeholder = "Leave blank for “Artist in Venue, date”"
+        placeholder = "Leave blank to use the headliner's name"
         if self.instance.pk and self.instance.title_is_auto:
             # Keep generated titles blank in the form so they keep following lineup/venue/date.
             self.initial["title"] = ""

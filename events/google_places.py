@@ -32,6 +32,17 @@ class PlacesError(Exception):
     pass
 
 
+# Google's machine-readable reasons, with the fix in Google Cloud Console.
+REASON_HINTS = {
+    "SERVICE_DISABLED": "enable “Places API (New)” in this key's project",
+    "API_KEY_SERVICE_BLOCKED": "the key's API restrictions don't include “Places API (New)”",
+    "BILLING_DISABLED": "link a billing account to the project",
+    "API_KEY_INVALID": "the key is wrong or was deleted",
+    "API_KEY_HTTP_REFERRER_BLOCKED": "remove the website restriction; this key is used by the server",
+    "API_KEY_IP_ADDRESS_BLOCKED": "remove the IP restriction; Render's outgoing IPs change",
+}
+
+
 def enabled() -> bool:
     return bool(getattr(settings, "GOOGLE_PLACES_API_KEY", ""))
 
@@ -64,11 +75,16 @@ def _call(method: str, path: str, *, body: dict | None = None, field_mask: str |
                      context=_ssl_context()) as resp:
             return json.loads(resp.read().decode("utf-8") or "{}")
     except HTTPError as e:
+        message, reason = "", ""
         try:
-            message = json.loads(e.read().decode("utf-8")).get("error", {}).get("message", "")
+            error = json.loads(e.read().decode("utf-8")).get("error", {})
+            message = error.get("message", "")
+            # e.g. SERVICE_DISABLED, API_KEY_SERVICE_BLOCKED, BILLING_DISABLED
+            reason = next((d.get("reason") for d in error.get("details") or [] if d.get("reason")), "")
         except Exception:
-            message = ""
-        raise PlacesError(f"Google Places error {e.code}: {message or e.reason}") from e
+            pass
+        hint = f" ({reason}{': ' + REASON_HINTS[reason] if reason in REASON_HINTS else ''})" if reason else ""
+        raise PlacesError(f"Google Places error {e.code}: {message or e.reason}{hint}") from e
     except URLError as e:
         raise PlacesError(f"Google Places request failed: {e.reason}") from e
 

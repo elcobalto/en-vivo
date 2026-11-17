@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from datetime import date
 from unittest import mock
 
@@ -482,56 +483,54 @@ from .roles import ADMINS_GROUP, is_admin  # noqa: E402
 
 
 class AutoTitleTests(BaseTestCase):
-    def test_blank_title_builds_artist_venue_date(self):
+    def test_blank_title_is_the_headliners_name(self):
         event = Event.objects.create(title="", venue=self.venue, date=date(2010, 11, 10))
         self.assertTrue(event.title_is_auto)
-        self.assertEqual(event.title, "Music event in Teatro Caupolicán, 10 Nov 2010")
+        self.assertEqual(event.title, "Music event")
 
         green_day = Performer.objects.create(name="Green Day")
         EventPerformer.objects.create(event=event, performer=green_day)
         event.refresh_from_db()
-        self.assertEqual(event.title, "Green Day in Teatro Caupolicán, 10 Nov 2010")
+        self.assertEqual(event.title, "Green Day")
 
+        # The venue and date stay out of the title.
         self.venue.name = "Estadio Nacional"
         self.venue.save()
         event.refresh_from_db()
-        self.assertEqual(event.title, "Green Day in Estadio Nacional, 10 Nov 2010")
+        self.assertEqual(event.title, "Green Day")
 
-    def test_city_is_fallback_when_venue_has_no_name(self):
-        nameless = Venue.objects.create(name="", city="Ñuñoa")
-        event = Event.objects.create(title="", venue=nameless)
-        self.assertEqual(event.title, "Music event in Ñuñoa")
+    def test_production_is_fallback_without_lineup(self):
+        event = Event.objects.create(title="", production=Production.objects.create(title="Hamilton"))
+        self.assertEqual(event.title, "Hamilton")
 
-    def test_migration_rebuilds_old_city_titles(self):
+    def test_migration_shortens_old_auto_titles(self):
         import importlib
 
         from django.apps import apps
 
         event = Event.objects.create(title="", venue=self.venue, date=date(2019, 3, 29))
         EventPerformer.objects.create(event=event, performer=Performer.objects.create(name="Paul McCartney"))
-        Event.objects.filter(pk=event.pk).update(title="Paul McCartney in Santiago, 29 Mar 2019")
+        Event.objects.filter(pk=event.pk).update(title="Paul McCartney in Estadio Nacional, 29 Mar 2019")
         custom = Event.objects.create(title="My own title", venue=self.venue)
 
-        migration = importlib.import_module("events.migrations.0007_auto_title_uses_venue_name")
-        migration.rebuild_auto_titles(apps, None)
+        migration = importlib.import_module("events.migrations.0009_auto_title_headliner_only")
+        migration.headliner_only_titles(apps, None)
 
         event.refresh_from_db()
         custom.refresh_from_db()
-        self.assertEqual(event.title, "Paul McCartney in Teatro Caupolicán, 29 Mar 2019")
+        self.assertEqual(event.title, "Paul McCartney")
         self.assertEqual(custom.title, "My own title")
 
-    def test_card_skips_venue_date_already_in_auto_title(self):
+    def test_card_shows_title_then_venue_and_date(self):
         auto = Event.objects.create(title="", venue=self.venue, date=date(2019, 3, 29),
                                     image_url="https://example.com/poster.jpg")
-        page = self.client.get(reverse("events:event_list"))
-        html = page.content.decode()
-        self.assertIn("Music event in Teatro Caupolicán, 29 Mar 2019", html)
-        # Custom-titled events still get the venue/date line; the auto one doesn't repeat it.
+        EventPerformer.objects.create(event=auto, performer=Performer.objects.create(name="Paul McCartney"))
+        html = self.client.get(reverse("events:event_list")).content.decode()
+        self.assertIn("Paul McCartney</a>", html)
+        self.assertIn("Teatro Caupolicán · 29 Mar 2019", html)
         self.assertIn("Teatro Caupolicán · 10 Nov 1992", html)
-        self.assertNotIn("Teatro Caupolicán · 29 Mar 2019", html)
-        # Real posters are no longer covered by the title text.
+        # Real posters are not covered by the title text.
         self.assertNotIn('class="poster-title"', html)
-        self.assertTrue(auto.title_is_auto)
 
     def test_custom_title_is_kept(self):
         self.assertFalse(self.event.title_is_auto)
@@ -555,10 +554,10 @@ class AutoTitleTests(BaseTestCase):
         }
         self.client.post(reverse("events:event_create"), data)
         event = Event.objects.get(performers=performer)
-        self.assertEqual(event.title, "Bill Burr in Teatro Caupolicán, 1 Dec 2026")
+        self.assertEqual(event.title, "Bill Burr")
 
         page = self.client.get(reverse("events:event_edit", args=[event.pk]))
-        self.assertContains(page, "Automatic: Bill Burr in Teatro Caupolicán, 1 Dec 2026")
+        self.assertContains(page, "Automatic: Bill Burr")
 
         link = event.eventperformer_set.get()
         edit = dict(data, date="2026-12-02", **{
@@ -567,7 +566,7 @@ class AutoTitleTests(BaseTestCase):
         })
         self.client.post(reverse("events:event_edit", args=[event.pk]), edit)
         event.refresh_from_db()
-        self.assertEqual(event.title, "Bill Burr in Teatro Caupolicán, 2 Dec 2026")
+        self.assertEqual(event.title, "Bill Burr")
 
         self.client.post(reverse("events:event_edit", args=[event.pk]), dict(edit, title="Burr Live"))
         event.refresh_from_db()
@@ -685,7 +684,7 @@ class EventPagePolishTests(BaseTestCase):
         ))
         event = Event.objects.get(venue__name="Estadio Nacional")
         self.assertEqual(event.venue.country, "CL")
-        self.assertEqual(event.title, "Music event in Estadio Nacional, 20 Mar 2026")
+        self.assertEqual(event.title, "Music event")
 
         # Same name + city again reuses the venue instead of duplicating it.
         self.client.post(reverse("events:event_create"), self._payload(
@@ -807,7 +806,7 @@ class GooglePlacesTests(BaseTestCase):
         self.venue.refresh_from_db()
         event.refresh_from_db()
         self.assertEqual(self.venue.city, "Ñuñoa")
-        self.assertEqual(event.title, "Music event in Estadio Nacional Julio Martínez Prádanos, 29 Mar 2019")
+        self.assertEqual(event.title, "Music event")
 
     def test_google_errors_are_reported_not_raised(self):
         with mock.patch("events.google_places.autocomplete",
@@ -821,3 +820,20 @@ class GooglePlacesTests(BaseTestCase):
         self.assertContains(page, "venue-search.js")
         page = self.client.get(reverse("events:venue_create"))
         self.assertContains(page, 'data-mode="create"')
+
+
+class PlacesErrorDetailTests(TestCase):
+    @override_settings(GOOGLE_PLACES_API_KEY="test-key")
+    def test_error_includes_google_reason_and_fix(self):
+        import io
+        from urllib.error import HTTPError
+
+        body = json.dumps({"error": {"code": 403, "message": "Permission denied on the service.",
+                                     "details": [{"@type": "type.googleapis.com/google.rpc.ErrorInfo",
+                                                  "reason": "API_KEY_SERVICE_BLOCKED"}]}}).encode()
+        error = HTTPError("https://places.googleapis.com", 403, "Forbidden", {}, io.BytesIO(body))
+        with mock.patch("events.google_places.urlopen", side_effect=error):
+            with self.assertRaises(google_places.PlacesError) as ctx:
+                google_places.autocomplete("estadio", "s1")
+        self.assertIn("API_KEY_SERVICE_BLOCKED", str(ctx.exception))
+        self.assertIn("API restrictions", str(ctx.exception))
