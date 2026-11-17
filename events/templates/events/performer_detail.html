@@ -4,12 +4,26 @@
 {% block title %}{{ performer.name }} · En Vivo{% endblock %}
 
 {% block content %}
-  <div class="mb-4">
+  <div class="d-flex flex-wrap gap-4 align-items-start mb-4">
+  <div style="width:180px" class="flex-shrink-0">
+    {% if performer.image_url %}
+      <img class="event-photo" src="{{ performer.image_url }}" alt="{{ performer.name }}" referrerpolicy="no-referrer" />
+      {% if user|is_admin %}<a class="btn btn-sm btn-outline-secondary w-100 mt-2" href="{% url 'events:performer_photo' performer.pk %}">Change photo</a>{% endif %}
+    {% else %}
+      <div class="poster position-relative">
+        {% if user.is_authenticated %}
+          <a class="poster-placeholder text-decoration-none flex-column gap-1" href="{% url 'events:performer_photo' performer.pk %}"><span class="fs-4">＋</span><span>Find photo</span></a>
+        {% else %}<div class="poster-placeholder">{{ performer.get_kind_display }}</div>{% endif %}
+      </div>
+    {% endif %}
+  </div>
+  <div class="flex-grow-1">
     <div class="small text-body-secondary text-uppercase">{{ performer.get_kind_display }}</div>
     <h1 class="h3 fw-bold">{{ performer.name }}</h1>
     {% if user|is_admin %}<a class="btn btn-sm btn-outline-secondary mb-2" href="{% url 'events:performer_edit' performer.pk %}">Edit performer</a>{% endif %}
     {% if avg_rating %}<div><span class="stars">{{ avg_rating|stars }}</span> <span class="small text-body-secondary">{{ avg_rating|avg_stars }} average from {{ log_count }} log{{ log_count|pluralize }}</span></div>{% endif %}
     {% if performer.bio %}<p class="mt-2">{{ performer.bio|linebreaksbr }}</p>{% endif %}
+  </div>
   </div>
 
   <h2 class="section-title mb-3">Events</h2>

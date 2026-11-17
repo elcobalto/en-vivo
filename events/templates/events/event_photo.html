@@ -1,14 +1,14 @@
 {% extends "base.html" %}
 
-{% block title %}Find a photo · {{ event.title }} · En Vivo{% endblock %}
+{% block title %}Find a photo · {{ subject_title }} · En Vivo{% endblock %}
 
 {% block content %}
   <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
-    <h1 class="h4 m-0">Find a photo for “{{ event.title }}”</h1>
-    <a class="btn btn-sm btn-outline-secondary" href="{{ event.get_absolute_url }}">Back to event</a>
+    <h1 class="h4 m-0">Find a photo for “{{ subject_title }}”</h1>
+    <a class="btn btn-sm btn-outline-secondary" href="{{ back_url }}">Back</a>
   </div>
   <p class="small text-body-secondary mb-3">
-    Pick the image that fits best: a poster, the artist, or the show itself.
+    {{ hint }}
     {% if not google_enabled %}Google Images isn't set up yet, so results come from Deezer and Wikimedia Commons.{% endif %}
   </p>
 
@@ -45,6 +45,6 @@
 
   <p class="small text-body-secondary mt-4">
     Photos stay on their original site; En Vivo only saves the link. Make sure you're happy to use the image.
-    You can always paste your own link in <a href="{% url 'events:event_edit' event.pk %}">Edit event</a>.
+    {% if edit_url %}You can always paste your own link in <a href="{{ edit_url }}">the edit page</a>.{% endif %}
   </p>
 {% endblock %}

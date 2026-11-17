@@ -10,7 +10,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
 from django.db import transaction
-from django.db.models import Count
+from django.db.models import Count, Q
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
@@ -23,7 +23,9 @@ from .models import (
     FavoriteEvent,
     Follow,
     Log,
+    Performer,
     Profile,
+    Venue,
     ReviewLike,
     WantToGo,
 )
@@ -93,6 +95,12 @@ def profile(request: HttpRequest, username: str) -> HttpResponse:
             "favorites": favorites,
             "recent": recent,
             "reviews": reviews,
+            "top_artists": Performer.objects.filter(events__logs__user=owner)
+            .annotate(n=Count("events__logs", filter=Q(events__logs__user=owner), distinct=True))
+            .order_by("-n", "name")[:5],
+            "top_venues": Venue.objects.filter(events__logs__user=owner)
+            .annotate(n=Count("events__logs", filter=Q(events__logs__user=owner), distinct=True))
+            .order_by("-n", "name")[:5],
         },
     )
 

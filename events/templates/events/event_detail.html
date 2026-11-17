@@ -6,10 +6,10 @@
 {% block content %}
   <div class="row g-4">
     <div class="col-5 col-md-3">
-      {% if event.image_url %}
+      {% if event.display_image %}
         {# Full photo in its own proportions (cards elsewhere crop to a uniform poster shape). #}
-        <a href="{{ event.image_url }}" target="_blank" rel="noreferrer" title="Open full size">
-          <img class="event-photo" src="{{ event.image_url }}" alt="{{ event.title }}" referrerpolicy="no-referrer" />
+        <a href="{{ event.display_image }}" target="_blank" rel="noreferrer" title="Open full size">
+          <img class="event-photo" src="{{ event.display_image }}" alt="{{ event.title }}" referrerpolicy="no-referrer" />
         </a>
       {% else %}
         <div class="poster position-relative">
@@ -21,7 +21,7 @@
         </div>
       {% endif %}
       {% if can_edit %}
-        <a class="btn btn-sm {% if event.image_url %}btn-outline-secondary{% else %}btn-outline-warning{% endif %} w-100 mt-2" href="{% url 'events:event_photo' event.pk %}">{% if event.image_url %}Change photo{% else %}Find photo{% endif %}</a>
+        <a class="btn btn-sm {% if event.display_image %}btn-outline-secondary{% else %}btn-outline-warning{% endif %} w-100 mt-2" href="{% url 'events:event_photo' event.pk %}">{% if event.display_image %}Change photo{% else %}Find photo{% endif %}</a>
         <a class="btn btn-sm btn-outline-secondary w-100 mt-2" href="{% url 'events:event_edit' event.pk %}">Edit event</a>
       {% endif %}
       {% if can_delete %}<a class="btn btn-sm btn-outline-danger w-100 mt-2" href="{% url 'events:event_delete' event.pk %}">Delete event</a>{% endif %}

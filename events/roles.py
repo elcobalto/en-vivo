@@ -10,6 +10,14 @@ def is_admin(user) -> bool:
     return bool(user and user.is_authenticated and user.has_perm(MODERATE_PERMISSION))
 
 
+def home_place(user) -> tuple[str, str]:
+    """(city, country code) from the user's profile, or ("", "")."""
+    profile = getattr(user, "profile", None) if user and user.is_authenticated else None
+    if not profile:
+        return "", ""
+    return profile.home_city.strip(), profile.home_country.code or ""
+
+
 def can_edit_event(user, event) -> bool:
     if not (user and user.is_authenticated):
         return False

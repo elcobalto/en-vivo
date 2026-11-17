@@ -2,7 +2,7 @@
   <div class="d-flex mb-2">
     {% for item in event_list.all_items|slice:":5" %}
       <div class="poster position-relative flex-shrink-0" style="width:20%;{% if not forloop.first %}margin-left:-6%;{% endif %}z-index:{{ forloop.revcounter }};padding:0">
-        {% if item.event.image_url %}<img src="{{ item.event.image_url }}" alt="" loading="lazy" />{% endif %}
+        {% if item.event.display_image %}<img src="{{ item.event.display_image }}" alt="" loading="lazy" />{% endif %}
       </div>
     {% empty %}
       <div class="poster w-25" style="padding:0"></div>

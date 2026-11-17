@@ -1272,3 +1272,140 @@ class HomeOrderTests(BaseTestCase):
     def test_recently_happened_comes_before_just_added(self):
         html = self.client.get(reverse("events:home")).content.decode()
         self.assertLess(html.index("Recently happened"), html.index("Just added"))
+
+
+class ProfileStatsAndArtistPhotoTests(BaseTestCase):
+    def test_most_seen_artists_and_venues(self):
+        green_day = Performer.objects.create(name="Green Day")
+        other_venue = Venue.objects.create(name="Movistar Arena", city="Santiago")
+        for i, venue in enumerate([self.venue, self.venue, other_venue]):
+            e = Event.objects.create(title=f"Show {i}", venue=venue, date=date(2020, 1, i + 1))
+            EventPerformer.objects.create(event=e, performer=green_day)
+            Log.objects.create(user=self.user, event=e)
+        stranger = get_user_model().objects.create_user("bob", password="pw-test-456")
+        Log.objects.create(user=stranger, event=self.event)  # not counted for ana
+
+        page = self.client.get(reverse("events:profile", args=["ana"]))
+        self.assertEqual([(p.name, p.n) for p in page.context["top_artists"]], [("Green Day", 3)])
+        self.assertEqual([(v.name, v.n) for v in page.context["top_venues"]],
+                         [("Teatro Caupolicán", 2), ("Movistar Arena", 1)])
+        self.assertContains(page, "Most seen artists")
+        self.assertContains(page, "2 visits")
+
+    def test_event_uses_artist_photo_when_it_has_none(self):
+        artist = Performer.objects.create(name="Green Day", image_url="https://img.example/gd.jpg")
+        EventPerformer.objects.create(event=self.event, performer=artist)
+        self.assertEqual(self.event.display_image, "https://img.example/gd.jpg")
+        self.assertContains(self.client.get(reverse("events:event_list")), "https://img.example/gd.jpg")
+        self.event.image_url = "https://img.example/poster.jpg"
+        self.assertEqual(self.event.display_image, "https://img.example/poster.jpg")
+        bare = Event.objects.create(title="No photos")
+        self.assertEqual(bare.display_image, "")
+
+
+@override_settings(GOOGLE_SEARCH_API_KEY="", GOOGLE_SEARCH_ENGINE_ID="")
+class PerformerPhotoTests(BaseTestCase):
+    def setUp(self):
+        super().setUp()
+        cache.clear()
+        self.artist = Performer.objects.create(name="Paul McCartney")
+        EventPerformer.objects.create(event=self.event, performer=self.artist)
+        self.client.force_login(self.user)
+
+    @mock.patch("events.image_search._get_json", side_effect=_fake_get_json)
+    def test_any_user_adds_missing_artist_photo_and_events_use_it(self, _):
+        self.assertContains(self.client.get(self.artist.get_absolute_url()), "Find photo")
+        page = self.client.get(reverse("events:performer_photo", args=[self.artist.pk]))
+        self.assertEqual(page.context["query"], "Paul McCartney")
+        self.assertContains(page, "Deezer")
+        response = self.client.post(reverse("events:performer_photo", args=[self.artist.pk]),
+                                    {"url": "https://cdn.deezer.example/xl.jpg"})
+        self.assertRedirects(response, self.artist.get_absolute_url())
+        self.artist.refresh_from_db()
+        self.assertEqual(self.artist.image_url, "https://cdn.deezer.example/xl.jpg")
+        self.assertEqual(Event.objects.get(pk=self.event.pk).display_image, "https://cdn.deezer.example/xl.jpg")
+
+    def test_only_admins_change_an_existing_artist_photo(self):
+        self.artist.image_url = "https://img.example/old.jpg"
+        self.artist.save()
+        self.assertEqual(self.client.get(reverse("events:performer_photo", args=[self.artist.pk])).status_code, 403)
+        self.assertNotContains(self.client.get(self.artist.get_absolute_url()), "Change photo")
+        admin = get_user_model().objects.create_user("mod", password="pw-test-000")
+        call_command("make_admin", "mod", stdout=open("/dev/null", "w"))
+        self.client.force_login(admin)
+        self.assertContains(self.client.get(self.artist.get_absolute_url()), "Change photo")
+
+
+class HomePlaceTests(BaseTestCase):
+    def setUp(self):
+        super().setUp()
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        soon = timezone.localdate() + timedelta(days=10)
+        self.santiago_show = Event.objects.create(title="Santiago show", venue=self.venue, date=soon)
+        lima = Venue.objects.create(name="Arena Lima", city="Lima", country="PE")
+        self.lima_show = Event.objects.create(title="Lima show", venue=lima, date=soon)
+        self.client.force_login(self.user)
+
+    def _set_home(self, city="", country=""):
+        self.user.profile.home_city, self.user.profile.home_country = city, country
+        self.user.profile.save()
+
+    def test_upcoming_filtered_by_city_then_country(self):
+        upcoming = lambda: [e.title for e in self.client.get(reverse("events:home")).context["upcoming"]]  # noqa: E731
+        self.assertEqual(sorted(upcoming()), ["Lima show", "Santiago show"])
+        self._set_home(city="santiago")
+        self.assertEqual(upcoming(), ["Santiago show"])
+        self.assertContains(self.client.get(reverse("events:home")), "Upcoming in santiago")
+        self._set_home(country="PE")
+        self.assertEqual(upcoming(), ["Lima show"])
+        self.assertContains(self.client.get(reverse("events:home")), "Upcoming in Peru")
+
+    def test_defaults_in_setlistfm_search_and_new_venue(self):
+        self._set_home(city="Santiago", country="CL")
+        page = self.client.get(reverse("events:setlistfm_shows"))
+        self.assertEqual((page.context["f"]["city"], page.context["f"]["country"]), ("Santiago", "CL"))
+        with mock.patch("events.views_venues.search_setlists", return_value=[]):
+            searched = self.client.get(reverse("events:setlistfm_shows"), {"artist": "X", "city": "", "country": ""})
+        self.assertEqual(searched.context["f"]["city"], "")  # an explicit search is respected
+        form = self.client.get(reverse("events:event_create")).context["form"]
+        self.assertEqual((form["new_venue_city"].value(), form["new_venue_country"].value()), ("Santiago", "CL"))
+
+    def test_profile_form_saves_home_place(self):
+        self.client.post(reverse("events:profile_edit"), {"username": "ana", "home_city": "Valparaíso", "home_country": "CL"})
+        self.user.profile.refresh_from_db()
+        self.assertEqual((self.user.profile.home_city, self.user.profile.home_country.code), ("Valparaíso", "CL"))
+
+
+
+@override_settings(GOOGLE_PLACES_API_KEY="")
+class ImportAttendedTests(BaseTestCase):
+    def setUp(self):
+        super().setUp()
+        self.client.force_login(self.user)
+
+    def _import(self, **extra):
+        with mock.patch("events.setlistfm_events.get_setlist", return_value=_setlist()):
+            return self.client.post(reverse("events:setlistfm_shows") + "?artist=X",
+                                    {"setlist_id": ["3b8e1c4c"], **extra}, follow=True)
+
+    def test_checkbox_is_on_by_default_and_logs_the_show(self):
+        with mock.patch("events.views_venues.search_setlists", return_value=[_setlist(id="other")]):
+            page = self.client.get(reverse("events:setlistfm_shows"), {"artist": "X"})
+        self.assertContains(page, 'name="attended" value="1" checked')
+        response = self._import(attended="1")
+        self.assertContains(response, "1 added to your diary")
+        self.assertTrue(Log.objects.filter(user=self.user, event__date=date(2019, 3, 20)).exists())
+        self._import(attended="1")  # re-importing doesn't duplicate the diary entry
+        self.assertEqual(Log.objects.filter(user=self.user).count(), 1)
+
+    def test_unchecked_does_not_log(self):
+        self._import()
+        self.assertFalse(Log.objects.filter(user=self.user).exists())
+
+    def test_future_shows_are_not_logged(self):
+        with mock.patch("events.setlistfm_events.get_setlist", return_value=_setlist(eventDate="20-03-2099")):
+            self.client.post(reverse("events:setlistfm_shows") + "?artist=X", {"setlist_id": ["3b8e1c4c"], "attended": "1"})
+        self.assertFalse(Log.objects.filter(user=self.user).exists())

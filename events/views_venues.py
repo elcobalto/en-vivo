@@ -8,11 +8,12 @@ from django.core.exceptions import PermissionDenied
 from django.db.models import Q
 from django.http import HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.views.decorators.http import require_GET, require_POST
 
 from . import google_places, image_search, setlistfm_events
-from .models import Event, Setlist, Venue
-from .roles import can_edit_event, is_admin
+from .models import Event, Log, Performer, Setlist, Venue
+from .roles import can_edit_event, home_place, is_admin
 from .setlistfm import SetlistFmError, _as_list, parse_event_date, search_setlists
 
 SEARCHES_PER_MINUTE = 60
@@ -106,11 +107,16 @@ def setlistfm_shows(request: HttpRequest) -> HttpResponse:
         if not ids:
             messages.error(request, "Select at least one setlist.")
         else:
-            created = joined = skipped = 0
+            created = joined = skipped = attended = 0
+            mark_attended = request.POST.get("attended") == "1"
             for setlist_id, result, error in setlistfm_events.import_many(ids, request.user):
                 if error:
                     messages.error(request, f"{setlist_id}: {error}")
-                elif result.setlist_already_imported:
+                    continue
+                if mark_attended and result.event.has_happened:
+                    _, added = Log.objects.get_or_create(user=request.user, event=result.event)
+                    attended += added
+                if result.setlist_already_imported:
                     skipped += 1
                 elif result.created:
                     created += 1
@@ -121,10 +127,14 @@ def setlistfm_shows(request: HttpRequest) -> HttpResponse:
                 summary.append(f"{joined} added to existing events")
             if skipped:
                 summary.append(f"{skipped} already imported")
+            if attended:
+                summary.append(f"{attended} added to your diary")
             messages.success(request, ", ".join(summary) + ".")
         return redirect(request.get_full_path())
 
     filters = {k: (request.GET.get(k) or "").strip() for k in ["artist", "city", "year", "venue", "country"]}
+    if "artist" not in request.GET:  # first visit: start from the user's home city/country
+        filters["city"], filters["country"] = home_place(request.user)
     try:
         page = max(1, min(int(request.GET.get("page") or 1), 50))
     except ValueError:
@@ -165,27 +175,18 @@ def setlistfm_shows(request: HttpRequest) -> HttpResponse:
 PHOTO_SEARCHES_PER_HOUR = 30  # Google's free tier is ~100 searches/day for the whole site
 
 
-@login_required
-def event_photo(request: HttpRequest, pk: int) -> HttpResponse:
-    """Show image matches for an event and save the one the person picks."""
-    event = get_object_or_404(Event.objects.select_related("venue"), pk=pk)
-    if not can_edit_event(request.user, event):
-        raise PermissionDenied
-
+def _photo_picker(request, *, obj, default_query: str, artist: str, context: dict) -> HttpResponse:
     if request.method == "POST":
         url = (request.POST.get("url") or "").strip()
         if not url.startswith("https://") or len(url) > 1000:
             messages.error(request, "That photo can't be used (it needs a secure https link).")
-            return redirect("events:event_photo", pk=event.pk)
-        event.image_url = url
-        event.save(update_fields=["image_url", "updated_at"])
+            return redirect(request.path)
+        obj.image_url = url
+        obj.save(update_fields=["image_url", "updated_at"])
         messages.success(request, "Photo updated.")
-        return redirect(event)
+        return redirect(obj)
 
-    query = (request.GET.get("q") or image_search.default_query(event)).strip()[:200]
-    headliner = event.headliner if event.is_music else None
-    artist = headliner.name if headliner else ""
-
+    query = (request.GET.get("q") or default_query).strip()[:200]
     candidates, errors = [], []
     key = f"photo-search:{request.user.pk}"
     used = cache.get_or_set(key, 0, timeout=60 * 60)
@@ -201,11 +202,36 @@ def event_photo(request: HttpRequest, pk: int) -> HttpResponse:
     return render(
         request,
         "events/event_photo.html",
-        {
-            "event": event,
-            "query": query,
-            "candidates": candidates,
-            "errors": errors,
-            "google_enabled": image_search.google_enabled(),
-        },
+        {"query": query, "candidates": candidates, "errors": errors,
+         "google_enabled": image_search.google_enabled(), **context},
+    )
+
+
+@login_required
+def event_photo(request: HttpRequest, pk: int) -> HttpResponse:
+    """Show image matches for an event and save the one the person picks."""
+    event = get_object_or_404(Event.objects.select_related("venue"), pk=pk)
+    if not can_edit_event(request.user, event):
+        raise PermissionDenied
+    headliner = event.headliner if event.is_music else None
+    return _photo_picker(
+        request, obj=event, default_query=image_search.default_query(event),
+        artist=headliner.name if headliner else "",
+        context={"subject_title": event.title, "back_url": event.get_absolute_url(),
+                 "edit_url": reverse("events:event_edit", args=[event.pk]),
+                 "hint": "Pick the image that fits best: a poster, the artist, or the show itself."},
+    )
+
+
+@login_required
+def performer_photo(request: HttpRequest, pk: int) -> HttpResponse:
+    """Anyone logged in can add a photo to an artist without one; changing it is for admins."""
+    performer = get_object_or_404(Performer, pk=pk)
+    if performer.image_url and not is_admin(request.user):
+        raise PermissionDenied
+    return _photo_picker(
+        request, obj=performer, default_query=performer.name, artist=performer.name,
+        context={"subject_title": performer.name, "back_url": performer.get_absolute_url(),
+                 "edit_url": reverse("events:performer_edit", args=[performer.pk]) if is_admin(request.user) else "",
+                 "hint": "Pick a photo of the artist. It's also used for their events that have no photo."},
     )

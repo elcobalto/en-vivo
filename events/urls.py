@@ -24,6 +24,7 @@ urlpatterns = [
     path("performers/new/", views.performer_create, name="performer_create"),
     path("performers/<int:pk>/", views.performer_detail, name="performer_detail"),
     path("performers/<int:pk>/edit/", views.performer_edit, name="performer_edit"),
+    path("performers/<int:pk>/photo/", views_venues.performer_photo, name="performer_photo"),
     path("venues/new/", views.venue_create, name="venue_create"),
     path("import/setlistfm/", views_venues.setlistfm_shows, name="setlistfm_shows"),
     path("venues/search/", views_venues.venue_search, name="venue_search"),

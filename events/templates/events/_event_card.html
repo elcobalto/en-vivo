@@ -1,8 +1,8 @@
 {% load event_extras %}
 <a class="text-decoration-none d-block" href="{{ event.get_absolute_url }}" title="{{ event.title }}">
   <div class="poster position-relative">
-    {% if event.image_url %}
-      <img src="{{ event.image_url }}" alt="{{ event.title }}" loading="lazy" />
+    {% if event.display_image %}
+      <img src="{{ event.display_image }}" alt="{{ event.title }}" loading="lazy" />
     {% else %}
       <div class="poster-placeholder">{{ event.get_event_type_display }}</div>
     {% endif %}

@@ -39,7 +39,7 @@ SORTS = {
     "rating": ("Highest rated", [F("avg_rating").desc(nulls_last=True), "-log_count"]),
 }
 WHEN = {"": "Any time", "upcoming": "Upcoming", "past": "Past"}
-from .roles import can_delete_event, can_edit_event, is_admin
+from .roles import can_delete_event, can_edit_event, home_place, is_admin
 from .views_merge import suggestions_for
 from .setlistfm import SetlistFmError, get_setlist, import_setlist, parse_event_date, search_setlists
 
@@ -74,7 +74,7 @@ def home(request: HttpRequest) -> HttpResponse:
         request,
         "events/home.html",
         {
-            "upcoming": events.filter(date__gte=today).order_by("date")[:6],
+            **_upcoming_near(request, events.filter(date__gte=today).order_by("date")),
             "recent": events.filter(date__lt=today).order_by("-date")[:6],
             "just_added": events.order_by("-created_at")[:6],
             "reviews": _reviews(Log.objects.exclude(review=""))[:6],
@@ -84,6 +84,20 @@ def home(request: HttpRequest) -> HttpResponse:
             "friends_activity": _friends_activity(request),
         },
     )
+
+
+def _upcoming_near(request: HttpRequest, upcoming) -> dict:
+    """Upcoming events in the user's home city (or country); everyone else sees all of them."""
+    city, country = home_place(request.user)
+    if city:
+        return {"upcoming": upcoming.filter(venue__city__iexact=city)[:6], "upcoming_place": city,
+                "upcoming_query": f"when=upcoming&city={city}"}
+    if country:
+        from django_countries import countries
+
+        return {"upcoming": upcoming.filter(venue__country=country)[:6], "upcoming_place": dict(countries).get(country, country),
+                "upcoming_query": "when=upcoming"}
+    return {"upcoming": upcoming[:6], "upcoming_place": "", "upcoming_query": "when=upcoming"}
 
 
 def _friends_activity(request: HttpRequest) -> list:
@@ -272,10 +286,12 @@ def event_form(request: HttpRequest, pk: int | None = None) -> HttpResponse:
         raise PermissionDenied
 
     initial = {}
+    if not event:
+        initial["new_venue_city"], initial["new_venue_country"] = home_place(request.user)
     if not event and request.GET.get("production"):
         production = Production.objects.filter(pk=request.GET["production"]).first()
         if production:
-            initial = {"production": production, "event_type": production.event_type}
+            initial.update(production=production, event_type=production.event_type)
 
     form = EventForm(request.POST or None, instance=event, initial=initial)
     formset = EventPerformerFormSet(request.POST or None, instance=event or Event())

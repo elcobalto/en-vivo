@@ -198,11 +198,15 @@ class ProfileForm(BootstrapMixin, forms.ModelForm):
 
     class Meta:
         model = Profile
-        fields = ["display_name", "location", "avatar_url", "bio"]
+        fields = ["display_name", "location", "home_city", "home_country", "avatar_url", "bio"]
         widgets = {"bio": forms.Textarea(attrs={"rows": 4})}
         labels = {"avatar_url": "Avatar image URL"}
+        help_texts = {
+            "home_city": "Upcoming events on the home page are shown for this city (or your country).",
+            "home_country": "Also the default country for setlist.fm searches and new venues.",
+        }
 
-    field_order = ["username", "display_name", "location", "avatar_url", "bio"]
+    field_order = ["username", "display_name", "location", "home_city", "home_country", "avatar_url", "bio"]
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

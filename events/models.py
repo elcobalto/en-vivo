@@ -215,6 +215,14 @@ class Event(TimestampedModel):
         return reverse("events:event_detail", args=[self.pk])
 
     @property
+    def display_image(self) -> str:
+        """The event's own photo, else its headliner's photo, else "" (the placeholder is shown)."""
+        if self.image_url:
+            return self.image_url
+        headliner = self.headliner if self.pk else None
+        return headliner.image_url if headliner else ""
+
+    @property
     def has_happened(self) -> bool:
         """Can it be logged yet? Undated events count as happened (many past shows lack a date)."""
         from django.utils import timezone
@@ -410,6 +418,9 @@ class Profile(TimestampedModel):
     bio = models.TextField(blank=True, default="", max_length=1000)
     location = models.CharField(max_length=120, blank=True, default="")
     avatar_url = models.URLField(blank=True, default="")
+    # Used as defaults (setlist.fm search, new venues) and to show nearby upcoming events.
+    home_city = models.CharField("Home city", max_length=120, blank=True, default="")
+    home_country = CountryField("Home country", blank=True, default="")
 
     def __str__(self) -> str:
         return self.name

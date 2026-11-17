@@ -7,7 +7,7 @@
   <div class="row g-4">
     <div class="col-4 col-md-2">
       <a href="{{ log.event.get_absolute_url }}" class="d-block">
-        <div class="poster position-relative">{% if log.event.image_url %}<img src="{{ log.event.image_url }}" alt="" />{% endif %}</div>
+        <div class="poster position-relative">{% if log.event.display_image %}<img src="{{ log.event.display_image }}" alt="" />{% endif %}</div>
       </a>
     </div>
     <div class="col-12 col-md-8">
