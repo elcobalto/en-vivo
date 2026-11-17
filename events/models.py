@@ -121,7 +121,14 @@ class EventQuerySet(LogStatsQuerySet):
 class Event(TimestampedModel):
     """One specific performance: a date at a venue. This is what people attend and log."""
 
-    title = models.CharField(max_length=240, db_index=True)
+    title = models.CharField(
+        max_length=240,
+        db_index=True,
+        blank=True,
+        help_text="Optional. Leave blank to use “Artist in City, date”.",
+    )
+    # True when the title was generated from lineup/venue/date and should follow their changes.
+    title_is_auto = models.BooleanField(default=False, editable=False)
     event_type = models.CharField(
         max_length=20, choices=EventType.choices, default=EventType.MUSIC, db_index=True
     )
@@ -150,9 +157,44 @@ class Event(TimestampedModel):
 
     class Meta:
         ordering = ["-date", "title"]
+        permissions = [("moderate_event", "Can edit or delete any event")]
 
     def __str__(self) -> str:
         return self.title
+
+    def save(self, *args, **kwargs):
+        if not self.title.strip():
+            self.title_is_auto = True
+        if self.title_is_auto:
+            self.title = self.build_auto_title()
+        super().save(*args, **kwargs)
+
+    def build_auto_title(self) -> str:
+        """“Green Day in Santiago, 10 Nov 2010”, falling back gracefully when parts are missing."""
+        headliner = self.headliner if self.pk else None
+        if headliner:
+            who = headliner.name
+        elif self.production_id:
+            who = self.production.title
+        else:
+            who = f"{self.get_event_type_display()} event"
+
+        title = who
+        venue = self.venue if self.venue_id else None
+        place = (venue.city or venue.name) if venue else ""
+        if place:
+            title += f" in {place}"
+        if self.date:
+            title += f", {self.date.day} {self.date:%b %Y}"
+        return title[:240]
+
+    def refresh_auto_title(self) -> None:
+        """Recompute a generated title after its lineup or venue changed."""
+        if self.title_is_auto:
+            new_title = self.build_auto_title()
+            if new_title != self.title:
+                Event.objects.filter(pk=self.pk).update(title=new_title)
+                self.title = new_title
 
     def get_absolute_url(self) -> str:
         return reverse("events:event_detail", args=[self.pk])

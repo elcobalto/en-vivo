@@ -27,6 +27,7 @@ from .models import (
     ReviewLike,
     WantToGo,
 )
+from .roles import is_admin
 from .views import _safe_next
 
 User = get_user_model()
@@ -55,6 +56,7 @@ def _profile_header(request: HttpRequest, owner) -> dict[str, Any]:
     return {
         "owner": owner,
         "owner_profile": get_profile(owner),
+        "owner_is_admin": is_admin(owner),
         "stats": {
             "events": logs.count(),
             "this_year": logs.filter(event__date__year=timezone.localdate().year).count(),

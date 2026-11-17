@@ -36,6 +36,19 @@ Implemented in `events/models.py`:
   with `ReviewLike` and `Comment`. `/activity/` merges recent actions of people you follow
   (built from existing tables, no separate activity log). Profiles live at `/u/<username>/`.
 
+### Roles
+
+Every logged-in user can add events and edit the ones they created. Admins (the `Admins` group,
+plus superusers) can also edit and delete any event. Manage the role with:
+
+```bash
+python manage.py make_admin <username>
+python manage.py make_admin <username> --remove
+```
+
+Event titles are optional: a blank title becomes “Artist in City, date” and updates itself when the
+lineup, venue or date change.
+
 ### Environment
 
 Copy `.env.example` to `.env` and fill in `SETLISTFM_API_KEY`, `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`.

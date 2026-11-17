@@ -6,6 +6,7 @@
       <h1 class="h3 fw-bold m-0">{{ owner_profile.name }}</h1>
       <div class="small text-body-secondary">
         @{{ owner.get_username }}{% if owner_profile.location %} · {{ owner_profile.location }}{% endif %}
+        {% if owner_is_admin %}<span class="badge text-bg-warning ms-1">Admin</span>{% endif %}
         {% if follows_you %}<span class="badge text-bg-secondary ms-1">Follows you</span>{% endif %}
       </div>
       {% if owner_profile.bio and tab == 'profile' %}<p class="mt-2 mb-0">{{ owner_profile.bio|linebreaksbr }}</p>{% endif %}

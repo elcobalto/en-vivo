@@ -54,6 +54,21 @@ class EventForm(BootstrapMixin, forms.ModelForm):
         labels = {"event_type": "Type", "image_url": "Poster / image URL"}
         help_texts = {"production": "Optional: the tour, run or show this date belongs to."}
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["title"].required = False
+        placeholder = "Leave blank for “Artist in City, date”"
+        if self.instance.pk and self.instance.title_is_auto:
+            # Keep generated titles blank in the form so they keep following lineup/venue/date.
+            self.initial["title"] = ""
+            placeholder = f"Automatic: {self.instance.title}"
+        self.fields["title"].widget.attrs["placeholder"] = placeholder
+
+    def clean_title(self) -> str:
+        title = (self.cleaned_data.get("title") or "").strip()
+        self.instance.title_is_auto = not title
+        return title
+
 
 class EventPerformerForm(BootstrapMixin, forms.ModelForm):
     class Meta:

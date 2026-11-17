@@ -38,6 +38,7 @@ SORTS = {
     "rating": ("Highest rated", [F("avg_rating").desc(nulls_last=True), "-log_count"]),
 }
 WHEN = {"": "Any time", "upcoming": "Upcoming", "past": "Past"}
+from .roles import can_delete_event, can_edit_event
 from .setlistfm import SetlistFmError, get_setlist, import_setlist, parse_event_date, search_setlists
 
 
@@ -58,7 +59,7 @@ def _reviews(logs_qs):
 
 
 def _can_edit(user, event: Event) -> bool:
-    return user.is_authenticated and (user.is_staff or event.created_by_id in (None, user.pk))
+    return can_edit_event(user, event)
 
 
 # --------------------------------------------------------------------------- browse
@@ -178,6 +179,7 @@ def event_detail(request: HttpRequest, pk: int) -> HttpResponse:
             "my_log": my_log,
             "log_form": LogForm(instance=my_log),
             "can_edit": _can_edit(request.user, event),
+            "can_delete": can_delete_event(request.user, event),
             "wanted": wanted,
             "my_lists": my_lists,
             "in_lists": in_lists[:5],
@@ -269,7 +271,7 @@ def event_form(request: HttpRequest, pk: int | None = None) -> HttpResponse:
     if not event and request.GET.get("production"):
         production = Production.objects.filter(pk=request.GET["production"]).first()
         if production:
-            initial = {"production": production, "event_type": production.event_type, "title": production.title}
+            initial = {"production": production, "event_type": production.event_type}
 
     form = EventForm(request.POST or None, instance=event, initial=initial)
     formset = EventPerformerFormSet(request.POST or None, instance=event or Event())
@@ -286,6 +288,27 @@ def event_form(request: HttpRequest, pk: int | None = None) -> HttpResponse:
         return redirect(saved)
 
     return render(request, "events/event_form.html", {"form": form, "formset": formset, "event": event})
+
+
+@login_required
+def event_delete(request: HttpRequest, pk: int) -> HttpResponse:
+    """Admins only: remove an event and everything attached to it."""
+    event = get_object_or_404(Event, pk=pk)
+    if not can_delete_event(request.user, event):
+        raise PermissionDenied
+    if request.method == "POST":
+        title = event.title
+        event.delete()
+        messages.success(request, f"Deleted “{title}”.")
+        return redirect("events:event_list")
+    impact = {
+        "logs": event.logs.count(),
+        "setlists": event.setlists.count(),
+        "lists": event.list_items.count(),
+        "want_to_go": event.wanted_by.count(),
+        "favorites": event.favorited_by.count(),
+    }
+    return render(request, "events/event_confirm_delete.html", {"event": event, "impact": impact})
 
 
 def _simple_create(request: HttpRequest, form_class, title: str) -> HttpResponse:

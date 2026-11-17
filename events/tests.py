@@ -471,3 +471,109 @@ class ActivityTests(SocialBase):
         page = self.client.get(reverse("events:activity"))
         self.assertContains(page, "People to follow")
         self.assertContains(page, "@ana")
+
+
+# --------------------------------------------------------------------------- auto titles + admin role
+
+from django.contrib.auth.models import Group  # noqa: E402
+from django.core.management import call_command  # noqa: E402
+
+from .roles import ADMINS_GROUP, is_admin  # noqa: E402
+
+
+class AutoTitleTests(BaseTestCase):
+    def test_blank_title_builds_artist_city_date(self):
+        event = Event.objects.create(title="", venue=self.venue, date=date(2010, 11, 10))
+        self.assertTrue(event.title_is_auto)
+        self.assertEqual(event.title, "Music event in Santiago, 10 Nov 2010")
+
+        green_day = Performer.objects.create(name="Green Day")
+        EventPerformer.objects.create(event=event, performer=green_day)
+        event.refresh_from_db()
+        self.assertEqual(event.title, "Green Day in Santiago, 10 Nov 2010")
+
+        self.venue.city = "Valparaíso"
+        self.venue.save()
+        event.refresh_from_db()
+        self.assertEqual(event.title, "Green Day in Valparaíso, 10 Nov 2010")
+
+    def test_custom_title_is_kept(self):
+        self.assertFalse(self.event.title_is_auto)
+        EventPerformer.objects.create(event=self.event, performer=Performer.objects.create(name="X"))
+        self.event.refresh_from_db()
+        self.assertEqual(self.event.title, "Green Day in Chile")
+
+    def test_falls_back_without_city_or_date(self):
+        event = Event.objects.create(title="", event_type=EventType.COMEDY)
+        self.assertEqual(event.title, "Comedy event")
+
+    def test_form_creates_auto_title_and_keeps_it_auto_on_edit(self):
+        self.client.force_login(self.user)
+        performer = Performer.objects.create(name="Bill Burr")
+        data = {
+            "title": "", "event_type": "comedy", "date": "2026-12-01", "venue": str(self.venue.pk),
+            "eventperformer_set-TOTAL_FORMS": "1", "eventperformer_set-INITIAL_FORMS": "0",
+            "eventperformer_set-MIN_NUM_FORMS": "0", "eventperformer_set-MAX_NUM_FORMS": "1000",
+            "eventperformer_set-0-performer": str(performer.pk),
+            "eventperformer_set-0-role": "headliner", "eventperformer_set-0-billing_order": "1",
+        }
+        self.client.post(reverse("events:event_create"), data)
+        event = Event.objects.get(performers=performer)
+        self.assertEqual(event.title, "Bill Burr in Santiago, 1 Dec 2026")
+
+        page = self.client.get(reverse("events:event_edit", args=[event.pk]))
+        self.assertContains(page, "Automatic: Bill Burr in Santiago, 1 Dec 2026")
+
+        link = event.eventperformer_set.get()
+        edit = dict(data, date="2026-12-02", **{
+            "eventperformer_set-INITIAL_FORMS": "1", "eventperformer_set-0-id": str(link.pk),
+            "eventperformer_set-0-event": str(event.pk),
+        })
+        self.client.post(reverse("events:event_edit", args=[event.pk]), edit)
+        event.refresh_from_db()
+        self.assertEqual(event.title, "Bill Burr in Santiago, 2 Dec 2026")
+
+        self.client.post(reverse("events:event_edit", args=[event.pk]), dict(edit, title="Burr Live"))
+        event.refresh_from_db()
+        self.assertEqual((event.title, event.title_is_auto), ("Burr Live", False))
+
+
+class AdminRoleTests(BaseTestCase):
+    def setUp(self):
+        super().setUp()
+        self.admin = get_user_model().objects.create_user("mod", password="pw-test-000")
+        call_command("make_admin", "mod", stdout=open("/dev/null", "w"))
+        self.event.created_by = self.user
+        self.event.save()
+        Log.objects.create(user=self.user, event=self.event, rating=8)
+
+    def test_admins_group_and_command(self):
+        self.assertTrue(Group.objects.filter(name=ADMINS_GROUP).exists())
+        self.assertTrue(is_admin(get_user_model().objects.get(username="mod")))
+        self.assertFalse(is_admin(self.user))
+
+    def test_regular_users_cannot_delete_even_their_own_events(self):
+        self.client.force_login(self.user)
+        page = self.client.get(self.event.get_absolute_url())
+        self.assertContains(page, "Edit event")
+        self.assertNotContains(page, "Delete event")
+        self.assertEqual(self.client.post(reverse("events:event_delete", args=[self.event.pk])).status_code, 403)
+        self.assertTrue(Event.objects.filter(pk=self.event.pk).exists())
+
+    def test_admin_can_edit_and_delete_any_event(self):
+        self.client.force_login(self.admin)
+        page = self.client.get(self.event.get_absolute_url())
+        self.assertContains(page, "Delete event")
+        self.assertEqual(self.client.get(reverse("events:event_edit", args=[self.event.pk])).status_code, 200)
+
+        confirm = self.client.get(reverse("events:event_delete", args=[self.event.pk]))
+        self.assertContains(confirm, "1 diary log")
+        response = self.client.post(reverse("events:event_delete", args=[self.event.pk]))
+        self.assertRedirects(response, reverse("events:event_list"))
+        self.assertFalse(Event.objects.filter(pk=self.event.pk).exists())
+        self.assertFalse(Log.objects.exists())
+
+    def test_admin_badge_and_removing_role(self):
+        self.assertContains(self.client.get(reverse("events:profile", args=["mod"])), "Admin")
+        call_command("make_admin", "mod", "--remove", stdout=open("/dev/null", "w"))
+        self.assertFalse(is_admin(get_user_model().objects.get(username="mod")))

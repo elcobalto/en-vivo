@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+
+{% block title %}Delete {{ event.title }} · En Vivo{% endblock %}
+
+{% block content %}
+  <div class="row justify-content-center">
+    <div class="col-12 col-md-8 col-lg-6">
+      <div class="card border-danger">
+        <div class="card-body">
+          <h1 class="h5">Delete “{{ event.title }}”?</h1>
+          <p class="text-body-secondary small mb-2">
+            {{ event.get_event_type_display }}{% if event.date %} · {{ event.date|date:"j M Y" }}{% endif %}{% if event.venue %} · {{ event.venue }}{% endif %}
+          </p>
+          <p>This permanently removes the event for everyone, together with:</p>
+          <ul class="small">
+            <li>{{ impact.logs }} diary log{{ impact.logs|pluralize }} and their reviews, likes and replies</li>
+            <li>{{ impact.setlists }} setlist{{ impact.setlists|pluralize }}</li>
+            <li>its place in {{ impact.lists }} list{{ impact.lists|pluralize }}</li>
+            <li>{{ impact.want_to_go }} “Want to go” save{{ impact.want_to_go|pluralize }} and {{ impact.favorites }} favourite{{ impact.favorites|pluralize }}</li>
+          </ul>
+          <p class="small text-warning">This cannot be undone. Performers, venues and productions are kept.</p>
+          <form method="post" class="d-flex gap-2">
+            {% csrf_token %}
+            <button class="btn btn-danger" type="submit">Delete event</button>
+            <a class="btn btn-outline-secondary" href="{{ event.get_absolute_url }}">Cancel</a>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock %}
