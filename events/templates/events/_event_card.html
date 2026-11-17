@@ -9,10 +9,10 @@
   </div>
 </a>
 <a class="d-block mt-2 fw-semibold small lh-sm clamp-2 text-decoration-none" href="{{ event.get_absolute_url }}">{{ event.title }}</a>
-<div class="small text-body-secondary mt-1 text-nowrap">
-  {% if event.date %}{{ event.date|date:"j M Y" }}{% else %}<span class="fst-italic opacity-50">Date not added</span>{% endif %}
+{% if event.venue %}<div class="small text-body-secondary lh-sm clamp-2 mt-1" title="{{ event.venue.name }}">{{ event.venue.name }}</div>{% endif %}
+<div class="event-date mt-1">
+  {% if event.date %}<time datetime="{{ event.date|date:'Y-m-d' }}">{{ event.date|date:"j M Y" }}</time>{% else %}<span class="opacity-50">Date not added</span>{% endif %}
 </div>
-{% if event.venue %}<div class="small text-body-secondary lh-sm clamp-2" title="{{ event.venue.name }}">{{ event.venue.name }}</div>{% endif %}
 <div class="small mt-1 d-flex align-items-center gap-2">
   <span class="badge text-bg-secondary type-badge">{{ event.get_event_type_display }}</span>
   {% if event.avg_rating %}<span class="stars">{{ event.avg_rating|stars }}</span><span class="text-body-secondary">{{ event.log_count }}</span>{% endif %}
