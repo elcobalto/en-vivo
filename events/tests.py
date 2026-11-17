@@ -1124,7 +1124,9 @@ class FindPhotoTests(BaseTestCase):
         self.assertNotContains(page, "img.example")
         called = [c.args[0] for c in get_json.call_args_list]
         self.assertFalse(any("googleapis" in u for u in called))
-        self.assertEqual(page.context["query"], "Green Day in Chile Teatro Caupolicán 1992")
+        self.assertEqual(page.context["query"], "Paul McCartney Santiago 10 November 1992")
+        self.assertContains(page, "https://www.google.com/search?tbm=isch&amp;q=Paul+McCartney+Santiago+10+November+1992")
+        self.assertContains(page, "Use this link")
 
     @override_settings(GOOGLE_SEARCH_API_KEY="k", GOOGLE_SEARCH_ENGINE_ID="cx")
     @mock.patch("events.image_search._get_json", side_effect=_fake_get_json)
@@ -1409,3 +1411,19 @@ class ImportAttendedTests(BaseTestCase):
         with mock.patch("events.setlistfm_events.get_setlist", return_value=_setlist(eventDate="20-03-2099")):
             self.client.post(reverse("events:setlistfm_shows") + "?artist=X", {"setlist_id": ["3b8e1c4c"], "attended": "1"})
         self.assertFalse(Log.objects.filter(user=self.user).exists())
+
+
+
+class NewVenueDefaultsIgnoredTests(BaseTestCase):
+    def test_prefilled_city_alone_does_not_require_a_venue(self):
+        self.client.force_login(self.user)
+        response = self.client.post(reverse("events:event_create"), {
+            "title": "No venue yet", "event_type": "music", "date": "",
+            "new_venue_name": "", "new_venue_city": "Santiago", "new_venue_country": "CL",
+            "eventperformer_set-TOTAL_FORMS": "0", "eventperformer_set-INITIAL_FORMS": "0",
+            "eventperformer_set-MIN_NUM_FORMS": "0", "eventperformer_set-MAX_NUM_FORMS": "1000",
+        })
+        event = Event.objects.get(title="No venue yet")
+        self.assertRedirects(response, event.get_absolute_url())
+        self.assertIsNone(event.venue)
+        self.assertEqual(Venue.objects.count(), 1)  # nothing new created

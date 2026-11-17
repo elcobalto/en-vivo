@@ -81,10 +81,7 @@ class EventForm(BootstrapMixin, forms.ModelForm):
         cleaned = super().clean()
         if cleaned.get("venue") and (cleaned.get("new_venue_name") or "").strip():
             self.add_error("new_venue_name", "Pick an existing venue or add a new one, not both.")
-        if not (cleaned.get("new_venue_name") or "").strip() and (
-            (cleaned.get("new_venue_city") or "").strip() or (cleaned.get("new_venue_country") or "").strip()
-        ):
-            self.add_error("new_venue_name", "Add the new venue's name.")
+        # City/country only matter when a new venue name is typed (they may be pre-filled from the profile).
         return cleaned
 
     def selected_venue(self) -> Venue | None:

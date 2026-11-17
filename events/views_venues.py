@@ -203,7 +203,8 @@ def _photo_picker(request, *, obj, default_query: str, artist: str, context: dic
         request,
         "events/event_photo.html",
         {"query": query, "candidates": candidates, "errors": errors,
-         "google_enabled": image_search.google_enabled(), **context},
+         "google_enabled": image_search.google_enabled(),
+         "google_url": image_search.google_images_url(query), **context},
     )
 
 

@@ -17,6 +17,18 @@
     <button class="btn btn-primary" type="submit">Search</button>
   </form>
 
+  <div class="card mb-4"><div class="card-body">
+    <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+      <a class="btn btn-light btn-sm" href="{{ google_url }}" target="_blank" rel="noreferrer">Search “{{ query }}” on Google Images ↗</a>
+      <span class="small text-body-secondary">Right-click the image you like → “Copy image address”, then paste it here:</span>
+    </div>
+    <form method="post" class="d-flex gap-2">
+      {% csrf_token %}
+      <input class="form-control" type="url" name="url" placeholder="https://…" required aria-label="Image link" />
+      <button class="btn btn-success" type="submit">Use this link</button>
+    </form>
+  </div></div>
+
   {% for error in errors %}<div class="alert alert-warning py-2 small">{{ error }}</div>{% endfor %}
 
   {% if candidates %}

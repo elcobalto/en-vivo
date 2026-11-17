@@ -163,14 +163,26 @@ def commons_images(query: str) -> list[Candidate]:
     return results
 
 
+MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August",
+          "September", "October", "November", "December"]
+
+
 def default_query(event) -> str:
-    """“Paul McCartney Estadio Nacional 2019” — what people would type into Google."""
-    bits = [event.title]
+    """“Paul McCartney Santiago 20 March 2019”: artist, city and date, as people would type it."""
+    headliner = event.headliner if event.pk else None
+    bits = [headliner.name if headliner else event.title]
     if event.venue_id:
-        bits.append(event.venue.name)
+        bits.append(event.venue.city or event.venue.name)
     if event.date:
-        bits.append(str(event.date.year))
+        bits.append(f"{event.date.day} {MONTHS[event.date.month - 1]} {event.date.year}")
     return " ".join(b for b in bits if b)
+
+
+def google_images_url(query: str) -> str:
+    """A normal Google Images search, opened in the browser (no API key needed)."""
+    from urllib.parse import quote_plus
+
+    return f"https://www.google.com/search?tbm=isch&q={quote_plus(query)}"
 
 
 def find_candidates(query: str, artist: str = "") -> tuple[list[dict], list[str]]:
