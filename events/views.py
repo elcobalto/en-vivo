@@ -41,7 +41,13 @@ SORTS = {
 }
 WHEN = {"": "Any time", "upcoming": "Upcoming", "past": "Past"}
 from .roles import can_delete_event, can_edit_event, home_place, is_admin
-from .views_merge import festival_admin_actions, festival_suggestion, suggestions_for
+from .merge import merge_into_same_festival_day
+from .views_merge import (
+    festival_admin_actions,
+    festival_suggestion,
+    performer_duplicate_candidates,
+    suggestions_for,
+)
 from .setlistfm import SetlistFmError, get_setlist, import_setlist, parse_event_date, search_setlists
 
 
@@ -273,6 +279,8 @@ def performer_detail(request: HttpRequest, pk: int) -> HttpResponse:
         {
             "performer": performer,
             "tours": performer.tours.order_by("title"),
+            **(dict(zip(("merge_similar", "merge_rest"), performer_duplicate_candidates(performer)))
+               if is_admin(request.user) else {}),
             "act_logs": act_logs,
             "events": events.with_stats().select_related("venue").distinct().order_by(*LATEST_FIRST),
             "seen_by": seen_by,
@@ -352,6 +360,10 @@ def event_form(request: HttpRequest, pk: int | None = None) -> HttpResponse:
             saved.save()
             formset.instance = saved
             formset.save()
+            merged = merge_into_same_festival_day(saved)
+        if merged:
+            messages.info(request, f"“{merged.title}” already existed on that day, so this was added to it.")
+            return redirect(merged)
         messages.success(request, "Event saved.")
         return redirect(saved)
 

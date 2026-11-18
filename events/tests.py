@@ -1807,3 +1807,109 @@ class PerformerDeleteTests(BaseTestCase):
         self.assertFalse(Setlist.objects.exists())
         self.tour.refresh_from_db()
         self.assertIsNone(self.tour.performer)
+
+
+class MergeDuplicatesTests(BaseTestCase):
+    def setUp(self):
+        super().setUp()
+        self.admin = get_user_model().objects.create_user("mod", password="pw-test-000")
+        call_command("make_admin", "mod", stdout=open("/dev/null", "w"))
+
+    def test_merge_duplicate_performer(self):
+        keep = Performer.objects.create(name="Los Bunkers")
+        dup = Performer.objects.create(name="Los bunkers", image_url="https://img.example/lb.jpg")
+        other_event = Event.objects.create(title="", date=date(2020, 1, 1))
+        EventPerformer.objects.create(event=self.event, performer=keep)
+        EventPerformer.objects.create(event=self.event, performer=dup, billing_order=2)  # both on one lineup
+        EventPerformer.objects.create(event=other_event, performer=dup)
+        log = Log.objects.create(user=self.user, event=self.event)
+        log.acts.filter(performer=dup).update(rating=9)
+        import_setlist(other_event, {**SETLIST_PAYLOAD, "artist": {"name": "Los bunkers"}})
+        tour = Production.objects.create(title="Tour", performer=dup)
+
+        self.client.force_login(self.admin)
+        page = self.client.get(keep.get_absolute_url())
+        self.assertContains(page, "Similar names")
+        self.client.post(reverse("events:performer_merge", args=[keep.pk]), {"other": dup.pk})
+
+        self.assertFalse(Performer.objects.filter(pk=dup.pk).exists())
+        self.assertEqual(self.event.eventperformer_set.filter(performer=keep).count(), 1)
+        self.assertTrue(other_event.eventperformer_set.filter(performer=keep).exists())
+        self.assertEqual(log.acts.get(performer=keep).rating, 9)
+        self.assertEqual(Setlist.objects.get().performer, keep)
+        tour.refresh_from_db(); keep.refresh_from_db(); other_event.refresh_from_db()
+        self.assertEqual((tour.performer, keep.image_url), (keep, "https://img.example/lb.jpg"))
+        self.assertEqual(other_event.title, "Los Bunkers")
+
+    def test_merge_duplicate_event(self):
+        dup = Event.objects.create(title="Green Day in Chile", date=self.event.date)
+        EventPerformer.objects.create(event=dup, performer=Performer.objects.create(name="Green Day"))
+        bob = get_user_model().objects.create_user("bob", password="pw-test-456")
+        Log.objects.create(user=bob, event=dup, rating=7)
+        self.client.force_login(self.admin)
+        page = self.client.get(self.event.get_absolute_url())
+        self.assertContains(page, "Merge a duplicate")
+        self.client.post(reverse("events:event_merge_duplicate", args=[self.event.pk]), {"other": dup.pk})
+        self.assertFalse(Event.objects.filter(pk=dup.pk).exists())
+        self.assertTrue(Log.objects.filter(user=bob, event=self.event, rating=7).exists())
+        self.assertEqual(self.event.eventperformer_set.get().role, "headliner")
+
+    def test_merge_by_pasted_link_and_admin_only(self):
+        dup = Event.objects.create(title="Other title", date=date(2001, 1, 1))
+        self.client.force_login(self.user)
+        url = reverse("events:event_merge_duplicate", args=[self.event.pk])
+        self.assertEqual(self.client.post(url, {"other_id": str(dup.pk)}).status_code, 403)
+        self.client.force_login(self.admin)
+        self.client.post(url, {"other_id": f"https://envivo.example/events/{dup.pk}/"})
+        self.assertFalse(Event.objects.filter(pk=dup.pk).exists())
+
+
+class SameFestivalDayTests(BaseTestCase):
+    def _payload(self, **extra):
+        data = {"title": "", "event_type": "festival", "date": "2024-03-15", "venue": str(self.venue.pk),
+                "eventperformer_set-TOTAL_FORMS": "1", "eventperformer_set-INITIAL_FORMS": "0",
+                "eventperformer_set-MIN_NUM_FORMS": "0", "eventperformer_set-MAX_NUM_FORMS": "1000"}
+        data.update(extra)
+        return data
+
+    def test_same_name_day_and_city_is_the_same_festival(self):
+        fest = Production.objects.create(title="Lollapalooza Chile", event_type=EventType.FESTIVAL)
+        park = Venue.objects.create(name="Parque Cerrillos", city="santiago")  # another venue, same city
+        existing = Event.objects.create(title="", event_type=EventType.FESTIVAL, production=fest,
+                                        date=date(2024, 3, 15), venue=park)
+        EventPerformer.objects.create(event=existing, performer=Performer.objects.create(name="A"))
+        self.client.force_login(self.user)
+        response = self.client.post(reverse("events:event_create"), self._payload(
+            title="lollapalooza chile", **{"eventperformer_set-0-new_performer": "B",
+                                           "eventperformer_set-0-billing_order": "1"}))
+        self.assertRedirects(response, existing.get_absolute_url(), fetch_redirect_response=False)
+        self.assertEqual(Event.objects.filter(event_type=EventType.FESTIVAL).count(), 1)
+        self.assertEqual(set(existing.performers.values_list("name", flat=True)), {"A", "B"})
+
+    def test_other_day_name_or_city_stays_separate(self):
+        Event.objects.create(title="Rock en Ñuñoa", event_type=EventType.FESTIVAL, date=date(2024, 3, 15), venue=self.venue)
+        lima = Venue.objects.create(name="Arena", city="Lima")
+        self.client.force_login(self.user)
+        self.client.post(reverse("events:event_create"), self._payload(title="Rock en Nunoa", date="2024-03-16"))
+        self.client.post(reverse("events:event_create"), self._payload(title="Otro festival"))
+        self.client.post(reverse("events:event_create"), self._payload(title="Rock en Ñuñoa", venue=str(lima.pk)))
+        self.assertEqual(Event.objects.filter(event_type=EventType.FESTIVAL).count(), 4)
+        self.client.post(reverse("events:event_create"), self._payload(title="ROCK EN NUÑOA"))  # accents/caps ignored
+        self.assertEqual(Event.objects.filter(event_type=EventType.FESTIVAL).count(), 4)
+
+    def test_migration_merges_existing_duplicates(self):
+        import importlib
+
+        from django.apps import apps
+
+        days = [Event.objects.create(title="Fest", event_type=EventType.FESTIVAL, date=date(2023, 1, 1), venue=self.venue)
+                for _ in range(3)]
+        bob = get_user_model().objects.create_user("bob", password="pw-test-456")
+        Log.objects.create(user=bob, event=days[2], rating=8)
+        elsewhere = Event.objects.create(title="Fest", event_type=EventType.FESTIVAL, date=date(2023, 1, 1),
+                                         venue=Venue.objects.create(name="X", city="Lima"))
+        importlib.import_module("events.migrations.0016_merge_duplicate_festival_days") \
+            .merge_duplicate_festival_days(apps, None)
+        remaining = set(Event.objects.filter(event_type=EventType.FESTIVAL).values_list("pk", flat=True))
+        self.assertEqual(remaining, {days[0].pk, elsewhere.pk})
+        self.assertTrue(Log.objects.filter(user=bob, event=days[0]).exists())

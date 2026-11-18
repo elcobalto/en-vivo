@@ -21,7 +21,19 @@
     <div class="small text-body-secondary text-uppercase">{{ performer.get_kind_display }}</div>
     <h1 class="h3 fw-bold">{{ performer.name }}</h1>
     {% if user|is_admin %}<a class="btn btn-sm btn-outline-secondary mb-2" href="{% url 'events:performer_edit' performer.pk %}">Edit performer</a>
-    <a class="btn btn-sm btn-outline-danger mb-2" href="{% url 'events:performer_delete' performer.pk %}">Delete performer</a>{% endif %}
+    <a class="btn btn-sm btn-outline-danger mb-2" href="{% url 'events:performer_delete' performer.pk %}">Delete performer</a>
+    <details class="mb-2"><summary class="small text-warning">Merge a duplicate into this artist</summary>
+      <form method="post" action="{% url 'events:performer_merge' performer.pk %}" class="d-flex flex-wrap gap-2 mt-2"
+            onsubmit="return confirm('Merge the selected artist into {{ performer.name|escapejs }}? Its events, setlists and ratings move here and it is deleted.');">
+        {% csrf_token %}
+        <select class="form-select form-select-sm" style="max-width:20rem" name="other" required aria-label="Duplicate artist">
+          <option value="">Choose the duplicate…</option>
+          {% if merge_similar %}<optgroup label="Similar names">{% for p in merge_similar %}<option value="{{ p.pk }}">{{ p.name }}</option>{% endfor %}</optgroup>{% endif %}
+          {% if merge_rest %}<optgroup label="All artists">{% for p in merge_rest %}<option value="{{ p.pk }}">{{ p.name }}</option>{% endfor %}</optgroup>{% endif %}
+        </select>
+        <button class="btn btn-sm btn-warning" type="submit">Merge into {{ performer.name }}</button>
+      </form>
+    </details>{% endif %}
     {% if avg_rating %}<div><span class="stars">{{ avg_rating|stars }}</span> <span class="small text-body-secondary">{{ avg_rating|avg_stars }} average from {{ log_count }} time{{ log_count|pluralize }} seen</span></div>{% endif %}
     <div class="my-2" style="max-width:24rem">{% rating_histogram act_logs "Ratings of this act" True %}</div>
     {% if performer.bio %}<p class="mt-2">{{ performer.bio|linebreaksbr }}</p>{% endif %}

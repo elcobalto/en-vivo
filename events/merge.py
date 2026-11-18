@@ -100,15 +100,17 @@ def _move_saves(keep: Event, remove: Event) -> None:
 
 @transaction.atomic
 def merge_events(keep: Event, remove: Event, *, mode: str) -> Event:
-    """mode: "festival" (everyone headlines a festival) or "support" (remove's acts open for keep)."""
+    """mode: "festival", "support" (remove's acts open for keep) or "duplicate" (same show twice)."""
     if keep.pk == remove.pk:
         raise ValueError("Can't merge an event with itself.")
-    if mode not in {"festival", "support"}:
+    if mode not in {"festival", "support", "duplicate"}:
         raise ValueError(f"Unknown merge mode: {mode}")
 
     if mode == "festival":
         _move_lineup(keep, remove, None)  # each act keeps its role: headliners stay headliners
         keep.event_type = EventType.FESTIVAL
+    elif mode == "duplicate":
+        _move_lineup(keep, remove, None)  # the same show entered twice: acts keep their roles
     else:
         _move_lineup(keep, remove, EventPerformer.Role.SUPPORT)
 
@@ -126,3 +128,116 @@ def merge_events(keep: Event, remove: Event, *, mode: str) -> Event:
     remove.delete()
     keep.save()  # recomputes an automatic title from the new lineup
     return keep
+
+
+# --------------------------------------------------------------------------- duplicate performers
+
+
+@transaction.atomic
+def merge_performers(keep, remove):
+    """Fold a duplicate performer into `keep`; everything that pointed at `remove` moves over."""
+    from .models import ActLog, Production, SetlistSong, Song
+
+    if keep.pk == remove.pk:
+        raise ValueError("Can't merge a performer with itself.")
+
+    # Lineup spots: one per event.
+    for link in EventPerformer.objects.filter(performer=remove):
+        if EventPerformer.objects.filter(event_id=link.event_id, performer=keep).exists():
+            link.delete()
+        else:
+            EventPerformer.objects.filter(pk=link.pk).update(performer=keep)
+
+    # "Acts seen": one per log, keeping a rating/note if only the duplicate had one.
+    for act in ActLog.objects.filter(performer=remove):
+        existing = ActLog.objects.filter(log_id=act.log_id, performer=keep).first()
+        if existing:
+            existing.rating = existing.rating or act.rating
+            existing.note = existing.note or act.note
+            existing.save()
+            act.delete()
+        else:
+            ActLog.objects.filter(pk=act.pk).update(performer=keep)
+
+    # Songs: same title → same song; setlist entries follow.
+    for song in Song.objects.filter(performer=remove):
+        twin = next((s for s in Song.objects.filter(performer=keep, title__icontains=song.title[:3])
+                     if s.title.casefold() == song.title.casefold()), None)
+        if twin:
+            SetlistSong.objects.filter(song=song).update(song=twin)
+            song.delete()
+        else:
+            Song.objects.filter(pk=song.pk).update(performer=keep)
+
+    # Setlists: one per event and performer.
+    for setlist in Setlist.objects.filter(performer=remove):
+        if Setlist.objects.filter(event_id=setlist.event_id, performer=keep).exists():
+            setlist.delete()
+        else:
+            Setlist.objects.filter(pk=setlist.pk).update(performer=keep)
+
+    Production.objects.filter(performer=remove).update(performer=keep)
+
+    for field in ("bio", "image_url"):
+        if not getattr(keep, field) and getattr(remove, field):
+            setattr(keep, field, getattr(remove, field))
+    mbid = remove.mbid
+    remove.delete()
+    if not keep.mbid and mbid:
+        keep.mbid = mbid
+    keep.save()
+    # Events whose title is the headliner's name pick up the kept spelling.
+    for event in Event.objects.filter(performers=keep, title_is_auto=True):
+        event.refresh_auto_title()
+    return keep
+
+
+def _festival_name(event: Event) -> str:
+    """Comparable festival name: ignores capitals, accents and extra spaces."""
+    return _normalize(event.production.title if event.production_id else event.title)
+
+
+def _normalize(text: str) -> str:
+    import unicodedata
+
+    plain = "".join(c for c in unicodedata.normalize("NFKD", text or "") if not unicodedata.combining(c))
+    return " ".join(plain.casefold().split())
+
+
+def _city(event: Event) -> str:
+    return _normalize(event.venue.city) if event.venue_id else ""
+
+
+def same_festival_day(event: Event) -> Event | None:
+    """Another festival event with the same name, on the same date, in the same city."""
+    if event.event_type != EventType.FESTIVAL or not event.date:
+        return None
+    name, city = _festival_name(event), _city(event)
+    if not (name and city):
+        return None
+    candidates = Event.objects.filter(event_type=EventType.FESTIVAL, date=event.date).exclude(pk=event.pk)
+    for other in candidates.select_related("production", "venue").order_by("pk"):
+        if _festival_name(other) == name and _city(other) == city:
+            return other
+    return None
+
+
+def merge_all_duplicate_festival_days() -> int:
+    """Merge every group of festival days sharing name, date and city into its oldest event."""
+    merged = 0
+    for event in Event.objects.filter(event_type=EventType.FESTIVAL).exclude(date=None).order_by("-pk"):
+        if not Event.objects.filter(pk=event.pk).exists():
+            continue  # already merged away
+        existing = same_festival_day(event)
+        if existing and existing.pk < event.pk:
+            merge_events(existing, event, mode="duplicate")
+            merged += 1
+    return merged
+
+
+def merge_into_same_festival_day(event: Event) -> Event | None:
+    """Same festival name + same day = the same event: fold `event` into the existing one."""
+    existing = same_festival_day(event)
+    if existing:
+        return merge_events(existing, event, mode="duplicate")
+    return None

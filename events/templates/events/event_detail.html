@@ -34,6 +34,23 @@
           </form>
         </details>
       {% endif %}
+      {% if user|is_admin %}
+        <details class="mt-2">
+          <summary class="btn btn-sm btn-outline-warning w-100">Merge a duplicate</summary>
+          <form method="post" action="{% url 'events:event_merge_duplicate' event.pk %}" class="mt-2"
+                onsubmit="return confirm('Merge the chosen event into this one? Its lineup, logs and setlists move here and it is deleted.');">
+            {% csrf_token %}
+            {% if duplicate_candidates %}
+              <select class="form-select form-select-sm mb-2" name="other" aria-label="Duplicate event">
+                <option value="">Suggested duplicates…</option>
+                {% for d in duplicate_candidates %}<option value="{{ d.pk }}">{{ d.title }} — {% if d.venue %}{{ d.venue.name }} · {% endif %}{{ d.date|date:"j M Y"|default:"no date" }}</option>{% endfor %}
+              </select>
+            {% endif %}
+            <input class="form-control form-control-sm mb-2" name="other_id" placeholder="…or paste its link / number" aria-label="Duplicate event link or number" />
+            <button class="btn btn-sm btn-warning w-100" type="submit">Merge into this event</button>
+          </form>
+        </details>
+      {% endif %}
       {% if can_delete %}<a class="btn btn-sm btn-outline-danger w-100 mt-2" href="{% url 'events:event_delete' event.pk %}">Delete event</a>{% endif %}
     </div>
 

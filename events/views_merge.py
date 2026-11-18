@@ -179,6 +179,7 @@ def festival_admin_actions(user, event: Event) -> dict:
     if not is_admin(user):
         return {}
     return {
+        "duplicate_candidates": event_duplicate_candidates(event),
         "can_make_festival": event.event_type == EventType.MUSIC and event.eventperformer_set.count() > 1,
         "festivals_same_day": list(same_day_festivals(event)),
     }
@@ -204,6 +205,12 @@ def make_festival(request: HttpRequest, pk: int) -> HttpResponse:
     event.event_type = EventType.FESTIVAL
     event.production = festival
     event.save()
+    from .merge import merge_into_same_festival_day
+
+    merged = merge_into_same_festival_day(event)
+    if merged:
+        messages.info(request, f"“{festival.title}” already had an event that day, so this was merged into it.")
+        return redirect(merged)
     messages.success(request, f"“{event.title}” is now part of the festival “{festival.title}”.")
     return redirect(event)
 
@@ -222,3 +229,62 @@ def add_to_festival(request: HttpRequest, pk: int) -> HttpResponse:
     kept = merge_events(festival_event, event, mode="festival")
     messages.success(request, f"“{title}” was added to “{kept.title}”.")
     return redirect(kept)
+
+
+# --------------------------------------------------------------------------- admins: merge duplicates
+
+
+def performer_duplicate_candidates(performer):
+    """Similar names first (same first word, or one name contains the other), then everyone else."""
+    from .models import Performer
+
+    name = performer.name.casefold()
+    first = name.split()[0] if name.split() else name
+    others = list(Performer.objects.exclude(pk=performer.pk).order_by("name")[:2000])
+    similar = [p for p in others if p.name.casefold().split()[:1] == [first]
+               or name in p.name.casefold() or p.name.casefold() in name]
+    rest = [p for p in others if p not in similar]
+    return similar, rest
+
+
+def event_duplicate_candidates(event):
+    """Events on the same date, or with the same title."""
+    from django.db.models import Q
+
+    q = Q(title__iexact=event.title)
+    if event.date:
+        q |= Q(date=event.date)
+    return Event.objects.filter(q).exclude(pk=event.pk).select_related("venue").order_by("date", "title")[:50]
+
+
+@login_required
+@require_POST
+def performer_merge_duplicate(request: HttpRequest, pk: int) -> HttpResponse:
+    from .merge import merge_performers
+    from .models import Performer
+    from .roles import is_admin
+
+    if not is_admin(request.user):
+        raise PermissionDenied
+    keep = get_object_or_404(Performer, pk=pk)
+    remove = get_object_or_404(Performer.objects.exclude(pk=pk), pk=request.POST.get("other") or 0)
+    removed = remove.name
+    merge_performers(keep, remove)
+    messages.success(request, f"Merged “{removed}” into “{keep.name}”.")
+    return redirect(keep)
+
+
+@login_required
+@require_POST
+def event_merge_duplicate(request: HttpRequest, pk: int) -> HttpResponse:
+    from .roles import is_admin
+
+    if not is_admin(request.user):
+        raise PermissionDenied
+    keep = get_object_or_404(Event, pk=pk)
+    raw = (request.POST.get("other_id") or request.POST.get("other") or "").strip().rstrip("/").split("/")[-1]
+    remove = get_object_or_404(Event.objects.exclude(pk=pk), pk=raw if raw.isdigit() else 0)
+    removed = remove.title
+    merge_events(keep, remove, mode="duplicate")
+    messages.success(request, f"Merged the duplicate “{removed}” into this event.")
+    return redirect(keep)
