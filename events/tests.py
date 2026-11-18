@@ -2255,6 +2255,83 @@ class PlayTests(BaseTestCase):
         self.assertContains(self.client.get(event.get_absolute_url()), "Staging of")
 
 
+class ExpandedDiaryTests(BaseTestCase):
+    def test_expanded_diary_shows_posters_and_lineup(self):
+        from events.models import Performer
+        EventPerformer.objects.create(event=self.event, performer=Performer.objects.create(name="Green Day"))
+        EventPerformer.objects.create(event=self.event, performer=Performer.objects.create(name="Supporting Act"),
+                                      role="support", billing_order=2)
+        self.event.image_url = "https://img.example/p.jpg"
+        self.event.save()
+        Log.objects.create(user=self.user, event=self.event, rating=9)
+        url = reverse("events:user_diary", args=["ana"])
+        regular = self.client.get(url)
+        self.assertContains(regular, "?view=expanded")
+        self.assertNotContains(regular, "Supporting Act")
+        expanded = self.client.get(url + "?view=expanded")
+        self.assertContains(expanded, "Supporting Act")
+        self.assertContains(expanded, "https://img.example/p.jpg")
+
+
+class TheaterToPlaysMigrationTests(BaseTestCase):
+    def test_theater_events_become_stagings_of_one_play_per_title(self):
+        import importlib
+        from django.apps import apps as real_apps
+        from events.models import Play
+        mig = importlib.import_module("events.migrations.0026_theater_events_to_plays")
+        lorca = Performer.objects.create(name="Lorca")
+        a = Event.objects.create(title="Bodas de Sangre", event_type=EventType.THEATER, date=date(2020, 1, 1))
+        b = Event.objects.create(title="bodas de sangre ", event_type=EventType.THEATER, date=date(2022, 1, 1))
+        EventPerformer.objects.create(event=b, performer=lorca, role="author")
+        mig.forwards(real_apps, None)
+        play = Play.objects.get()
+        self.assertEqual(play.title, "Bodas de Sangre")
+        self.assertEqual(list(play.authors.all()), [lorca])
+        self.assertEqual(set(play.stagings.all()), {a, b})
+        self.event.refresh_from_db()
+        self.assertIsNone(self.event.play)  # music untouched
+
+
+class PerformerSortTests(BaseTestCase):
+    def test_country_filter_and_sorts(self):
+        from django.contrib.auth import get_user_model
+        from events.models import ActLog
+        old = Performer.objects.create(name="Old Band", country="CL")
+        new = Performer.objects.create(name="New Band", country="AR")
+        e1 = Event.objects.create(title="a", date=date(2001, 1, 1))
+        e2 = Event.objects.create(title="b", date=date(2023, 1, 1))
+        e3 = Event.objects.create(title="c", date=date(2002, 1, 1))
+        for e in (e1, e3):
+            EventPerformer.objects.create(event=e, performer=old)
+        EventPerformer.objects.create(event=e2, performer=new)
+        bob = get_user_model().objects.create_user("bob", password="pw-test-123")
+        for u in (self.user, bob):
+            ActLog.objects.update_or_create(log=Log.objects.create(user=u, event=e2), performer=new,
+                                            defaults={"rating": 10})
+        ActLog.objects.update_or_create(log=Log.objects.create(user=self.user, event=e1), performer=old,
+                                        defaults={"rating": 4})
+        url = reverse("events:performer_list")
+        names = lambda qs: [p.name for p in self.client.get(url + qs).context["page"]]
+        self.assertEqual(names(""), ["Old Band", "New Band"])
+        self.assertEqual(names("?sort=popular"), ["New Band", "Old Band"])
+        self.assertEqual(names("?sort=rated"), ["New Band", "Old Band"])
+        self.assertEqual(names("?sort=recent"), ["New Band", "Old Band"])
+        self.assertEqual(names("?country=CL"), ["Old Band"])
+
+
+class PhotoFallbackTests(BaseTestCase):
+    def test_no_photo_uses_first_person_on_the_bill_with_one(self):
+        lead = Performer.objects.create(name="Lead, no photo")
+        director = Performer.objects.create(name="Director", image_url="https://img.example/dir.jpg")
+        late = Performer.objects.create(name="Later", image_url="https://img.example/late.jpg")
+        EventPerformer.objects.create(event=self.event, performer=lead, billing_order=1)
+        EventPerformer.objects.create(event=self.event, performer=director, role="director", billing_order=2)
+        EventPerformer.objects.create(event=self.event, performer=late, role="cast", billing_order=3)
+        self.assertEqual(self.event.display_image, "https://img.example/dir.jpg")
+        self.event.image_url = "https://img.example/own.jpg"
+        self.assertEqual(self.event.display_image, "https://img.example/own.jpg")
+
+
 class TheaterCreditsTests(BaseTestCase):
     def test_author_and_director_are_credits_not_acts(self):
         play = Event.objects.create(title="", event_type=EventType.THEATER, date=date(2020, 1, 1))

@@ -1,12 +1,20 @@
 {% extends "base.html" %}
+{% load event_extras %}
 
 {% block title %}Performers · En Vivo{% endblock %}
 
 {% block content %}
   <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
     <h1 class="h4 m-0">Performers <a class="small fs-6 fw-normal ms-2" href="{% url 'events:play_list' %}">Plays →</a></h1>
-    <form class="d-flex gap-2" method="get" role="search">
-      <input class="form-control form-control-sm" type="search" name="q" value="{{ q }}" placeholder="Search performers" aria-label="Search performers">
+    <form class="d-flex flex-wrap gap-2" method="get" role="search">
+      <input class="form-control form-control-sm w-auto" type="search" name="q" value="{{ q }}" placeholder="Search performers" aria-label="Search performers">
+      <select class="form-select form-select-sm w-auto" name="country" onchange="this.form.submit()" aria-label="Country">
+        <option value="">All countries</option>
+        {% for code, name in countries %}<option value="{{ code }}" {% if country == code %}selected{% endif %}>{{ name }}</option>{% endfor %}
+      </select>
+      <select class="form-select form-select-sm w-auto" name="sort" onchange="this.form.submit()" aria-label="Sort by">
+        {% for value, label in sorts.items %}<option value="{{ value }}" {% if sort == value %}selected{% endif %}>{{ label }}</option>{% endfor %}
+      </select>
       <button class="btn btn-sm btn-outline-secondary">Search</button>
     </form>
   </div>
@@ -21,7 +29,12 @@
             </div>
           </a>
           <a class="d-block mt-2 fw-semibold small lh-sm clamp-2 text-decoration-none" href="{{ p.get_absolute_url }}">{{ p.name }}</a>
-          <div class="small text-body-secondary">{{ p.n }} event{{ p.n|pluralize }}</div>
+          <div class="small text-body-secondary">
+            {% if sort == "popular" %}{{ p.fans }} {{ p.fans|pluralize:"person,people" }}
+            {% elif sort == "rated" %}{% if p.avg_rating %}<span class="stars">{{ p.avg_rating|stars }}</span> {{ p.avg_rating|avg_stars }}{% else %}Not rated{% endif %}
+            {% elif sort == "recent" %}{{ p.last_date|date:"j M Y"|default:"No date" }}
+            {% else %}{{ p.n }} event{{ p.n|pluralize }}{% endif %}
+          </div>
         </div>
       {% endfor %}
     </div>

@@ -302,19 +302,24 @@ class Event(TimestampedModel):
 
     @property
     def display_image(self) -> str:
-        """Own photo, else festival photo, else the headliner's tour photo, else the headliner's photo."""
+        """Own photo, else festival or play photo, else the headliner's tour photo, else the photo
+        of the first person on the bill (cast, crew or lineup, in billing order) who has one."""
         if self.image_url:
             return self.image_url
         if self.production_id and self.production.image_url:  # festival days
             return self.production.image_url
+        if self.play_id and self.play.image_url:  # theater stagings
+            return self.play.image_url
         if not self.pk:
             return ""
-        link = self.acts_on_stage().select_related("performer", "production").first()
-        if not link:
-            return ""
-        if link.production_id and link.production.image_url:
+        link = self.acts_on_stage().select_related("production").first()
+        if link and link.production_id and link.production.image_url:
             return link.production.image_url
-        return link.performer.image_url
+        first_with_photo = (
+            self.eventperformer_set.exclude(performer__image_url="")
+            .order_by("billing_order", "pk").values_list("performer__image_url", flat=True).first()
+        )
+        return first_with_photo or ""
 
     @property
     def has_happened(self) -> bool:

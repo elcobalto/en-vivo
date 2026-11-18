@@ -10,7 +10,7 @@ from django.contrib.auth.views import redirect_to_login
 from django.core.exceptions import PermissionDenied
 from django.core.paginator import Paginator
 from django.db import models, transaction
-from django.db.models import Avg, Count, F, OuterRef, Prefetch, Q, Subquery
+from django.db.models import Avg, Count, F, Max, OuterRef, Prefetch, Q, Subquery
 from django.db.models.functions import ExtractYear
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -271,16 +271,49 @@ def _seen_by(request: HttpRequest):
     return get_user_model().objects.filter(username=username).select_related("profile").first() if username else None
 
 
+PERFORMER_SORTS = {
+    "events": "Most events",
+    "popular": "Most popular",
+    "rated": "Highest rated",
+    "recent": "Last performed",
+}
+
+
 def performer_list(request: HttpRequest) -> HttpResponse:
-    """Every performer, most events first; ?q= searches by name."""
+    """Every performer; ?q= searches by name, ?country= filters, ?sort= orders (most events by default)."""
+    from django_countries import countries as all_countries
+
     q = request.GET.get("q", "").strip()
-    performers = Performer.objects.annotate(n=Count("events", distinct=True))
+    country = request.GET.get("country", "").upper()
+    sort = request.GET.get("sort", "events")
+    if sort not in PERFORMER_SORTS:
+        sort = "events"
+    performers = Performer.objects.annotate(
+        n=Count("events", distinct=True),
+        fans=Count("act_logs__log__user", distinct=True),  # people who logged seeing them
+        avg_rating=Avg("act_logs__rating"),
+        last_date=Max("events__date"),
+    )
     if q:
         performers = performers.filter(name__icontains=q)
-    page = Paginator(performers.order_by("-n", "name"), 48).get_page(request.GET.get("page"))
+    if country:
+        performers = performers.filter(country=country)
+    order = {
+        "events": ["-n", "name"],
+        "popular": ["-fans", "-n", "name"],
+        "rated": [F("avg_rating").desc(nulls_last=True), "-fans", "name"],
+        "recent": [F("last_date").desc(nulls_last=True), "name"],
+    }[sort]
+    page = Paginator(performers.order_by(*order), 48).get_page(request.GET.get("page"))
+    used = set(Performer.objects.exclude(country="").values_list("country", flat=True).distinct())
+    filters = {"q": q, "country": country, "sort": sort if sort != "events" else ""}
     return render(
         request, "events/performer_list.html",
-        {"page": page, "q": q, "querystring": urlencode({"q": q}) if q else ""},
+        {
+            "page": page, "q": q, "country": country, "sort": sort, "sorts": PERFORMER_SORTS,
+            "countries": [(code, name) for code, name in all_countries if code in used],
+            "querystring": urlencode({k: v for k, v in filters.items() if v}),
+        },
     )
 
 
@@ -341,6 +374,13 @@ def diary(request: HttpRequest, username: str | None = None) -> HttpResponse:
     years = (all_logs.exclude(event__date=None).annotate(y=ExtractYear("event__date"))
              .values_list("y", flat=True).distinct().order_by("-y"))
     types_logged = all_logs.values_list("event__event_type", flat=True).distinct()
+    expanded = request.GET.get("view") == "expanded"
+    if expanded:  # posters and lineups: fetch every event's bill in one query
+        logs = logs.prefetch_related(Prefetch(
+            "event__eventperformer_set",
+            queryset=EventPerformer.objects.select_related("performer").order_by("billing_order", "performer__name"),
+            to_attr="bill",
+        ))
     stats = logs.aggregate(avg_rating=Avg("rating"), log_count=Count("id"))
     by_type = logs.values("event__event_type").annotate(n=Count("id")).order_by("-n")
     type_labels = dict(EventType.choices)
@@ -352,6 +392,7 @@ def diary(request: HttpRequest, username: str | None = None) -> HttpResponse:
             "tab": "diary",
             "logs": logs,
             "f": {"type": event_type, "year": year},
+            "expanded": expanded,
             "years": years,
             "event_types": [(v, l) for v, l in EventType.choices if v in set(types_logged)],
             "by_type": [(type_labels.get(r["event__event_type"], "Other"), r["n"]) for r in by_type],
