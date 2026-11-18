@@ -1,6 +1,6 @@
 from django.urls import path
 
-from . import views, views_discovery, views_merge, views_social, views_venues
+from . import views, views_bulk, views_discovery, views_merge, views_social, views_venues
 
 app_name = "events"
 
@@ -8,6 +8,8 @@ urlpatterns = [
     path("", views.home, name="home"),
     path("events/", views.event_list, name="event_list"),
     path("events/new/", views.event_form, name="event_create"),
+    path("events/import/", views_bulk.bulk_import, name="bulk_import"),
+    path("events/import/review/", views_bulk.bulk_review, name="bulk_review"),
     path("events/<int:pk>/", views.event_detail, name="event_detail"),
     path("events/<int:pk>/edit/", views.event_form, name="event_edit"),
     path("events/<int:pk>/delete/", views.event_delete, name="event_delete"),

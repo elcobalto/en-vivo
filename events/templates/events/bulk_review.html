@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Add venues and lineups · En Vivo{% endblock %}
+
+{% block content %}
+  <h1 class="h4 mb-1">Add venues and lineups</h1>
+  <p class="small text-body-secondary mb-3">
+    Fill in what you know; leave the rest empty. Artists are comma-separated, top of the bill first
+    (existing artists are reused, new ones are created). You can come back to this page any time.
+  </p>
+  {% if rows %}
+    <form method="post">
+      {% csrf_token %}
+      <input type="hidden" name="ids" value="{{ ids }}" />
+      {% for row in rows %}{% with e=row.event %}
+        <div class="card mb-2"><div class="card-body py-2">
+          <div class="d-flex flex-wrap justify-content-between gap-2 mb-2">
+            <a class="fw-semibold" href="{{ e.get_absolute_url }}" target="_blank" rel="noreferrer">{{ e.title }}</a>
+            <span><span class="badge text-bg-secondary type-badge">{{ e.get_event_type_display }}</span> <span class="event-date ms-1">{{ e.date|date:"j M Y"|default:"no date" }}</span></span>
+          </div>
+          <div class="row g-2">
+            <div class="col-12 col-md-6">
+              {% include "events/_venue_search.html" with mode="select" hidden_field=row.venue_input initial=e.venue placeholder="Venue" %}
+            </div>
+            <div class="col-12 col-md-6">
+              <input class="form-control" name="artists_{{ e.pk }}" placeholder="{% if row.lineup %}Add more artists{% else %}Artists, e.g. Paul McCartney, Opener{% endif %}" aria-label="Artists for {{ e.title }}" />
+              {% if row.lineup %}<div class="form-text">Lineup: {{ row.lineup }}</div>{% endif %}
+            </div>
+          </div>
+        </div></div>
+      {% endwith %}{% endfor %}
+      <button class="btn btn-success mt-2" type="submit">Save all</button>
+    </form>
+  {% else %}
+    <p class="text-body-secondary">No events to review. <a href="{% url 'events:bulk_import' %}">Import a list</a>.</p>
+  {% endif %}
+{% endblock %}
+
+{% block scripts %}<script src="{% static 'events/venue-search.js' %}"></script>{% endblock %}

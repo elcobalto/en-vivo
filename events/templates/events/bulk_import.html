@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+
+{% block title %}Import a list of events · En Vivo{% endblock %}
+
+{% block content %}
+  <div class="row justify-content-center"><div class="col-12 col-lg-10">
+    <h1 class="h4 mb-1">Import a list of events</h1>
+    <p class="small text-body-secondary mb-3">
+      One event per line: <code>date, event name, type</code>. The type is optional (music by default):
+      {% for value, label in types %}{{ label|lower }}{% if not forloop.last %}, {% endif %}{% endfor %}.
+      Dates like <code>2019-03-20</code> or <code>20-03-2019</code>. Put names containing commas in quotes. Up to {{ max_rows }} lines.
+      Next, you'll add a venue and lineup to each one.
+    </p>
+
+    <form method="post">
+      {% csrf_token %}
+      <textarea class="form-control font-monospace mb-2" name="lines" rows="10" required
+                placeholder="2019-03-20, Paul McCartney, music&#10;15-03-2024, Lollapalooza Chile, festival&#10;2023-11-02, Bill Burr, comedy" aria-label="Events, one per line">{{ text }}</textarea>
+      <div class="d-flex gap-2">
+        <button class="btn btn-outline-secondary" type="submit">Preview</button>
+        {% if rows and not has_errors and not too_many %}
+          <button class="btn btn-success" type="submit" name="confirm" value="1">Create {{ rows|length }} event{{ rows|length|pluralize }}</button>
+        {% endif %}
+      </div>
+    </form>
+
+    {% if too_many %}<div class="alert alert-warning mt-3">That's {{ rows|length }} lines; import up to {{ max_rows }} at a time.</div>{% endif %}
+    {% if rows %}
+      <div class="table-responsive mt-3">
+        <table class="table table-sm align-middle">
+          <thead><tr class="small text-body-secondary"><th>Line</th><th>Date</th><th>Event</th><th>Type</th><th></th></tr></thead>
+          <tbody>
+            {% for r in rows %}
+              <tr class="{% if r.error %}table-danger{% endif %}">
+                <td class="small text-body-secondary">{{ r.line }}</td>
+                <td class="event-date">{% if r.date %}{{ r.date|date:"j M Y" }}{% endif %}</td>
+                <td>{{ r.title|default:r.raw }}</td>
+                <td class="small">{{ r.event_type|capfirst }}</td>
+                <td class="small text-danger">{{ r.error }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% if has_errors %}<p class="small text-danger">Fix the highlighted lines and preview again.</p>{% endif %}
+      <p class="small text-body-secondary">Events with the same name, date and type that already exist are reused, not duplicated.</p>
+    {% endif %}
+  </div></div>
+{% endblock %}

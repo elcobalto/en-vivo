@@ -73,6 +73,21 @@
           <a class="small ms-2" href="{% url 'events:event_edit' event.pk %}">Add {% if not event.venue %}venue{% if not event.date %} &amp; date{% endif %}{% else %}date{% endif %}</a>
         {% endif %}
       </div>
+      <h2 class="section-title mt-3 mb-2">Lineup</h2>
+      {% if lineup %}
+        <ul class="list-unstyled">
+          {% for row in act_rows %}{% with link=row.link %}
+            <li class="mb-1 d-flex align-items-baseline gap-2">
+              <span class="event-date" style="min-width:3.2rem">{% if link.start_time %}{{ link.start_time|time:"H:i" }}{% endif %}</span>
+              <span class="flex-grow-1"><a href="{{ link.performer.get_absolute_url }}">{{ link.performer.name }}</a> <span class="small text-body-secondary">{{ link.get_role_display }}{% if link.production %} · <a class="link-secondary" href="{{ link.production.get_absolute_url }}">{{ link.production.title }}</a>{% endif %}</span></span>
+              {% if row.avg %}<span class="stars small" title="Average from {{ row.seen_by }} who saw them">{{ row.avg|stars }}</span>{% endif %}
+            </li>
+          {% endwith %}{% endfor %}
+        </ul>
+      {% else %}
+        <p class="small text-body-secondary">No performers added yet.</p>
+      {% endif %}
+
       {% if festivals_same_day %}
         <div class="card border-warning mb-3"><div class="card-body py-3">
           <div class="small text-warning mb-2">Admin</div>
@@ -150,21 +165,6 @@
         <p class="small">Part of the festival <a class="fw-semibold" href="{{ event.production.get_absolute_url }}">{{ event.production.title }}</a></p>
       {% endif %}
       {% if event.description %}<p>{{ event.description|linebreaksbr }}</p>{% endif %}
-
-      <h2 class="section-title mt-4 mb-2">Lineup</h2>
-      {% if lineup %}
-        <ul class="list-unstyled">
-          {% for row in act_rows %}{% with link=row.link %}
-            <li class="mb-1 d-flex align-items-baseline gap-2">
-              <span class="event-date" style="min-width:3.2rem">{% if link.start_time %}{{ link.start_time|time:"H:i" }}{% endif %}</span>
-              <span class="flex-grow-1"><a href="{{ link.performer.get_absolute_url }}">{{ link.performer.name }}</a> <span class="small text-body-secondary">{{ link.get_role_display }}{% if link.production %} · <a class="link-secondary" href="{{ link.production.get_absolute_url }}">{{ link.production.title }}</a>{% endif %}</span></span>
-              {% if row.avg %}<span class="stars small" title="Average from {{ row.seen_by }} who saw them">{{ row.avg|stars }}</span>{% endif %}
-            </li>
-          {% endwith %}{% endfor %}
-        </ul>
-      {% else %}
-        <p class="small text-body-secondary">No performers added yet.</p>
-      {% endif %}
 
       {% if event.is_music or setlists %}
         <div class="d-flex align-items-center justify-content-between mt-4 mb-2">

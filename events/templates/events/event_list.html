@@ -9,6 +9,7 @@
     <div class="d-flex gap-2">
       {% if user.is_authenticated %}
         <a class="btn btn-sm btn-outline-warning" href="{% url 'events:setlistfm_shows' %}">Import from setlist.fm</a>
+        <a class="btn btn-sm btn-outline-secondary" href="{% url 'events:bulk_import' %}">Import a list</a>
         <a class="btn btn-sm btn-success" href="{% url 'events:event_create' %}">+ Add event</a>
       {% endif %}
     </div>

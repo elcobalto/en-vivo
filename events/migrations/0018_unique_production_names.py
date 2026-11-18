@@ -42,13 +42,8 @@ class Migration(migrations.Migration):
 
     dependencies = [("events", "0017_performer_country")]
 
+    # Data only. The unique rule is added in 0019: PostgreSQL can't change rows and then
+    # build an index on the same table inside one transaction ("pending trigger events").
     operations = [
         migrations.RunPython(merge_same_name_productions, migrations.RunPython.noop),
-        migrations.AddConstraint(
-            model_name="production",
-            constraint=models.UniqueConstraint(
-                django.db.models.functions.text.Lower("title"),
-                name="uq_production_title_ci",
-            ),
-        )
     ]

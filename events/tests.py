@@ -2110,3 +2110,61 @@ class ProductionPhotoTests(BaseTestCase):
         self.assertEqual(fest.image_url, "https://img.example/f.jpg")
         # changing an existing photo is admin-only
         self.assertEqual(self.client.get(reverse("events:production_photo", args=[fest.pk])).status_code, 403)
+
+
+class BulkImportTests(BaseTestCase):
+    LINES = ("2019-03-20, Paul McCartney, music\n"
+             "15/03/2024, Lollapalooza Chile, festival\n"
+             '2023-11-02, "Burr, Bill", Stand-up\n'
+             "# comments are ignored\n"
+             "2010-05-01, Green Day\n")
+
+    def setUp(self):
+        super().setUp()
+        self.client.force_login(self.user)
+
+    def test_parse_formats_types_and_errors(self):
+        from .views_bulk import parse_lines
+
+        rows = parse_lines(self.LINES + "31-02-2020, Bad date\nnot a line\n2020-01-01, X, opera\n")
+        ok = [(r.date.isoformat(), r.title, r.event_type) for r in rows if not r.error]
+        self.assertEqual(ok, [("2019-03-20", "Paul McCartney", "music"), ("2024-03-15", "Lollapalooza Chile", "festival"),
+                              ("2023-11-02", "Burr, Bill", "comedy"), ("2010-05-01", "Green Day", "music")])
+        self.assertEqual(len([r for r in rows if r.error]), 3)
+
+    def test_preview_then_create_then_add_venues_and_lineups(self):
+        preview = self.client.post(reverse("events:bulk_import"), {"lines": self.LINES})
+        self.assertContains(preview, "Create 4 events")
+        self.assertEqual(Event.objects.count(), 1)  # nothing created on preview
+
+        response = self.client.post(reverse("events:bulk_import"), {"lines": self.LINES, "confirm": "1"})
+        self.assertEqual(Event.objects.count(), 5)
+        self.assertIn(reverse("events:bulk_review"), response["Location"])
+        macca = Event.objects.get(title="Paul McCartney")
+
+        review = self.client.get(response["Location"])
+        self.assertContains(review, f'name="venue_{macca.pk}"')
+        Performer.objects.create(name="Paul McCartney")
+        self.client.post(reverse("events:bulk_review"), {
+            "ids": str(macca.pk), f"venue_{macca.pk}": str(self.venue.pk),
+            f"artists_{macca.pk}": "paul mccartney, Opener Band",
+        })
+        macca.refresh_from_db()
+        self.assertEqual(macca.venue, self.venue)
+        self.assertEqual(list(macca.eventperformer_set.order_by("billing_order").values_list("performer__name", "role")),
+                         [("Paul McCartney", "headliner"), ("Opener Band", "support")])
+        self.assertEqual(Performer.objects.filter(name__iexact="paul mccartney").count(), 1)
+
+        # importing the same list again reuses the events
+        self.client.post(reverse("events:bulk_import"), {"lines": self.LINES, "confirm": "1"})
+        self.assertEqual(Event.objects.count(), 5)
+
+    def test_errors_block_creation(self):
+        page = self.client.post(reverse("events:bulk_import"), {"lines": "2020-13-45, Nope", "confirm": "1"})
+        self.assertContains(page, "Couldn&#x27;t read the date")
+        self.assertEqual(Event.objects.count(), 1)
+
+    def test_lineup_shows_right_under_venue_line(self):
+        html = self.client.get(self.event.get_absolute_url()).content.decode()
+        self.assertLess(html.index("Lineup</h2>"), html.index("Reviews</h2>"))
+        self.assertLess(html.index("10 November 1992"), html.index("Lineup</h2>"))
