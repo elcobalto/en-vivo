@@ -2184,7 +2184,7 @@ class ProfileLayoutTests(BaseTestCase):
         page = self.client.get(reverse("events:profile", args=["ana"]))
         html = page.content.decode()
         self.assertLess(html.index("Favourite events"), html.index("Most visited venues"))
-        self.assertLess(html.index("Recent activity"), html.index('class="rating-bars'))
+        self.assertLess(html.index("Recently attended"), html.index('class="rating-bars'))
         self.assertEqual([(c["event__venue__city"], c["n"]) for c in page.context["top_cities"]],
                          [("Santiago", 2), ("Valparaíso", 1)])
         self.assertContains(page, "Most visited cities")

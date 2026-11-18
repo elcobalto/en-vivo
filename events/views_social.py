@@ -106,7 +106,11 @@ def _local_foreign_artists(owner) -> dict:
 def profile(request: HttpRequest, username: str) -> HttpResponse:
     owner = _owner(username)
     favorites = FavoriteEvent.objects.filter(user=owner).select_related("event", "event__venue")
-    recent = Log.objects.filter(user=owner).select_related("event").order_by("-created_at")[:6]
+    # Recently attended: the shows the person went to most recently (by show date, not log date).
+    recent = (
+        Log.objects.filter(user=owner).select_related("event")
+        .order_by(F("event__date").desc(nulls_last=True), "-created_at")[:6]
+    )
     reviews = with_social_counts(
         Log.objects.filter(user=owner).exclude(review="").select_related("user__profile", "event")
     ).order_by("-created_at")[:3]

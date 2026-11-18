@@ -50,7 +50,7 @@
   {% endif %}
 
   <div class="d-flex justify-content-between align-items-end mb-3">
-    <h2 class="section-title flex-grow-1 m-0">Recent activity</h2>
+    <h2 class="section-title flex-grow-1 m-0">Recently attended</h2>
     <a class="small ms-2" href="{% url 'events:user_diary' owner.get_username %}">Diary →</a>
   </div>
   {% if recent %}
@@ -61,6 +61,7 @@
             <div class="poster position-relative" title="{{ log.event.title }}">{% if log.event.display_image %}{% include "events/_poster_img.html" with event=log.event %}{% else %}<div class="poster-title">{{ log.event.title }}</div>{% endif %}</div>
           </a>
           <div class="small"><span class="stars">{{ log.rating|stars }}</span>{% if log.liked %} <span class="liked">♥</span>{% endif %}</div>
+          {% if log.event.date %}<div class="small text-body-secondary">{{ log.event.date|date:"j M Y" }}</div>{% endif %}
         </div>
       {% endfor %}
     </div>
