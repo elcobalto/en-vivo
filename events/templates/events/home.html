@@ -11,14 +11,6 @@
     </div>
   </div>
 
-  {% if friends_activity %}
-    <div class="d-flex justify-content-between align-items-end mb-1">
-      <h2 class="section-title flex-grow-1 m-0">From people you follow</h2>
-      <a class="small ms-2" href="{% url 'events:activity' %}">All activity →</a>
-    </div>
-    <div class="mb-5">{% for item in friends_activity %}{% include "events/_activity_item.html" %}{% endfor %}</div>
-  {% endif %}
-
   {% if upcoming %}
     <div class="d-flex justify-content-between align-items-end mb-3">
       <h2 class="section-title flex-grow-1 m-0">Upcoming{% if upcoming_place %} in {{ upcoming_place }}{% endif %}</h2>
@@ -30,22 +22,39 @@
   {% endif %}
 
   {% if recent %}
-    <h2 class="section-title mb-3">Recently happened</h2>
+    <div class="d-flex justify-content-between align-items-end mb-3">
+      <h2 class="section-title flex-grow-1 m-0">Recently happened</h2>
+      <a class="small ms-2" href="{% url 'events:event_list' %}?when=past">All events →</a>
+    </div>
     <div class="row row-cols-2 row-cols-sm-3 row-cols-lg-6 g-3 mb-5">
       {% for event in recent %}<div class="col">{% include "events/_event_card.html" %}</div>{% endfor %}
     </div>
   {% endif %}
 
+  {% if reviews %}
+    <h2 class="section-title mb-1">Latest reviews</h2>
+    {% for log in reviews %}{% include "events/_review.html" with show_event=True %}{% endfor %}
+  {% endif %}
+  <div class="mb-5"></div>
+
   {% if just_added %}
     <div class="d-flex justify-content-between align-items-end mb-3">
       <h2 class="section-title flex-grow-1 m-0">Just added</h2>
-      <a class="small ms-2" href="{% url 'events:event_list' %}">All events →</a>
+      <a class="small ms-2" href="{% url 'events:event_list' %}?sort=added">Last added →</a>
     </div>
     <div class="row row-cols-2 row-cols-sm-3 row-cols-lg-6 g-3 mb-5">
       {% for event in just_added %}<div class="col">{% include "events/_event_card.html" %}</div>{% endfor %}
     </div>
   {% else %}
     <p class="text-body-secondary mb-5">No events yet. {% if user.is_authenticated %}<a href="{% url 'events:event_create' %}">Add the first one</a>.{% endif %}</p>
+  {% endif %}
+
+  {% if friends_activity %}
+    <div class="d-flex justify-content-between align-items-end mb-1">
+      <h2 class="section-title flex-grow-1 m-0">From people you follow</h2>
+      <a class="small ms-2" href="{% url 'events:activity' %}">All activity →</a>
+    </div>
+    <div class="mb-5">{% for item in friends_activity %}{% include "events/_activity_item.html" %}{% endfor %}</div>
   {% endif %}
 
   {% if lists %}
@@ -58,10 +67,5 @@
         <li class="py-1"><a class="fw-semibold" href="{{ l.get_absolute_url }}">{{ l.title }}</a> <span class="small text-body-secondary">by {{ l.user.get_username }} · {{ l.item_count }} event{{ l.item_count|pluralize }}</span></li>
       {% endfor %}
     </ul>
-  {% endif %}
-
-  {% if reviews %}
-    <h2 class="section-title mb-1">Latest reviews</h2>
-    {% for log in reviews %}{% include "events/_review.html" with show_event=True %}{% endfor %}
   {% endif %}
 {% endblock %}

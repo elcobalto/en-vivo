@@ -153,7 +153,7 @@ def profile_edit(request: HttpRequest) -> HttpResponse:
     initial = {f"slot_{i}": fav.event for i, fav in enumerate(current, start=1)}
 
     form = ProfileForm(request.POST or None, instance=prof)
-    favorites_form = FavoritesForm(request.POST or None, initial=initial)
+    favorites_form = FavoritesForm(request.POST or None, initial=initial, user=request.user)
 
     if request.method == "POST" and form.is_valid() and favorites_form.is_valid():
         with transaction.atomic():

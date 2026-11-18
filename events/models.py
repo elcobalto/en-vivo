@@ -609,3 +609,36 @@ class Comment(TimestampedModel):
 
     def __str__(self) -> str:
         return f"{self.user} on review {self.log_id}"
+
+
+# --------------------------------------------------------------------------- videos
+
+
+class EventVideo(TimestampedModel):
+    """A YouTube video from an event, of one act or of the whole event."""
+
+    event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name="videos")
+    performer = models.ForeignKey(
+        Performer, on_delete=models.CASCADE, null=True, blank=True, related_name="videos",
+        help_text="Empty for videos of the whole event.",
+    )
+    youtube_id = models.CharField(max_length=20)
+    title = models.CharField(max_length=200, blank=True, default="")
+    added_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="videos_added"
+    )
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["event", "youtube_id"], name="uq_eventvideo_event_youtube")]
+        ordering = ["created_at"]
+
+    def __str__(self) -> str:
+        return self.title or self.youtube_id
+
+    @property
+    def watch_url(self) -> str:
+        return f"https://www.youtube.com/watch?v={self.youtube_id}"
+
+    @property
+    def embed_url(self) -> str:
+        return f"https://www.youtube-nocookie.com/embed/{self.youtube_id}"

@@ -402,6 +402,8 @@ class ProfileTests(SocialBase):
     def test_edit_profile_and_favorites(self):
         self.client.force_login(self.user)
         hamlet = Event.objects.create(title="Hamlet", event_type=EventType.THEATER)
+        for e in [hamlet, self.event]:
+            Log.objects.get_or_create(user=self.user, event=e)  # favourites come from your diary
         response = self.client.post(reverse("events:profile_edit"), {
             "username": "ana", "display_name": "Ana M", "location": "Santiago", "bio": "Front row.",
             "slot_1": str(hamlet.pk), "slot_2": "", "slot_3": str(self.event.pk), "slot_4": "",
@@ -1516,17 +1518,19 @@ class RatingHistogramTests(BaseTestCase):
 
 
 class FavoriteChoicesTests(BaseTestCase):
-    def test_sorted_by_performer_with_venue_and_date(self):
-        zz = Event.objects.create(title="", venue=self.venue, date=date(2019, 3, 20))
-        EventPerformer.objects.create(event=zz, performer=Performer.objects.create(name="Zappa Tribute"))
-        aa = Event.objects.create(title="", date=None)
-        EventPerformer.objects.create(event=aa, performer=Performer.objects.create(name="ABBA"))
+    def test_choices_are_your_diary_events_labelled_by_event(self):
+        zz = Event.objects.create(title="Zappa Tribute", venue=self.venue, date=date(2019, 3, 20))
+        aa = Event.objects.create(title="ABBA", date=None)
+        not_mine = Event.objects.create(title="Not in my diary")
+        for e in [zz, aa, self.event]:
+            Log.objects.create(user=self.user, event=e)
         self.client.force_login(self.user)
         field = self.client.get(reverse("events:profile_edit")).context["favorites_form"].fields["slot_1"]
         labels = [label for _, label in field.choices][1:]
-        self.assertEqual(labels[0], "ABBA — date not added")
-        self.assertEqual(labels[-1], "Zappa Tribute — Teatro Caupolicán · 20 Mar 2019")
-        self.assertIn("Green Day in Chile — Teatro Caupolicán · 10 Nov 1992", labels)  # no lineup: uses title
+        self.assertEqual(labels, ["ABBA — date not added",
+                                  "Green Day in Chile — Teatro Caupolicán · 10 Nov 1992",
+                                  "Zappa Tribute — Teatro Caupolicán · 20 Mar 2019"])
+        self.assertNotIn(not_mine.title, " ".join(labels))
 
 
 class NewArtistInLineupTests(BaseTestCase):
@@ -2246,3 +2250,123 @@ class EventFormOrderTests(BaseTestCase):
         self.assertLess(venue, lineup)
         self.assertLess(lineup, description)
         self.assertEqual(html.count('id="lineup-rows"'), 1)
+
+
+class FestivalPhotoForAllDaysTests(BaseTestCase):
+    def test_copy_photo_to_every_day_of_that_years_festival(self):
+        fest = Production.objects.create(title="Lollapalooza Chile", event_type=EventType.FESTIVAL)
+        days = [Event.objects.create(title="", event_type=EventType.FESTIVAL, production=fest, date=date(2024, 3, d),
+                                     venue=Venue.objects.create(name=f"Stage {d}", city=f"City {d}"), created_by=self.user)
+                for d in (15, 16, 17)]
+        next_year = Event.objects.create(title="", event_type=EventType.FESTIVAL, production=fest, date=date(2025, 3, 15),
+                                         created_by=self.user)
+        self.client.force_login(self.user)
+        page = self.client.get(reverse("events:event_edit", args=[days[0].pk]))
+        self.assertContains(page, "Use this photo for every day of Lollapalooza Chile in 2024")
+        html = page.content.decode()
+        self.assertLess(html.index('name="image_url"'), html.index('name="photo_for_all_days"'))
+
+        self.client.post(reverse("events:event_edit", args=[days[0].pk]), {
+            "title": "", "event_type": "festival", "date": "2024-03-15", "production": str(fest.pk),
+            "venue": str(days[0].venue_id), "image_url": "https://img.example/lolla.jpg", "photo_for_all_days": "on",
+            "eventperformer_set-TOTAL_FORMS": "0", "eventperformer_set-INITIAL_FORMS": "0",
+            "eventperformer_set-MIN_NUM_FORMS": "0", "eventperformer_set-MAX_NUM_FORMS": "1000",
+        })
+        for d in days:
+            d.refresh_from_db()
+            self.assertEqual(d.image_url, "https://img.example/lolla.jpg")
+        next_year.refresh_from_db()
+        self.assertEqual(next_year.image_url, "")
+
+    def test_option_hidden_for_non_festival_events(self):
+        self.client.force_login(self.user)
+        self.event.created_by = self.user
+        self.event.save()
+        self.assertNotContains(self.client.get(reverse("events:event_edit", args=[self.event.pk])), "photo_for_all_days")
+
+
+class FirstActIsHeadlinerTests(BaseTestCase):
+    def test_first_act_saved_as_headliner(self):
+        self.client.force_login(self.user)
+        a, b = Performer.objects.create(name="Was support"), Performer.objects.create(name="Other")
+        self.client.post(reverse("events:event_create"), {
+            "title": "", "event_type": "music", "date": "2020-02-02",
+            "eventperformer_set-TOTAL_FORMS": "2", "eventperformer_set-INITIAL_FORMS": "0",
+            "eventperformer_set-MIN_NUM_FORMS": "0", "eventperformer_set-MAX_NUM_FORMS": "1000",
+            "eventperformer_set-0-performer": str(a.pk), "eventperformer_set-0-role": "support",
+            "eventperformer_set-0-billing_order": "1",
+            "eventperformer_set-1-performer": str(b.pk), "eventperformer_set-1-role": "support",
+            "eventperformer_set-1-billing_order": "2",
+        })
+        event = Event.objects.get(performers=a)
+        roles = dict(event.eventperformer_set.values_list("performer__name", "role"))
+        self.assertEqual(roles, {"Was support": "headliner", "Other": "support"})
+        self.assertEqual(event.title, "Was support")
+
+
+class EventVideoTests(BaseTestCase):
+    def test_parse_youtube_links(self):
+        from .videos import youtube_id
+
+        for url in ["https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=10s", "https://youtu.be/dQw4w9WgXcQ",
+                    "youtube.com/shorts/dQw4w9WgXcQ", "https://m.youtube.com/live/dQw4w9WgXcQ?si=x",
+                    "https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ", "dQw4w9WgXcQ"]:
+            with self.subTest(url=url):
+                self.assertEqual(youtube_id(url), "dQw4w9WgXcQ")
+        self.assertEqual(youtube_id("https://vimeo.com/123"), "")
+        self.assertEqual(youtube_id("https://www.youtube.com/watch?v=short"), "")
+
+    @mock.patch("events.videos.video_title", return_value="Live at Caupolicán")
+    def test_add_list_limit_and_remove(self, _):
+        from .models import EventVideo
+
+        act = Performer.objects.create(name="Green Day")
+        EventPerformer.objects.create(event=self.event, performer=act)
+        self.client.force_login(self.user)
+        add = reverse("events:video_add", args=[self.event.pk])
+        self.client.post(add, {"url": "https://youtu.be/AAAAAAAAAAA", "performer": str(act.pk)})
+        self.client.post(add, {"url": "https://youtu.be/AAAAAAAAAAA"})  # duplicate ignored
+        self.client.post(add, {"url": "not a link"})
+        for i in range(5):
+            self.client.post(add, {"url": f"https://youtu.be/BBBBBBBBBB{i}"})
+        self.assertEqual(EventVideo.objects.count(), 6)
+        self.assertEqual(EventVideo.objects.get(youtube_id="AAAAAAAAAAA").performer, act)
+
+        page = self.client.get(self.event.get_absolute_url())
+        self.assertEqual(len(page.context["latest_videos"]), 4)
+        self.assertContains(page, "See all 6 videos")
+        self.assertEqual(page.content.decode().count("youtube-nocookie.com/embed/"), 4)
+
+        full = self.client.get(reverse("events:event_videos", args=[self.event.pk]))
+        self.assertEqual([label for label, _, _ in full.context["video_groups"]], ["Whole event", "Green Day"])
+        self.assertContains(full, "Live at Caupolicán")
+
+        video = EventVideo.objects.get(youtube_id="AAAAAAAAAAA")
+        other = get_user_model().objects.create_user("bob", password="pw-test-456")
+        self.client.force_login(other)
+        self.assertEqual(self.client.post(reverse("events:video_remove", args=[self.event.pk, video.pk])).status_code, 403)
+        self.client.force_login(self.user)
+        self.client.post(reverse("events:video_remove", args=[self.event.pk, video.pk]))
+        self.assertFalse(EventVideo.objects.filter(pk=video.pk).exists())
+
+
+class HomeLayoutTests(BaseTestCase):
+    def test_home_order_and_links(self):
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        Event.objects.create(title="Soon", date=timezone.localdate() + timedelta(days=5), venue=self.venue)
+        Log.objects.create(user=self.user, event=self.event, rating=9, review="Great")
+        html = self.client.get(reverse("events:home")).content.decode()
+        order = [html.index(t) for t in ["Upcoming", "Recently happened", "Latest reviews", "Just added"]]
+        self.assertEqual(order, sorted(order))
+        self.assertIn("?when=past\">All events →", html)
+        self.assertIn("?sort=added\">Last added →", html)
+
+    def test_sort_by_recently_added(self):
+        older = Event.objects.create(title="Added first", date=date(2030, 1, 1))
+        newer = Event.objects.create(title="Added last", date=date(1990, 1, 1))
+        titles = [e.title for e in self.client.get(reverse("events:event_list") + "?sort=added").context["page"].object_list]
+        self.assertEqual(titles[:2], ["Added last", "Added first"])
+        self.assertTrue(older.pk < newer.pk)

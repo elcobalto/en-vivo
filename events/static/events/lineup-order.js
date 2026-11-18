@@ -6,11 +6,24 @@
   if (!list) return;
   var dragging = null;
 
+  var CREDITS = ["author", "director"];
+
   function renumber() {
-    list.querySelectorAll(".lineup-row").forEach(function (row, i) {
+    var rows = list.querySelectorAll(".lineup-row");
+    rows.forEach(function (row, i) {
       var order = row.querySelector('input[name$="-billing_order"]');
       if (order) order.value = i + 1;
     });
+    // The first act on the bill (not a credit like author/director) is the headliner.
+    for (var i = 0; i < rows.length; i++) {
+      var role = rows[i].querySelector('select[name$="-role"]');
+      var filled = rows[i].querySelector('select[name$="-performer"]');
+      var named = rows[i].querySelector('input[name$="-new_performer"]');
+      var hasAct = (filled && filled.value) || (named && named.value);
+      if (!hasAct || (role && CREDITS.indexOf(role.value) !== -1)) continue;
+      if (role) role.value = "headliner";
+      break;
+    }
   }
 
   list.addEventListener("mousedown", function (e) {
@@ -94,6 +107,7 @@
     label.querySelector(".fw-semibold").textContent = name;
     nameInput.value = "";
     nameInput.focus();
+    renumber();
   }
   if (addArtist) addArtist.addEventListener("click", addNewArtist);
   if (nameInput) nameInput.addEventListener("keydown", function (e) {
@@ -101,6 +115,9 @@
   });
 
   // × on rows that aren't saved yet just removes them from the page.
+  list.addEventListener("change", function (e) {
+    if (e.target.matches('select[name$="-performer"]')) renumber();
+  });
   list.addEventListener("click", function (e) {
     var remove = e.target.closest(".remove-row");
     if (!remove) return;

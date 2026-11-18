@@ -195,6 +195,31 @@
         {% endfor %}
       {% endif %}
 
+      <div class="d-flex justify-content-between align-items-end mt-4 mb-2" id="videos">
+        <h2 class="section-title flex-grow-1 m-0">Videos</h2>
+        {% if video_count > latest_videos|length %}<a class="small ms-2" href="{% url 'events:event_videos' event.pk %}">See all {{ video_count }} videos →</a>
+        {% elif user.is_authenticated %}<a class="small ms-2" href="{% url 'events:event_videos' event.pk %}">{% if video_count %}All videos · add one{% else %}Add a video{% endif %} →</a>{% endif %}
+      </div>
+      {% if latest_videos %}
+        <div class="row row-cols-1 row-cols-md-2 g-2 mb-3">
+          {% for v in latest_videos %}
+            <div class="col">
+              <div class="ratio ratio-16x9 rounded overflow-hidden">
+                <iframe src="{{ v.embed_url }}" title="{{ v.title|default:'YouTube video' }}" loading="lazy"
+                        allow="accelerometer; encrypted-media; gyroscope; picture-in-picture; fullscreen" allowfullscreen
+                        referrerpolicy="strict-origin-when-cross-origin"></iframe>
+              </div>
+              <div class="small text-truncate mt-1">
+                <span class="text-body-secondary">{% if v.performer %}{{ v.performer.name }}{% else %}Whole event{% endif %} ·</span>
+                <a href="{{ v.watch_url }}" target="_blank" rel="noreferrer">{{ v.title|default:"Watch on YouTube" }}</a>
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <p class="small text-body-secondary">No videos yet.</p>
+      {% endif %}
+
       <h2 class="section-title mt-4 mb-1">Reviews</h2>
       {% for log in reviews %}{% include "events/_review.html" %}{% empty %}<p class="small text-body-secondary mt-2">No reviews yet.</p>{% endfor %}
     </div>

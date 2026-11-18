@@ -259,3 +259,43 @@ def performer_photo(request: HttpRequest, pk: int) -> HttpResponse:
                  "edit_url": reverse("events:performer_edit", args=[performer.pk]) if is_admin(request.user) else "",
                  "hint": "Pick a photo of the artist. It's also used for their events that have no photo."},
     )
+
+
+# --------------------------------------------------------------------------- event videos
+
+
+@login_required
+@require_POST
+def video_add(request: HttpRequest, pk: int) -> HttpResponse:
+    from .models import EventVideo
+    from .videos import video_title, youtube_id
+
+    event = get_object_or_404(Event, pk=pk)
+    vid = youtube_id(request.POST.get("url") or "")
+    if not vid:
+        messages.error(request, "That doesn't look like a YouTube link.")
+        return redirect("events:event_videos", pk=event.pk)
+    performer_id = (request.POST.get("performer") or "").strip()
+    performer = None
+    if performer_id.isdigit():
+        performer = event.performers.filter(pk=int(performer_id)).first()
+    if EventVideo.objects.filter(event=event, youtube_id=vid).exists():
+        messages.info(request, "That video is already on this event.")
+    else:
+        EventVideo.objects.create(event=event, performer=performer, youtube_id=vid,
+                                  title=video_title(vid), added_by=request.user)
+        messages.success(request, "Video added.")
+    return redirect("events:event_videos", pk=event.pk)
+
+
+@login_required
+@require_POST
+def video_remove(request: HttpRequest, pk: int, video_pk: int) -> HttpResponse:
+    from .models import EventVideo
+
+    video = get_object_or_404(EventVideo, pk=video_pk, event_id=pk)
+    if video.added_by_id != request.user.pk and not is_admin(request.user):
+        raise PermissionDenied
+    video.delete()
+    messages.success(request, "Video removed.")
+    return redirect("events:event_videos", pk=pk)

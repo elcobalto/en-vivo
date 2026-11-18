@@ -40,6 +40,7 @@ SORTS = {
     "oldest": ("Earliest date first", [F("date").asc(nulls_last=True), "title"]),
     "popular": ("Most logged", ["-log_count", F("date").desc(nulls_last=True)]),
     "rating": ("Highest rated", [F("avg_rating").desc(nulls_last=True), "-log_count"]),
+    "added": ("Recently added", ["-created_at", "-pk"]),
 }
 WHEN = {"": "Any time", "upcoming": "Upcoming", "past": "Past"}
 from .roles import can_delete_event, can_edit_event, home_place, is_admin
@@ -216,6 +217,8 @@ def event_detail(request: HttpRequest, pk: int) -> HttpResponse:
             "slot_suggestions": suggestions_for(request.user, event),
             "act_rows": _act_rows(event, [l for l in lineup if l.role not in CREDIT_ROLES], my_log),
             "credits": [l for l in lineup if l.role in CREDIT_ROLES],
+            "latest_videos": event.videos.select_related("performer").order_by("-created_at")[:LATEST_VIDEOS],
+            "video_count": event.videos.count(),
             "rating_choices": RATING_CHOICES,
             "festival_suggestion": festival_suggestion(request.user, event),
             **festival_admin_actions(request.user, event),
@@ -372,7 +375,19 @@ def event_form(request: HttpRequest, pk: int | None = None) -> HttpResponse:
             saved.save()
             formset.instance = saved
             formset.save()
+            # Whoever is first on the bill is the headliner (credits like authors excepted).
+            first = saved.acts_on_stage().order_by("billing_order", "pk").first()
+            if first and first.role != EventPerformer.Role.HEADLINER:
+                first.role = EventPerformer.Role.HEADLINER
+                first.save(update_fields=["role"])
             merged = merge_into_same_festival_day(saved)
+            if not merged and form.cleaned_data.get("photo_for_all_days") and saved.image_url:
+                days = Event.objects.filter(production=saved.production, date__year=saved.date.year).exclude(pk=saved.pk)
+                updated = [d.pk for d in days if can_edit_event(request.user, d)]
+                Event.objects.filter(pk__in=updated).update(image_url=saved.image_url,
+                                                          image_display=saved.image_display)
+                messages.info(request, f"Photo also used for {len(updated)} other day{'s' if len(updated) != 1 else ''}"
+                                       f" of {saved.production.title} {saved.date.year}.")
         if merged:
             messages.info(request, f"“{merged.title}” already existed on that day, so this was added to it.")
             return redirect(merged)
@@ -525,6 +540,33 @@ def _save_acts(log: Log, data) -> None:
             )
         else:
             ActLog.objects.filter(log=log, performer_id=performer_id).delete()
+
+
+LATEST_VIDEOS = 4  # the event page shows only the newest; the rest are on the videos page
+
+
+def event_videos(request: HttpRequest, pk: int) -> HttpResponse:
+    """Every video of an event, grouped by act."""
+    event = get_object_or_404(Event.objects.select_related("venue"), pk=pk)
+    lineup = list(EventPerformer.objects.filter(event=event).select_related("performer")
+                  .exclude(role__in=CREDIT_ROLES).order_by("billing_order", "pk"))
+    return render(request, "events/event_videos.html", {
+        "event": event, "video_groups": _video_groups(event, lineup), "acts": lineup,
+    })
+
+
+def _video_groups(event: Event, lineup) -> list[tuple[str, object, list]]:
+    """Videos grouped as (label, performer or None, videos): whole event first, then acts in billing order."""
+    videos = list(event.videos.select_related("performer", "added_by"))
+    groups = []
+    whole = [v for v in videos if v.performer_id is None]
+    if whole:
+        groups.append(("Whole event", None, whole))
+    for link in lineup:
+        mine = [v for v in videos if v.performer_id == link.performer_id]
+        if mine:
+            groups.append((link.performer.name, link.performer, mine))
+    return groups
 
 
 def _act_rows(event: Event, lineup, my_log: Log | None) -> list[dict]:

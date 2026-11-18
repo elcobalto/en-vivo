@@ -36,6 +36,7 @@ class BootstrapMixin:
 
 
 class EventForm(BootstrapMixin, forms.ModelForm):
+    photo_for_all_days = forms.BooleanField(required=False)
     new_venue_name = forms.CharField(label="New venue name", max_length=200, required=False)
     new_venue_city = forms.CharField(label="City", max_length=120, required=False)
     new_venue_country = forms.ChoiceField(
@@ -67,6 +68,17 @@ class EventForm(BootstrapMixin, forms.ModelForm):
         self.fields["production"].queryset = Production.objects.filter(event_type=EventType.FESTIVAL)
         self.fields["production"].label = "Festival"
         self.fields["image_display"].required = False
+        event = self.instance
+        if event.pk and event.event_type == EventType.FESTIVAL and event.production_id and event.date:
+            self.fields["photo_for_all_days"].label = (
+                f"Use this photo for every day of {event.production.title} in {event.date.year}"
+            )
+        else:
+            del self.fields["photo_for_all_days"]
+        order = [n for n in self.fields if n != "photo_for_all_days"]
+        if "photo_for_all_days" in self.fields:
+            order.insert(order.index("image_url") + 1, "photo_for_all_days")
+        self.order_fields(order)
         self.fields["title"].required = False
         placeholder = "Leave blank to use the headliner's name"
         if self.instance.pk and self.instance.title_is_auto:
@@ -280,40 +292,35 @@ class ProfileForm(BootstrapMixin, forms.ModelForm):
         return profile
 
 
-def favorite_choices():
-    """All events sorted by headliner (then date), with the headliner's name annotated."""
-    from django.db.models import F, OuterRef, Subquery, Value
-    from django.db.models.functions import Coalesce, Lower
+def favorite_choices(user=None):
+    """The events you can pick as favourites: the ones in your diary (plus any already picked)."""
+    from django.db.models import F, Q
+    from django.db.models.functions import Lower
 
-    headliner = EventPerformer.objects.filter(event=OuterRef("pk")).order_by("billing_order", "pk")
-    return (
-        Event.objects.select_related("venue")
-        .annotate(headliner_name=Coalesce(Subquery(headliner.values("performer__name")[:1]), F("title"), Value("")))
-        .order_by(Lower("headliner_name"), F("date").asc(nulls_last=True))
-    )
+    events = Event.objects.select_related("venue")
+    if user is not None:
+        events = events.filter(Q(logs__user=user) | Q(favorited_by__user=user)).distinct()
+    return events.order_by(Lower("title"), F("date").asc(nulls_last=True))
 
 
 class EventChoiceField(forms.ModelChoiceField):
-    """“Paul McCartney — Estadio Nacional · 20 Mar 2019”."""
+    """“Lollapalooza Chile — Parque Cerrillos · 15 Mar 2024”: the event, then where and when."""
 
     def label_from_instance(self, event):
-        name = getattr(event, "headliner_name", "") or event.title
-        if event.title and event.title != name:
-            name = f"{name} ({event.title})"
         details = " · ".join(
             bit for bit in [event.venue.name if event.venue_id else "",
                             f"{event.date.day} {event.date:%b %Y}" if event.date else "date not added"] if bit
         )
-        return f"{name} — {details}"
+        return f"{event.title} — {details}"
 
 
 class FavoritesForm(BootstrapMixin, forms.Form):
     """Four optional slots for a user's favourite events."""
 
-    def __init__(self, *args, events=None, **kwargs):
+    def __init__(self, *args, events=None, user=None, **kwargs):
         super().__init__(*args, **kwargs)
         if events is None:
-            events = favorite_choices()
+            events = favorite_choices(user)
         for i in range(1, FavoriteEvent.MAX + 1):
             self.fields[f"slot_{i}"] = EventChoiceField(
                 queryset=events, required=False, label=f"Favourite {i}", empty_label="—"
