@@ -2210,20 +2210,39 @@ class TheaterCreditsTests(BaseTestCase):
 
 
 class ImageFitTests(BaseTestCase):
-    def test_fit_option_shows_whole_photo_in_thumbnails(self):
+    def _listing(self):
+        return self.client.get(reverse("events:event_list")).content.decode()
+
+    def test_blurred_whole_photo_by_default_crop_and_stretch_on_request(self):
         self.event.image_url = "https://img.example/wide.jpg"
         self.event.save()
-        listing = self.client.get(reverse("events:event_list")).content.decode()
-        self.assertNotIn('class="poster-fit"', listing)
-        self.event.image_fit = True
+        self.assertEqual(self.event.image_display, "fit")
+        self.assertIn('class="poster-fit" src="https://img.example/wide.jpg"', self._listing())
+        self.assertIn('class="poster-backdrop"', self._listing())
+        self.event.image_display = "crop"
         self.event.save()
-        listing = self.client.get(reverse("events:event_list")).content.decode()
-        self.assertIn('class="poster-fit" src="https://img.example/wide.jpg"', listing)
-        self.assertIn('class="poster-backdrop"', listing)
+        html = self._listing()
+        self.assertNotIn('class="poster-fit"', html)
+        self.assertIn('<img src="https://img.example/wide.jpg"', html)
+        self.event.image_display = "stretch"
+        self.event.save()
+        self.assertIn('class="poster-stretch" src="https://img.example/wide.jpg"', self._listing())
 
     def test_option_is_in_the_event_form(self):
         self.client.force_login(self.user)
         self.event.created_by = self.user
         self.event.save()
         page = self.client.get(reverse("events:event_edit", args=[self.event.pk]))
-        self.assertContains(page, "Show the whole photo in thumbnails")
+        self.assertContains(page, "Stretch to fill")
+
+
+class EventFormOrderTests(BaseTestCase):
+    def test_lineup_editor_comes_right_after_venue(self):
+        self.client.force_login(self.user)
+        html = self.client.get(reverse("events:event_create")).content.decode()
+        venue = html.index("Add the venue by hand")
+        lineup = html.index('id="lineup-rows"')
+        description = html.index('name="description"')
+        self.assertLess(venue, lineup)
+        self.assertLess(lineup, description)
+        self.assertEqual(html.count('id="lineup-rows"'), 1)

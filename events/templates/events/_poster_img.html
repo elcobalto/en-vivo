@@ -1,7 +1,9 @@
-{% comment %}An event's thumbnail image: cropped to the poster shape, or whole on a blurred backdrop if image_fit.{% endcomment %}
-{% if event.image_fit %}
+{% comment %}An event's thumbnail: whole photo on a blurred copy (default), cropped, or stretched.{% endcomment %}
+{% if event.image_display == "crop" %}
+  <img src="{{ event.display_image }}" alt="{{ event.title }}" loading="lazy" referrerpolicy="no-referrer" />
+{% elif event.image_display == "stretch" %}
+  <img class="poster-stretch" src="{{ event.display_image }}" alt="{{ event.title }}" loading="lazy" referrerpolicy="no-referrer" />
+{% else %}
   <img class="poster-backdrop" src="{{ event.display_image }}" alt="" aria-hidden="true" loading="lazy" referrerpolicy="no-referrer" />
   <img class="poster-fit" src="{{ event.display_image }}" alt="{{ event.title }}" loading="lazy" referrerpolicy="no-referrer" />
-{% else %}
-  <img src="{{ event.display_image }}" alt="{{ event.title }}" loading="lazy" referrerpolicy="no-referrer" />
 {% endif %}

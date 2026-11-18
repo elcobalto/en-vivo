@@ -52,7 +52,7 @@ class EventForm(BootstrapMixin, forms.ModelForm):
             "production",
             "description",
             "image_url",
-            "image_fit",
+            "image_display",
         ]
         widgets = {
             "venue": forms.HiddenInput(attrs={"class": "vs-value"}),
@@ -66,6 +66,7 @@ class EventForm(BootstrapMixin, forms.ModelForm):
         super().__init__(*args, **kwargs)
         self.fields["production"].queryset = Production.objects.filter(event_type=EventType.FESTIVAL)
         self.fields["production"].label = "Festival"
+        self.fields["image_display"].required = False
         self.fields["title"].required = False
         placeholder = "Leave blank to use the headliner's name"
         if self.instance.pk and self.instance.title_is_auto:
@@ -78,6 +79,9 @@ class EventForm(BootstrapMixin, forms.ModelForm):
         title = (self.cleaned_data.get("title") or "").strip()
         self.instance.title_is_auto = not title
         return title
+
+    def clean_image_display(self) -> str:
+        return self.cleaned_data.get("image_display") or Event.Thumbnail.FIT
 
     def clean(self):
         cleaned = super().clean()

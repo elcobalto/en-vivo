@@ -197,10 +197,15 @@ class Event(TimestampedModel):
     date = models.DateField(null=True, blank=True, db_index=True)
     description = models.TextField(blank=True, default="")
     image_url = models.URLField(max_length=1000, blank=True, default="")
-    # Thumbnails crop photos to a poster shape; this shows the whole photo instead.
-    image_fit = models.BooleanField(
-        "Show the whole photo in thumbnails (don't crop)", default=False,
-        help_text="For wide or square images: they're scaled to fit, with a blurred background.",
+    class Thumbnail(models.TextChoices):
+        FIT = "fit", "Whole photo on a blurred background"
+        CROP = "crop", "Crop to fill"
+        STRETCH = "stretch", "Stretch to fill (may look distorted)"
+
+    # How the photo sits in the poster-shaped thumbnails.
+    image_display = models.CharField(
+        "Thumbnail", max_length=10, choices=Thumbnail.choices, default=Thumbnail.FIT,
+        help_text="How the photo fits the poster-shaped thumbnails on cards and lists.",
     )
 
     performers = models.ManyToManyField(Performer, through="EventPerformer", related_name="events")
