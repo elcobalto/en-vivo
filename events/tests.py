@@ -1956,7 +1956,8 @@ class LocalForeignAndSearchTests(BaseTestCase):
         page = self.client.get(reverse("events:profile", args=["ana"]))
         self.assertEqual([p.name for p in page.context["local_artists"]], ["Los Bunkers"])
         self.assertEqual([p.name for p in page.context["foreign_artists"]], ["Green Day"])
-        self.assertEqual([p.name for p in page.context["unknown_artists"]], ["Mystery"])
+        self.assertNotIn("unknown_artists", page.context)
+        self.assertNotContains(page, "Mystery")  # artists without a country aren't listed
         self.assertContains(page, "Most seen local artists · Chile")
 
     def test_import_fills_artist_country_from_musicbrainz(self):
@@ -2168,3 +2169,18 @@ class BulkImportTests(BaseTestCase):
         html = self.client.get(self.event.get_absolute_url()).content.decode()
         self.assertLess(html.index("Lineup</h2>"), html.index("Reviews</h2>"))
         self.assertLess(html.index("10 November 1992"), html.index("Lineup</h2>"))
+
+
+
+class ProfileLayoutTests(BaseTestCase):
+    def test_favourites_first_ratings_last_and_cities(self):
+        valpo = Venue.objects.create(name="Teatro Municipal", city="Valparaíso")
+        for venue, when in [(self.venue, date(2020, 1, 1)), (self.venue, date(2021, 1, 1)), (valpo, date(2022, 1, 1))]:
+            Log.objects.create(user=self.user, event=Event.objects.create(title="x", venue=venue, date=when), rating=8)
+        page = self.client.get(reverse("events:profile", args=["ana"]))
+        html = page.content.decode()
+        self.assertLess(html.index("Favourite events"), html.index("Most visited venues"))
+        self.assertLess(html.index("Recent activity"), html.index('class="rating-bars'))
+        self.assertEqual([(c["event__venue__city"], c["n"]) for c in page.context["top_cities"]],
+                         [("Santiago", 2), ("Valparaíso", 1)])
+        self.assertContains(page, "Most visited cities")

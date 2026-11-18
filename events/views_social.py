@@ -100,7 +100,6 @@ def _local_foreign_artists(owner) -> dict:
         "home_country": home,
         "local_artists": seen.filter(country=home.code)[:5],
         "foreign_artists": seen.exclude(country=home.code).exclude(country="")[:5],
-        "unknown_artists": seen.filter(country="")[:5],
     }
 
 
@@ -130,6 +129,9 @@ def profile(request: HttpRequest, username: str) -> HttpResponse:
                 last_seen=Max("events__date", filter=Q(events__logs__user=owner)),
             )
             .order_by("-n", F("last_seen").desc(nulls_last=True), "name")[:5],
+            "top_cities": Log.objects.filter(user=owner).exclude(event__venue=None).exclude(event__venue__city="")
+            .values("event__venue__city").annotate(n=Count("id"), last_seen=Max("event__date"))
+            .order_by("-n", F("last_seen").desc(nulls_last=True), "event__venue__city")[:5],
         },
     )
 
