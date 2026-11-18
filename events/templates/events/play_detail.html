@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% load event_extras %}
+
+{% block title %}{{ play.title }} · En Vivo{% endblock %}
+
+{% block content %}
+  <div class="row g-4">
+    {% if play.image_url %}<div class="col-5 col-md-3"><img class="event-photo" src="{{ play.image_url }}" alt="{{ play.title }}" referrerpolicy="no-referrer"></div>{% endif %}
+    <div class="col">
+      <div class="mb-1"><span class="badge text-bg-secondary type-badge">Play</span></div>
+      <h1 class="h3 fw-bold mb-1">{{ play.title }}</h1>
+      {% with authors=play.authors.all %}{% if authors %}
+        <div class="fs-5 text-body-secondary mb-3">Written by {% for a in authors %}<a class="link-secondary" href="{{ a.get_absolute_url }}">{{ a.name }}</a>{% if not forloop.last %}, {% endif %}{% endfor %}</div>
+      {% endif %}{% endwith %}
+      {% if play.description %}<p>{{ play.description|linebreaksbr }}</p>{% endif %}
+      <div class="d-flex flex-wrap gap-2 mb-4">
+        {% if user.is_authenticated %}<a class="btn btn-sm btn-success" href="{% url 'events:event_create' %}?play={{ play.pk }}">+ New staging of this play</a>{% endif %}
+        {% if user|is_admin %}<a class="btn btn-sm btn-outline-secondary" href="{% url 'events:play_edit' play.pk %}">Edit play</a>{% endif %}
+        <a class="btn btn-sm btn-link" href="{% url 'events:play_list' %}">All plays</a>
+      </div>
+      <h2 class="section-title mb-3">Stagings</h2>
+      {% if stagings %}
+        <div class="row row-cols-2 row-cols-sm-3 row-cols-lg-5 g-3">
+          {% for event in stagings %}<div class="col">{% include "events/_event_card.html" %}</div>{% endfor %}
+        </div>
+      {% else %}
+        <p class="text-body-secondary">No stagings yet.</p>
+      {% endif %}
+    </div>
+  </div>
+{% endblock %}

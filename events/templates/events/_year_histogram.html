@@ -1,0 +1,18 @@
+{% if total %}
+<div class="rating-hist">
+  <div class="d-flex justify-content-between align-items-end mb-1">
+    <span class="section-title border-0 p-0">{{ title }}</span>
+    <span class="small text-body-secondary text-nowrap">{{ total }}</span>
+  </div>
+  <div class="rating-bars" role="img" aria-label="{{ title }}: {% for b in bars %}{{ b.year }} {{ b.count }}{% if not forloop.last %}, {% endif %}{% endfor %}">
+    {% for b in bars %}
+      <div class="rating-bar" title="{{ b.year }}: {{ b.count }} event{{ b.count|pluralize }}">
+        <div style="height: {{ b.height }}%{% if b.count %};min-height:2px{% endif %}"></div>
+      </div>
+    {% endfor %}
+  </div>
+  <div class="d-flex justify-content-between mt-1 small text-body-secondary" aria-hidden="true">
+    <span>{{ first }}</span>{% if last != first %}<span>{{ last }}</span>{% endif %}
+  </div>
+</div>
+{% endif %}

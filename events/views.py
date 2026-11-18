@@ -9,7 +9,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.auth.views import redirect_to_login
 from django.core.exceptions import PermissionDenied
 from django.core.paginator import Paginator
-from django.db import transaction
+from django.db import models, transaction
 from django.db.models import Avg, Count, F, OuterRef, Prefetch, Q, Subquery
 from django.db.models.functions import ExtractYear
 from django.http import HttpRequest, HttpResponse
@@ -19,7 +19,7 @@ from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 
-from .forms import RATING_CHOICES, EventForm, EventPerformerFormSet, LogForm, PerformerForm, ProductionForm, VenueForm
+from .forms import RATING_CHOICES, EventForm, EventPerformerFormSet, LogForm, PerformerForm, PlayForm, ProductionForm, VenueForm
 from .models import (
     CREDIT_ROLES,
     ActLog,
@@ -29,6 +29,7 @@ from .models import (
     EventType,
     Log,
     Performer,
+    Play,
     Production,
     SetlistSong,
     Venue,
@@ -270,6 +271,19 @@ def _seen_by(request: HttpRequest):
     return get_user_model().objects.filter(username=username).select_related("profile").first() if username else None
 
 
+def performer_list(request: HttpRequest) -> HttpResponse:
+    """Every performer, most events first; ?q= searches by name."""
+    q = request.GET.get("q", "").strip()
+    performers = Performer.objects.annotate(n=Count("events", distinct=True))
+    if q:
+        performers = performers.filter(name__icontains=q)
+    page = Paginator(performers.order_by("-n", "name"), 48).get_page(request.GET.get("page"))
+    return render(
+        request, "events/performer_list.html",
+        {"page": page, "q": q, "querystring": urlencode({"q": q}) if q else ""},
+    )
+
+
 def performer_detail(request: HttpRequest, pk: int) -> HttpResponse:
     performer = get_object_or_404(Performer, pk=pk)
     # Ratings for the artist come from people who saw this act, not from the whole event.
@@ -363,6 +377,11 @@ def event_form(request: HttpRequest, pk: int | None = None) -> HttpResponse:
         if production:
             initial.update(production=production, event_type=production.event_type)
 
+    if not event and request.GET.get("play"):
+        play = Play.objects.filter(pk=request.GET["play"]).first()
+        if play:
+            initial.update(play=play, event_type=EventType.THEATER)
+
     form = EventForm(request.POST or None, instance=event, initial=initial)
     formset = EventPerformerFormSet(request.POST or None, instance=event or Event())
 
@@ -375,6 +394,8 @@ def event_form(request: HttpRequest, pk: int | None = None) -> HttpResponse:
             saved.save()
             formset.instance = saved
             formset.save()
+            if saved.play_id:
+                _credit_play_authors(saved)
             # Whoever is first on the bill is the headliner (credits like authors excepted).
             first = saved.acts_on_stage().order_by("billing_order", "pk").first()
             if first and first.role != EventPerformer.Role.HEADLINER:
@@ -395,6 +416,39 @@ def event_form(request: HttpRequest, pk: int | None = None) -> HttpResponse:
         return redirect(saved)
 
     return render(request, "events/event_form.html", {"form": form, "formset": formset, "event": event})
+
+
+def _credit_play_authors(event: Event) -> None:
+    """A staging credits its play's authors (“Written by”) unless they're already on it."""
+    on_event = set(event.eventperformer_set.values_list("performer_id", flat=True))
+    last = event.eventperformer_set.aggregate(m=models.Max("billing_order"))["m"] or 0
+    for i, author in enumerate(event.play.authors.exclude(pk__in=on_event), start=1):
+        EventPerformer.objects.create(event=event, performer=author, role=EventPerformer.Role.AUTHOR, billing_order=last + i)
+    event.refresh_auto_title()
+
+
+def play_list(request: HttpRequest) -> HttpResponse:
+    q = request.GET.get("q", "").strip()
+    plays = Play.objects.prefetch_related("authors").annotate(n=Count("stagings", distinct=True))
+    if q:
+        plays = plays.filter(Q(title__icontains=q) | Q(authors__name__icontains=q)).distinct()
+    return render(request, "events/play_list.html", {"plays": plays.order_by("title"), "q": q})
+
+
+def play_detail(request: HttpRequest, pk: int) -> HttpResponse:
+    play = get_object_or_404(Play.objects.prefetch_related("authors"), pk=pk)
+    stagings = play.stagings.with_stats().select_related("venue").order_by(F("date").desc(nulls_last=True))
+    return render(request, "events/play_detail.html", {"play": play, "stagings": stagings})
+
+
+@login_required
+def play_create(request: HttpRequest) -> HttpResponse:
+    return _simple_create(request, PlayForm, "Play")
+
+
+@login_required
+def play_edit(request: HttpRequest, pk: int) -> HttpResponse:
+    return _simple_edit(request, Play, pk, PlayForm, "Play")
 
 
 @login_required

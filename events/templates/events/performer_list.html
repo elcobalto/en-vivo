@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+
+{% block title %}Performers · En Vivo{% endblock %}
+
+{% block content %}
+  <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+    <h1 class="h4 m-0">Performers <a class="small fs-6 fw-normal ms-2" href="{% url 'events:play_list' %}">Plays →</a></h1>
+    <form class="d-flex gap-2" method="get" role="search">
+      <input class="form-control form-control-sm" type="search" name="q" value="{{ q }}" placeholder="Search performers" aria-label="Search performers">
+      <button class="btn btn-sm btn-outline-secondary">Search</button>
+    </form>
+  </div>
+  {% if page.object_list %}
+    <div class="row row-cols-2 row-cols-sm-3 row-cols-md-4 row-cols-lg-6 g-3">
+      {% for p in page %}
+        <div class="col">
+          <a class="text-decoration-none d-block" href="{{ p.get_absolute_url }}" title="{{ p.name }}">
+            <div class="ratio ratio-1x1 rounded overflow-hidden bg-body-tertiary">
+              {% if p.image_url %}<img src="{{ p.image_url }}" alt="{{ p.name }}" loading="lazy" referrerpolicy="no-referrer" style="object-fit:cover">
+              {% else %}<div class="d-flex align-items-center justify-content-center fs-2 text-body-secondary">{{ p.name|slice:":1"|upper }}</div>{% endif %}
+            </div>
+          </a>
+          <a class="d-block mt-2 fw-semibold small lh-sm clamp-2 text-decoration-none" href="{{ p.get_absolute_url }}">{{ p.name }}</a>
+          <div class="small text-body-secondary">{{ p.n }} event{{ p.n|pluralize }}</div>
+        </div>
+      {% endfor %}
+    </div>
+    {% if page.has_other_pages %}
+      <nav class="mt-4 d-flex justify-content-center gap-2" aria-label="Pages">
+        {% if page.has_previous %}<a class="btn btn-sm btn-outline-secondary" href="?{{ querystring }}&page={{ page.previous_page_number }}">← Previous</a>{% endif %}
+        <span class="align-self-center small text-body-secondary">Page {{ page.number }} of {{ page.paginator.num_pages }}</span>
+        {% if page.has_next %}<a class="btn btn-sm btn-outline-secondary" href="?{{ querystring }}&page={{ page.next_page_number }}">Next →</a>{% endif %}
+      </nav>
+    {% endif %}
+  {% else %}
+    <p class="text-body-secondary">{% if q %}No performers match “{{ q }}”.{% else %}No performers yet.{% endif %}</p>
+  {% endif %}
+{% endblock %}

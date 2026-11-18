@@ -55,6 +55,24 @@ def rating_histogram(logs, title: str = "Ratings", show_average: bool = False):
     return {"bars": bars, "total": total, "average": average, "title": title, "show_average": show_average}
 
 
+@register.inclusion_tag("events/_year_histogram.html")
+def year_histogram(logs, title: str = "Events by year"):
+    """Bars for how many dated events were attended each year, gap years included as empty bars."""
+    from django.db.models import Count
+    from django.db.models.functions import ExtractYear
+
+    counts = dict(
+        logs.exclude(event__date=None).annotate(y=ExtractYear("event__date"))
+        .values("y").annotate(n=Count("id")).values_list("y", "n")
+    )
+    if not counts:
+        return {"total": 0}
+    peak = max(counts.values())
+    years = range(min(counts), max(counts) + 1)
+    bars = [{"year": y, "count": counts.get(y, 0), "height": round(counts.get(y, 0) / peak * 100)} for y in years]
+    return {"bars": bars, "total": sum(counts.values()), "title": title, "first": years[0], "last": years[-1]}
+
+
 @register.simple_tag(takes_context=True)
 def poster_mode(context, event) -> str:
     """The viewer's thumbnail preference if they set one, else the event's own."""

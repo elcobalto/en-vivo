@@ -13,6 +13,7 @@ from .models import (
     FavoriteEvent,
     Log,
     Performer,
+    Play,
     Production,
     Profile,
     Venue,
@@ -50,6 +51,7 @@ class EventForm(BootstrapMixin, forms.ModelForm):
             "event_type",
             "date",
             "venue",
+            "play",
             "production",
             "description",
             "image_url",
@@ -61,7 +63,8 @@ class EventForm(BootstrapMixin, forms.ModelForm):
             "description": forms.Textarea(attrs={"rows": 4}),
         }
         labels = {"event_type": "Type", "image_url": "Poster / image URL"}
-        help_texts = {"production": "Only for festivals: the festival this day belongs to. Tours are set per act in the lineup."}
+        help_texts = {"play": "Only for theater: the original play this staging is of. Its name becomes the event's name.",
+                      "production": "Only for festivals: the festival this day belongs to. Tours are set per act in the lineup."}
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -198,6 +201,15 @@ class VenueForm(BootstrapMixin, forms.ModelForm):
     class Meta:
         model = Venue
         fields = ["name", "address", "city", "region", "country", "capacity"]
+
+
+class PlayForm(BootstrapMixin, forms.ModelForm):
+    class Meta:
+        model = Play
+        fields = ["title", "authors", "description", "image_url"]
+        widgets = {"description": forms.Textarea(attrs={"rows": 4}), "authors": forms.SelectMultiple(attrs={"size": 6})}
+        labels = {"authors": "Author(s)", "image_url": "Poster / image URL"}
+        help_texts = {"authors": "Who wrote it. Hold Ctrl/Cmd to pick more than one."}
 
 
 class ProductionForm(BootstrapMixin, forms.ModelForm):

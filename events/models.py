@@ -147,6 +147,24 @@ class Production(TimestampedModel):
         return next((p for p in qs.only("pk", "title", "performer_id", "event_type") if normalize_name(p.title) == wanted), None)
 
 
+class Play(TimestampedModel):
+    """An original play. Each staging of it is a theater event linked here (one play, many adaptations)."""
+
+    title = models.CharField(max_length=240, db_index=True)
+    authors = models.ManyToManyField("Performer", blank=True, related_name="plays_written")
+    description = models.TextField(blank=True, default="")
+    image_url = models.URLField(max_length=1000, blank=True, default="")
+
+    class Meta:
+        ordering = ["title"]
+
+    def __str__(self) -> str:
+        return self.title
+
+    def get_absolute_url(self) -> str:
+        return reverse("events:play_detail", args=[self.pk])
+
+
 class EventQuerySet(LogStatsQuerySet):
     def with_stats(self):
         return self.with_log_stats("logs")
@@ -190,6 +208,11 @@ class Event(TimestampedModel):
     )
     production = models.ForeignKey(
         Production, on_delete=models.SET_NULL, null=True, blank=True, related_name="events"
+    )
+    # Theater only: the original play this event stages.
+    play = models.ForeignKey(
+        Play, on_delete=models.SET_NULL, null=True, blank=True, related_name="stagings",
+        verbose_name="Original play",
     )
     venue = models.ForeignKey(
         Venue, on_delete=models.SET_NULL, null=True, blank=True, related_name="events"
@@ -242,6 +265,8 @@ class Event(TimestampedModel):
 
         Falls back to the production's title, then to “Music event”, “Comedy event”…
         """
+        if self.event_type == EventType.THEATER and self.play_id:
+            return self.play.title[:240]  # stagings are named after their play
         headliner = self.headliner if self.pk else None
         if self.event_type == EventType.FESTIVAL and self.production_id:
             return self.production.title[:240]  # festival days are named after their festival

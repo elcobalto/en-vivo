@@ -86,6 +86,7 @@
           <a class="small ms-2" href="{% url 'events:event_edit' event.pk %}">Add {% if not event.venue %}venue{% if not event.date %} &amp; date{% endif %}{% else %}date{% endif %}</a>
         {% endif %}
       </div>
+      {% if event.play %}<p class="small mb-2">Staging of <a href="{{ event.play.get_absolute_url }}">{{ event.play.title }}</a></p>{% endif %}
       <h2 class="section-title mt-3 mb-2">{% if event.event_type == "theater" %}Cast{% else %}Lineup{% endif %}</h2>
       {% if credits %}
         <p class="small mb-2">

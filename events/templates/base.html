@@ -67,6 +67,7 @@
         <div class="collapse navbar-collapse" id="nav">
           <ul class="navbar-nav me-auto text-nowrap">
             <li class="nav-item"><a class="nav-link" href="{% url 'events:event_list' %}">Events</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'events:performer_list' %}">Performers</a></li>
             <li class="nav-item"><a class="nav-link" href="{% url 'events:list_index' %}">Lists</a></li>
             <li class="nav-item"><a class="nav-link" href="{% url 'events:people' %}">People</a></li>
             {% if user.is_authenticated %}

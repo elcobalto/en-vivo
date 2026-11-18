@@ -75,5 +75,8 @@
     </div>
     {% for log in reviews %}{% include "events/_review.html" with show_event=True %}{% endfor %}
   {% endif %}
-  <div class="mt-5" style="max-width:28rem">{% rating_histogram owner_logs "Ratings" True %}</div>
+  <div class="row g-4 mt-4">
+    <div class="col-12 col-md-6" style="max-width:28rem">{% rating_histogram owner_logs "Ratings" True %}</div>
+    <div class="col-12 col-md-6" style="max-width:28rem">{% year_histogram owner_logs "Events by year" %}</div>
+  </div>
 {% endblock %}

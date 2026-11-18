@@ -2205,6 +2205,56 @@ class ProfileRankingTests(BaseTestCase):
         self.assertEqual(self.client.get(reverse("events:user_ranking", args=["ana", "nope"])).status_code, 404)
 
 
+class YearHistogramTests(BaseTestCase):
+    def test_events_by_year_includes_gap_years(self):
+        for when in [date(2019, 3, 1), date(2019, 5, 1), date(2021, 1, 1)]:
+            Log.objects.create(user=self.user, event=Event.objects.create(title="x", date=when), rating=8)
+        Log.objects.create(user=self.user, event=Event.objects.create(title="undated"))
+        page = self.client.get(reverse("events:profile", args=["ana"]))
+        self.assertContains(page, "Events by year")
+        self.assertContains(page, 'title="2019: 2 events"')
+        self.assertContains(page, 'title="2020: 0 events"')
+        self.assertContains(page, 'title="2021: 1 event"')
+
+
+class PerformerListTests(BaseTestCase):
+    def test_performers_tab_lists_and_searches(self):
+        from events.models import Performer
+        Performer.objects.create(name="Los Bunkers")
+        Performer.objects.create(name="Mon Laferte")
+        page = self.client.get(reverse("events:performer_list"))
+        self.assertContains(page, 'href="/performers/">Performers</a>')
+        self.assertContains(page, "Los Bunkers")
+        page = self.client.get(reverse("events:performer_list") + "?q=bunk")
+        self.assertContains(page, "Los Bunkers")
+        self.assertNotContains(page, "Mon Laferte")
+
+
+class PlayTests(BaseTestCase):
+    def test_new_staging_from_a_play_gets_its_name_and_authors(self):
+        from events.models import Performer, Play
+        lorca = Performer.objects.create(name="Federico García Lorca")
+        play = Play.objects.create(title="La casa de Bernarda Alba")
+        play.authors.add(lorca)
+        self.client.force_login(self.user)
+        form_page = self.client.get(reverse("events:event_create") + f"?play={play.pk}")
+        self.assertEqual(form_page.context["form"].initial["play"], play)
+        self.assertEqual(form_page.context["form"].initial["event_type"], EventType.THEATER)
+        data = {"title": "", "event_type": EventType.THEATER, "date": "2024-05-01", "play": play.pk,
+                "image_display": "fit"}
+        mgmt = form_page.context["formset"].management_form
+        data.update({mgmt.prefix + "-TOTAL_FORMS": "0", mgmt.prefix + "-INITIAL_FORMS": "0"})
+        resp = self.client.post(reverse("events:event_create") + f"?play={play.pk}", data)
+        event = Event.objects.get(play=play)
+        self.assertRedirects(resp, event.get_absolute_url(), fetch_redirect_response=False)
+        self.assertEqual(event.title, "La casa de Bernarda Alba")
+        self.assertTrue(event.eventperformer_set.filter(performer=lorca, role="author").exists())
+        page = self.client.get(play.get_absolute_url())
+        self.assertContains(page, "Written by")
+        self.assertContains(page, event.get_absolute_url())
+        self.assertContains(self.client.get(event.get_absolute_url()), "Staging of")
+
+
 class TheaterCreditsTests(BaseTestCase):
     def test_author_and_director_are_credits_not_acts(self):
         play = Event.objects.create(title="", event_type=EventType.THEATER, date=date(2020, 1, 1))
