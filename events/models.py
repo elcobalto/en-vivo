@@ -535,6 +535,12 @@ class Profile(TimestampedModel):
     # Used as defaults (setlist.fm search, new venues) and to show nearby upcoming events.
     home_city = models.CharField("Home city", max_length=120, blank=True, default="")
     home_country = CountryField("Home country", blank=True, default="")
+    # Overrides each event's own thumbnail setting for this person, when set.
+    thumbnail_display = models.CharField(
+        "Thumbnails", max_length=10, blank=True, default="",
+        choices=[("", "As each event is set")] + list(Event.Thumbnail.choices),
+        help_text="How photos fit the poster-shaped thumbnails when you browse.",
+    )
 
     def __str__(self) -> str:
         return self.name

@@ -4,8 +4,21 @@
 {% block title %}{{ event.title }} · En Vivo{% endblock %}
 
 {% block content %}
-  <div class="row g-4">
-    <div class="col-5 col-md-3">
+  <style>
+    .event-layout { display: grid; gap: 1.5rem; grid-template-columns: 5fr 7fr;
+      grid-template-areas: "main main" "photo side" "rest rest"; }
+    .event-layout > * { min-width: 0; align-self: start; }
+    .event-main { grid-area: main; } .event-photo { grid-area: photo; }
+    .event-side { grid-area: side; } .event-rest { grid-area: rest; }
+    @media (min-width: 768px) {
+      .event-layout { grid-template-columns: 1fr 2fr 1fr; grid-template-rows: auto 1fr;
+        grid-template-areas: "photo main side" "photo rest side"; }
+      .event-rest { margin-top: -1.5rem; }
+    }
+  </style>
+  {# Grid areas: on phones the title and lineup come first, then photo + ratings, then the rest. #}
+  <div class="event-layout">
+    <div class="event-photo">
       {% if event.display_image %}
         {# Full photo in its own proportions (cards elsewhere crop to a uniform poster shape). #}
         <a href="{{ event.display_image }}" target="_blank" rel="noreferrer" title="Open full size">
@@ -54,7 +67,7 @@
       {% if can_delete %}<a class="btn btn-sm btn-outline-danger w-100 mt-2" href="{% url 'events:event_delete' event.pk %}">Delete event</a>{% endif %}
     </div>
 
-    <div class="col-12 col-md-6 order-3 order-md-2">
+    <div class="event-main">
       <div class="mb-1"><span class="badge text-bg-secondary type-badge">{{ event.get_event_type_display }}</span></div>
       <h1 class="h3 fw-bold mb-1">{{ event.title }}</h1>
       <div class="fs-5 text-body-secondary mb-3">
@@ -93,7 +106,9 @@
       {% else %}
         {% if not credits %}<p class="small text-body-secondary">No performers added yet.</p>{% endif %}
       {% endif %}
+    </div>
 
+    <div class="event-rest">
       {% if festivals_same_day %}
         <div class="card border-warning mb-3"><div class="card-body py-3">
           <div class="small text-warning mb-2">Admin</div>
@@ -224,7 +239,7 @@
       {% for log in reviews %}{% include "events/_review.html" %}{% empty %}<p class="small text-body-secondary mt-2">No reviews yet.</p>{% endfor %}
     </div>
 
-    <div class="col-7 col-md-3 order-2 order-md-3">
+    <div class="event-side">
       <div class="card mb-3">
         <div class="card-body text-center">
           {% if event.avg_rating %}

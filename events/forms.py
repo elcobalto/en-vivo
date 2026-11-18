@@ -257,7 +257,7 @@ class ProfileForm(BootstrapMixin, forms.ModelForm):
 
     class Meta:
         model = Profile
-        fields = ["display_name", "location", "home_city", "home_country", "avatar_url", "bio"]
+        fields = ["display_name", "location", "home_city", "home_country", "avatar_url", "bio", "thumbnail_display"]
         widgets = {"bio": forms.Textarea(attrs={"rows": 4})}
         labels = {"avatar_url": "Avatar image URL"}
         help_texts = {

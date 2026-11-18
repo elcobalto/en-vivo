@@ -108,7 +108,7 @@ def profile(request: HttpRequest, username: str) -> HttpResponse:
     favorites = FavoriteEvent.objects.filter(user=owner).select_related("event", "event__venue")
     # Recently attended: the shows the person went to most recently (by show date, not log date).
     recent = (
-        Log.objects.filter(user=owner).select_related("event")
+        Log.objects.filter(user=owner).select_related("event", "event__venue")
         .order_by(F("event__date").desc(nulls_last=True), "-created_at")[:6]
     )
     reviews = with_social_counts(

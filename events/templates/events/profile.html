@@ -54,14 +54,11 @@
     <a class="small ms-2" href="{% url 'events:user_diary' owner.get_username %}">Diary →</a>
   </div>
   {% if recent %}
-    <div class="row row-cols-3 row-cols-md-6 g-3 mb-5">
+    <div class="row row-cols-2 row-cols-sm-3 row-cols-lg-6 g-3 mb-5">
       {% for log in recent %}
         <div class="col">
-          <a class="text-decoration-none d-block" href="{{ log.event.get_absolute_url }}">
-            <div class="poster position-relative" title="{{ log.event.title }}">{% if log.event.display_image %}{% include "events/_poster_img.html" with event=log.event %}{% else %}<div class="poster-title">{{ log.event.title }}</div>{% endif %}</div>
-          </a>
-          <div class="small"><span class="stars">{{ log.rating|stars }}</span>{% if log.liked %} <span class="liked">♥</span>{% endif %}</div>
-          {% if log.event.date %}<div class="small text-body-secondary">{{ log.event.date|date:"j M Y" }}</div>{% endif %}
+          {% include "events/_event_card.html" with event=log.event %}
+          <div class="small mt-1">{% if log.rating %}<span class="stars">{{ log.rating|stars }}</span>{% endif %}{% if log.liked %} <span class="liked">♥</span>{% endif %}</div>
         </div>
       {% endfor %}
     </div>

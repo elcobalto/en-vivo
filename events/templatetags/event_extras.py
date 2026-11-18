@@ -53,3 +53,14 @@ def rating_histogram(logs, title: str = "Ratings", show_average: bool = False):
     ]
     average = sum(r * n for r, n in counts.items()) / total if total else None
     return {"bars": bars, "total": total, "average": average, "title": title, "show_average": show_average}
+
+
+@register.simple_tag(takes_context=True)
+def poster_mode(context, event) -> str:
+    """The viewer's thumbnail preference if they set one, else the event's own."""
+    user = getattr(context.get("request"), "user", None)
+    if user is not None and user.is_authenticated:
+        profile = getattr(user, "profile", None)  # missing profile raises an AttributeError subclass
+        if profile is not None and profile.thumbnail_display:
+            return profile.thumbnail_display
+    return event.image_display

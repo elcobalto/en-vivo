@@ -2232,6 +2232,20 @@ class ImageFitTests(BaseTestCase):
         self.event.save()
         self.assertIn('class="poster-stretch" src="https://img.example/wide.jpg"', self._listing())
 
+    def test_profile_preference_overrides_event_only_for_that_viewer(self):
+        from events.models import Profile
+        self.event.image_url = "https://img.example/wide.jpg"
+        self.event.save()  # event set to the blurred "fit"
+        Profile.objects.update_or_create(user=self.user, defaults={"thumbnail_display": "stretch"})
+        self.client.force_login(self.user)
+        self.assertIn('class="poster-stretch"', self._listing())
+        self.client.logout()
+        html = self._listing()
+        self.assertIn('class="poster-fit"', html)
+        self.assertNotIn('class="poster-stretch"', html)
+        self.event.refresh_from_db()
+        self.assertEqual(self.event.image_display, "fit")
+
     def test_option_is_in_the_event_form(self):
         self.client.force_login(self.user)
         self.event.created_by = self.user
