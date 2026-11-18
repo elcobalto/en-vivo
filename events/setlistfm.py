@@ -82,7 +82,7 @@ def _request_json(path: str, query: dict[str, str] | None = None) -> dict[str, A
 
 def search_setlists(
     *,
-    artist_name: str,
+    artist_name: str = "",
     on_date: date | None = None,
     page: int = 1,
     city: str = "",
@@ -124,6 +124,18 @@ def _as_list(value) -> list:
 
 
 def _match_performer(artist_payload: dict) -> Performer:
+    performer = _find_or_create_performer(artist_payload)
+    if not performer.country and performer.mbid:
+        from .musicbrainz import artist_country
+
+        code = artist_country(performer.mbid)
+        if code:
+            performer.country = code
+            performer.save(update_fields=["country", "updated_at"])
+    return performer
+
+
+def _find_or_create_performer(artist_payload: dict) -> Performer:
     name = (artist_payload.get("name") or "").strip() or "Unknown artist"
     mbid = (artist_payload.get("mbid") or "").strip() or None
 

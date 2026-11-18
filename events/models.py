@@ -86,6 +86,8 @@ class Performer(TimestampedModel):
     bio = models.TextField(blank=True, default="")
     image_url = models.URLField(max_length=1000, blank=True, default="")
 
+    # Where the artist is from: splits "local" and "foreign" in profile stats.
+    country = CountryField(blank=True, default="")
     # MusicBrainz id: what setlist.fm uses to identify artists.
     mbid = models.CharField("MusicBrainz ID", max_length=36, null=True, blank=True, unique=True)
 

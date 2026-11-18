@@ -79,6 +79,28 @@ def with_social_counts(logs_qs):
 # --------------------------------------------------------------------------- profiles
 
 
+def _seen_artists(owner):
+    return (
+        Performer.objects.filter(act_logs__log__user=owner)
+        .annotate(n=Count("act_logs", filter=Q(act_logs__log__user=owner), distinct=True))
+        .order_by("-n", "name")
+    )
+
+
+def _local_foreign_artists(owner) -> dict:
+    """Most seen artists split by the owner's home country (local artists are usually seen more)."""
+    home = get_profile(owner).home_country
+    if not home:
+        return {"home_country": None}
+    seen = _seen_artists(owner)
+    return {
+        "home_country": home,
+        "local_artists": seen.filter(country=home.code)[:5],
+        "foreign_artists": seen.exclude(country=home.code).exclude(country="")[:5],
+        "unknown_artists": seen.filter(country="")[:5],
+    }
+
+
 def profile(request: HttpRequest, username: str) -> HttpResponse:
     owner = _owner(username)
     favorites = FavoriteEvent.objects.filter(user=owner).select_related("event", "event__venue")
@@ -97,9 +119,8 @@ def profile(request: HttpRequest, username: str) -> HttpResponse:
             "reviews": reviews,
             "owner_logs": Log.objects.filter(user=owner),
             # Only acts the person actually saw count.
-            "top_artists": Performer.objects.filter(act_logs__log__user=owner)
-            .annotate(n=Count("act_logs", filter=Q(act_logs__log__user=owner), distinct=True))
-            .order_by("-n", "name")[:5],
+            "top_artists": _seen_artists(owner)[:5],
+            **_local_foreign_artists(owner),
             "top_venues": Venue.objects.filter(events__logs__user=owner)
             .annotate(n=Count("events__logs", filter=Q(events__logs__user=owner), distinct=True))
             .order_by("-n", "name")[:5],

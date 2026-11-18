@@ -14,7 +14,7 @@
   <form method="get" class="card mb-3"><div class="card-body row g-2 align-items-end">
     <div class="col-12 col-md-4">
       <label class="form-label small" for="f-artist">Artist</label>
-      <input class="form-control" id="f-artist" name="artist" value="{{ f.artist }}" placeholder="e.g. Paul McCartney" required />
+      <input class="form-control" id="f-artist" name="artist" value="{{ f.artist }}" placeholder="Any artist" />
     </div>
     <div class="col-6 col-md-2">
       <label class="form-label small" for="f-city">City</label>
@@ -37,7 +37,7 @@
 
   {% if error %}<div class="alert alert-danger">{{ error }}</div>{% endif %}
 
-  {% if f.artist and not error %}
+  {% if searched %}{% if not error %}
     {% if results %}
       <form method="post">
         {% csrf_token %}
@@ -86,7 +86,7 @@
     {% else %}
       <div class="alert alert-secondary">No setlists found. Try fewer filters.</div>
     {% endif %}
-  {% endif %}
+  {% endif %}{% endif %}
 {% endblock %}
 
 {% block scripts %}

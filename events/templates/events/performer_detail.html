@@ -18,7 +18,7 @@
     {% endif %}
   </div>
   <div class="flex-grow-1">
-    <div class="small text-body-secondary text-uppercase">{{ performer.get_kind_display }}</div>
+    <div class="small text-body-secondary text-uppercase">{{ performer.get_kind_display }}{% if performer.country %} · {{ performer.country.name }}{% endif %}</div>
     <h1 class="h3 fw-bold">{{ performer.name }}</h1>
     {% if user|is_admin %}<a class="btn btn-sm btn-outline-secondary mb-2" href="{% url 'events:performer_edit' performer.pk %}">Edit performer</a>
     <a class="btn btn-sm btn-outline-danger mb-2" href="{% url 'events:performer_delete' performer.pk %}">Delete performer</a>

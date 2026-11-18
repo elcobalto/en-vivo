@@ -135,14 +135,17 @@ def setlistfm_shows(request: HttpRequest) -> HttpResponse:
         return redirect(request.get_full_path())
 
     filters = {k: (request.GET.get(k) or "").strip() for k in ["artist", "city", "year", "venue", "country"]}
-    if "artist" not in request.GET:  # first visit: start from the user's home city/country
+    searched = any(k in request.GET for k in filters)
+    if not searched:  # first visit: start from the user's home city/country
         filters["city"], filters["country"] = home_place(request.user)
     try:
         page = max(1, min(int(request.GET.get("page") or 1), 50))
     except ValueError:
         page = 1
     results, error = [], None
-    if filters["artist"]:
+    if searched and not any(filters.values()):
+        error = "Fill in at least one filter: artist, city, venue, year or country."
+    elif searched:
         try:
             results = search_setlists(
                 artist_name=filters["artist"],
@@ -167,7 +170,7 @@ def setlistfm_shows(request: HttpRequest) -> HttpResponse:
     return render(
         request,
         "events/setlistfm_shows.html",
-        {"f": filters, "page": page, "results": results, "error": error,
+        {"f": filters, "page": page, "results": results, "error": error, "searched": searched,
          "max_imports": MAX_IMPORTS_PER_REQUEST},
     )
 

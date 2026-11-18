@@ -10,16 +10,14 @@
 
   {% if top_artists or top_venues %}
     <div class="row g-4 mb-5">
-      <div class="col-12 col-md-6">
-        <h2 class="section-title mb-2">Most seen artists</h2>
-        <ol class="list-unstyled mb-0">
-          {% for p in top_artists %}
-            <li class="d-flex justify-content-between py-1 border-bottom border-secondary-subtle">
-              <a href="{{ p.get_absolute_url }}?seen_by={{ owner.get_username|urlencode }}">{{ p.name }}</a><span class="text-body-secondary small">{{ p.n }} show{{ p.n|pluralize }}</span>
-            </li>
-          {% empty %}<li class="small text-body-secondary">No artists yet.</li>{% endfor %}
-        </ol>
-      </div>
+      {% if home_country %}
+        {% include "events/_artist_rank.html" with title="Most seen local artists" subtitle=home_country.name artists=local_artists %}
+        {% include "events/_artist_rank.html" with title="Most seen foreign artists" artists=foreign_artists %}
+        {% if unknown_artists %}{% include "events/_artist_rank.html" with title="Country not known yet" artists=unknown_artists %}{% endif %}
+      {% else %}
+        {% include "events/_artist_rank.html" with title="Most seen artists" artists=top_artists %}
+        {% if owner == user %}<div class="col-12 small text-body-secondary mt-n3"><a href="{% url 'events:profile_edit' %}">Set your home country</a> to split local and foreign artists.</div>{% endif %}
+      {% endif %}
       <div class="col-12 col-md-6">
         <h2 class="section-title mb-2">Most visited venues</h2>
         <ol class="list-unstyled mb-0">

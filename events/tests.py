@@ -8,6 +8,9 @@ from django.contrib.auth import get_user_model
 from django.test import TestCase, override_settings
 from django.urls import reverse
 
+# Tests never call MusicBrainz for real.
+mock.patch("events.musicbrainz.artist_country", return_value="").start()
+
 from .models import Event, EventPerformer, EventType, Log, Performer, Production, Setlist, Venue
 from .setlistfm import SetlistFmError, import_setlist
 from .templatetags.event_extras import avg_stars, stars
@@ -1932,3 +1935,46 @@ class DiaryFilterTests(BaseTestCase):
         self.assertEqual(list(page.context["years"]), [2024, 1992])
         self.assertEqual([v for v, _ in page.context["event_types"]], ["music", "comedy"])
         self.assertContains(self.client.get(url + "?year=2001"), "No events match these filters.")
+
+
+class LocalForeignAndSearchTests(BaseTestCase):
+    def test_profile_splits_local_and_foreign_artists(self):
+        local = Performer.objects.create(name="Los Bunkers", country="CL")
+        foreign = Performer.objects.create(name="Green Day", country="US")
+        unknown = Performer.objects.create(name="Mystery")
+        for p in [local, foreign, unknown]:
+            EventPerformer.objects.create(event=self.event, performer=p)
+        Log.objects.create(user=self.user, event=self.event)
+        page = self.client.get(reverse("events:profile", args=["ana"]))
+        self.assertIsNone(page.context["home_country"])
+        self.assertContains(page, "Most seen artists")
+        self.user.profile.home_country = "CL"
+        self.user.profile.save()
+        page = self.client.get(reverse("events:profile", args=["ana"]))
+        self.assertEqual([p.name for p in page.context["local_artists"]], ["Los Bunkers"])
+        self.assertEqual([p.name for p in page.context["foreign_artists"]], ["Green Day"])
+        self.assertEqual([p.name for p in page.context["unknown_artists"]], ["Mystery"])
+        self.assertContains(page, "Most seen local artists · Chile")
+
+    def test_import_fills_artist_country_from_musicbrainz(self):
+        with mock.patch("events.musicbrainz.artist_country", return_value="US") as lookup:
+            import_setlist(self.event, SETLIST_PAYLOAD)
+        self.assertEqual(Performer.objects.get(name="Green Day").country.code, "US")
+        lookup.assert_called_once_with("084308bd-1654-436f-ba03-df6697104e19")
+
+    @mock.patch("events.views_venues.search_setlists", return_value=[])
+    def test_setlist_search_without_artist(self, search):
+        self.client.force_login(self.user)
+        self.client.get(reverse("events:setlistfm_shows"), {"artist": "", "country": "CL", "year": "2019"})
+        search.assert_called_with(artist_name="", city="", year="2019", venue="", country_code="CL", page=1)
+        page = self.client.get(reverse("events:setlistfm_shows"), {"artist": "", "country": ""})
+        self.assertContains(page, "Fill in at least one filter")
+        first_visit = self.client.get(reverse("events:setlistfm_shows"))
+        self.assertNotContains(first_visit, "No setlists found")
+
+    def test_lineup_header_is_outside_draggable_rows(self):
+        self.client.force_login(self.user)
+        html = self.client.get(reverse("events:event_create")).content.decode()
+        rows_start = html.index('id="lineup-rows"')
+        self.assertLess(html.index(">Set time</div>"), rows_start)
+        self.assertNotIn('class="form-label small">Performer', html[rows_start:])

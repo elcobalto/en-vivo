@@ -1,0 +1,10 @@
+<div class="col-12 col-md-6">
+  <h2 class="section-title mb-2">{{ title }}{% if subtitle %} · {{ subtitle }}{% endif %}</h2>
+  <ol class="list-unstyled mb-0">
+    {% for p in artists %}
+      <li class="d-flex justify-content-between py-1 border-bottom border-secondary-subtle">
+        <a href="{{ p.get_absolute_url }}?seen_by={{ owner.get_username|urlencode }}">{{ p.name }}</a><span class="text-body-secondary small">{{ p.n }} show{{ p.n|pluralize }}</span>
+      </li>
+    {% empty %}<li class="small text-body-secondary">None yet.</li>{% endfor %}
+  </ol>
+</div>

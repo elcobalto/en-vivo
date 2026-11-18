@@ -172,7 +172,7 @@ EventPerformerFormSet = inlineformset_factory(
 class PerformerForm(BootstrapMixin, forms.ModelForm):
     class Meta:
         model = Performer
-        fields = ["name", "kind", "bio", "image_url", "mbid"]
+        fields = ["name", "kind", "country", "bio", "image_url", "mbid"]
         widgets = {"bio": forms.Textarea(attrs={"rows": 4})}
         help_texts = {"mbid": "Optional. Helps match setlist.fm imports to this performer."}
 
