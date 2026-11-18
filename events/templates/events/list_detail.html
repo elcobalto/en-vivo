@@ -22,7 +22,7 @@
     <div class="d-flex gap-3 align-items-start py-3 border-bottom border-secondary-subtle">
       {% if event_list.is_ranked %}<div class="h4 text-body-secondary m-0" style="width:2.2rem">{{ item.position }}</div>{% endif %}
       <a href="{{ item.event.get_absolute_url }}" style="width:70px" class="flex-shrink-0">
-        <div class="poster position-relative" style="padding:0">{% if item.event.display_image %}<img src="{{ item.event.display_image }}" alt="" loading="lazy" />{% endif %}</div>
+        <div class="poster position-relative" style="padding:0">{% if item.event.display_image %}{% include "events/_poster_img.html" with event=item.event %}{% endif %}</div>
       </a>
       <div class="flex-grow-1">
         <a class="fw-semibold" href="{{ item.event.get_absolute_url }}">{{ item.event.title }}</a>

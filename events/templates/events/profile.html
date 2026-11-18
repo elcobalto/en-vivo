@@ -58,7 +58,7 @@
       {% for log in recent %}
         <div class="col">
           <a class="text-decoration-none d-block" href="{{ log.event.get_absolute_url }}">
-            <div class="poster position-relative" title="{{ log.event.title }}">{% if log.event.display_image %}<img src="{{ log.event.display_image }}" alt="{{ log.event.title }}" loading="lazy" />{% else %}<div class="poster-title">{{ log.event.title }}</div>{% endif %}</div>
+            <div class="poster position-relative" title="{{ log.event.title }}">{% if log.event.display_image %}{% include "events/_poster_img.html" with event=log.event %}{% else %}<div class="poster-title">{{ log.event.title }}</div>{% endif %}</div>
           </a>
           <div class="small"><span class="stars">{{ log.rating|stars }}</span>{% if log.liked %} <span class="liked">♥</span>{% endif %}</div>
         </div>

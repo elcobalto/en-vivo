@@ -73,8 +73,14 @@
           <a class="small ms-2" href="{% url 'events:event_edit' event.pk %}">Add {% if not event.venue %}venue{% if not event.date %} &amp; date{% endif %}{% else %}date{% endif %}</a>
         {% endif %}
       </div>
-      <h2 class="section-title mt-3 mb-2">Lineup</h2>
-      {% if lineup %}
+      <h2 class="section-title mt-3 mb-2">{% if event.event_type == "theater" %}Cast{% else %}Lineup{% endif %}</h2>
+      {% if credits %}
+        <p class="small mb-2">
+          {% for link in credits %}{% if link.role == "author" %}Written by{% else %}Directed by{% endif %}
+            <a href="{{ link.performer.get_absolute_url }}">{{ link.performer.name }}</a>{% if not forloop.last %} · {% endif %}{% endfor %}
+        </p>
+      {% endif %}
+      {% if act_rows %}
         <ul class="list-unstyled">
           {% for row in act_rows %}{% with link=row.link %}
             <li class="mb-1 d-flex align-items-baseline gap-2">
@@ -85,7 +91,7 @@
           {% endwith %}{% endfor %}
         </ul>
       {% else %}
-        <p class="small text-body-secondary">No performers added yet.</p>
+        {% if not credits %}<p class="small text-body-secondary">No performers added yet.</p>{% endif %}
       {% endif %}
 
       {% if festivals_same_day %}

@@ -1,0 +1,7 @@
+{% comment %}An event's thumbnail image: cropped to the poster shape, or whole on a blurred backdrop if image_fit.{% endcomment %}
+{% if event.image_fit %}
+  <img class="poster-backdrop" src="{{ event.display_image }}" alt="" aria-hidden="true" loading="lazy" referrerpolicy="no-referrer" />
+  <img class="poster-fit" src="{{ event.display_image }}" alt="{{ event.title }}" loading="lazy" referrerpolicy="no-referrer" />
+{% else %}
+  <img src="{{ event.display_image }}" alt="{{ event.title }}" loading="lazy" referrerpolicy="no-referrer" />
+{% endif %}

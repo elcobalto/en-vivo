@@ -2184,3 +2184,46 @@ class ProfileLayoutTests(BaseTestCase):
         self.assertEqual([(c["event__venue__city"], c["n"]) for c in page.context["top_cities"]],
                          [("Santiago", 2), ("Valparaíso", 1)])
         self.assertContains(page, "Most visited cities")
+
+
+class TheaterCreditsTests(BaseTestCase):
+    def test_author_and_director_are_credits_not_acts(self):
+        play = Event.objects.create(title="", event_type=EventType.THEATER, date=date(2020, 1, 1))
+        author = Performer.objects.create(name="William Shakespeare")
+        director = Performer.objects.create(name="La Directora")
+        actor = Performer.objects.create(name="Compañía Teatro")
+        EventPerformer.objects.create(event=play, performer=author, role="author", billing_order=1)
+        EventPerformer.objects.create(event=play, performer=director, role="director", billing_order=2)
+        EventPerformer.objects.create(event=play, performer=actor, role="cast", billing_order=3)
+        play.refresh_from_db()
+        self.assertEqual(play.title, "Compañía Teatro")  # credits never become the title
+
+        log = Log.objects.create(user=self.user, event=play)
+        self.assertEqual(list(log.acts.values_list("performer__name", flat=True)), ["Compañía Teatro"])
+
+        self.client.force_login(self.user)
+        page = self.client.get(play.get_absolute_url())
+        self.assertContains(page, "Written by")
+        self.assertContains(page, "Directed by")
+        self.assertContains(page, ">Cast<")
+        self.assertEqual([r["link"].performer.name for r in page.context["act_rows"]], ["Compañía Teatro"])
+
+
+class ImageFitTests(BaseTestCase):
+    def test_fit_option_shows_whole_photo_in_thumbnails(self):
+        self.event.image_url = "https://img.example/wide.jpg"
+        self.event.save()
+        listing = self.client.get(reverse("events:event_list")).content.decode()
+        self.assertNotIn('class="poster-fit"', listing)
+        self.event.image_fit = True
+        self.event.save()
+        listing = self.client.get(reverse("events:event_list")).content.decode()
+        self.assertIn('class="poster-fit" src="https://img.example/wide.jpg"', listing)
+        self.assertIn('class="poster-backdrop"', listing)
+
+    def test_option_is_in_the_event_form(self):
+        self.client.force_login(self.user)
+        self.event.created_by = self.user
+        self.event.save()
+        page = self.client.get(reverse("events:event_edit", args=[self.event.pk]))
+        self.assertContains(page, "Show the whole photo in thumbnails")

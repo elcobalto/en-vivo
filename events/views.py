@@ -21,6 +21,7 @@ from django.views.decorators.http import require_POST
 
 from .forms import RATING_CHOICES, EventForm, EventPerformerFormSet, LogForm, PerformerForm, ProductionForm, VenueForm
 from .models import (
+    CREDIT_ROLES,
     ActLog,
     Event,
     EventList,
@@ -213,7 +214,8 @@ def event_detail(request: HttpRequest, pk: int) -> HttpResponse:
             "can_edit": _can_edit(request.user, event),
             "can_delete": can_delete_event(request.user, event),
             "slot_suggestions": suggestions_for(request.user, event),
-            "act_rows": _act_rows(event, lineup, my_log),
+            "act_rows": _act_rows(event, [l for l in lineup if l.role not in CREDIT_ROLES], my_log),
+            "credits": [l for l in lineup if l.role in CREDIT_ROLES],
             "rating_choices": RATING_CHOICES,
             "festival_suggestion": festival_suggestion(request.user, event),
             **festival_admin_actions(request.user, event),
@@ -513,7 +515,7 @@ def log_save(request: HttpRequest, pk: int) -> HttpResponse:
 
 def _save_acts(log: Log, data) -> None:
     """Sync which acts the user saw at this event, with each act's rating and note."""
-    for performer_id in log.event.eventperformer_set.values_list("performer_id", flat=True):
+    for performer_id in log.event.acts_on_stage().values_list("performer_id", flat=True):
         if data.get(f"act_seen_{performer_id}"):
             raw = data.get(f"act_rating_{performer_id}") or ""
             rating = int(raw) if raw.isdigit() and 1 <= int(raw) <= 10 else None
@@ -565,7 +567,7 @@ def setlist_search(request: HttpRequest, pk: int) -> HttpResponse:
     event = get_object_or_404(Event, pk=pk)
     # Suggest the highest-billed act that doesn't have a setlist on this event yet.
     next_act = (
-        EventPerformer.objects.filter(event=event)
+        EventPerformer.objects.filter(event=event).exclude(role__in=CREDIT_ROLES)
         .exclude(performer__setlists__event=event)
         .select_related("performer").order_by("billing_order", "pk").first()
     )

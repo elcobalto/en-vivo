@@ -197,6 +197,11 @@ class Event(TimestampedModel):
     date = models.DateField(null=True, blank=True, db_index=True)
     description = models.TextField(blank=True, default="")
     image_url = models.URLField(max_length=1000, blank=True, default="")
+    # Thumbnails crop photos to a poster shape; this shows the whole photo instead.
+    image_fit = models.BooleanField(
+        "Show the whole photo in thumbnails (don't crop)", default=False,
+        help_text="For wide or square images: they're scaled to fit, with a blurred background.",
+    )
 
     performers = models.ManyToManyField(Performer, through="EventPerformer", related_name="events")
 
@@ -274,7 +279,7 @@ class Event(TimestampedModel):
             return self.production.image_url
         if not self.pk:
             return ""
-        link = self.eventperformer_set.select_related("performer", "production").first()
+        link = self.acts_on_stage().select_related("performer", "production").first()
         if not link:
             return ""
         if link.production_id and link.production.image_url:
@@ -301,9 +306,20 @@ class Event(TimestampedModel):
 
     @property
     def headliner(self) -> Performer | None:
-        link = self.eventperformer_set.select_related("performer").first()
+        """The top-billed act on stage (authors and directors are credits, not acts)."""
+        link = self.acts_on_stage().select_related("performer").first()
         return link.performer if link else None
 
+    def acts_on_stage(self):
+        return self.eventperformer_set.exclude(role__in=CREDIT_ROLES)
+
+    def credits(self):
+        return self.eventperformer_set.filter(role__in=CREDIT_ROLES).select_related("performer")
+
+
+
+# Roles that credit someone without them being an act you watch (theater authors, directors).
+CREDIT_ROLES = ("author", "director")
 
 class EventPerformer(models.Model):
     class Role(models.TextChoices):
@@ -313,6 +329,7 @@ class EventPerformer(models.Model):
         CAST = "cast", "Cast"
         HOST = "host", "Host"
         DIRECTOR = "director", "Director"
+        AUTHOR = "author", "Author / playwright"
         OTHER = "other", "Other"
 
     event = models.ForeignKey(Event, on_delete=models.CASCADE)
@@ -388,7 +405,7 @@ def add_all_acts(log: Log) -> None:
     seen = set(log.acts.values_list("performer_id", flat=True))
     ActLog.objects.bulk_create(
         [ActLog(log=log, performer_id=pid)
-         for pid in log.event.eventperformer_set.values_list("performer_id", flat=True) if pid not in seen]
+         for pid in log.event.acts_on_stage().values_list("performer_id", flat=True) if pid not in seen]
     )
 
 

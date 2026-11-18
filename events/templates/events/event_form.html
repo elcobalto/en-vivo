@@ -21,6 +21,11 @@
               <div class="form-text">Search venues already on En Vivo or anywhere on Google Maps.</div>
               {% for error in field.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
             </div>
+            {% elif field.name == 'image_fit' %}
+            <div class="col-12">
+              <div class="form-check">{{ field }} <label class="form-check-label" for="{{ field.id_for_label }}">{{ field.label }}</label></div>
+              <div class="form-text">{{ field.help_text }}</div>
+            </div>
             {% elif field.name|slice:":10" != "new_venue_" %}
             <div class="{% if field.name in 'title description image_url' %}col-12{% else %}col-12 col-md-6{% endif %}">
               <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
