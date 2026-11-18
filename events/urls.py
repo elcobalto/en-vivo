@@ -64,6 +64,7 @@ urlpatterns = [
     path("people/", views_social.people, name="people"),
     path("settings/profile/", views_social.profile_edit, name="profile_edit"),
     path("u/<str:username>/", views_social.profile, name="profile"),
+    path("u/<str:username>/most-seen/<slug:kind>/", views_social.user_ranking, name="user_ranking"),
     path("u/<str:username>/reviews/", views_social.user_reviews, name="user_reviews"),
     path("u/<str:username>/follow/", views_social.follow_toggle, name="follow_toggle"),
     path("u/<str:username>/followers/", views_social.followers, name="followers"),

@@ -2190,6 +2190,21 @@ class ProfileLayoutTests(BaseTestCase):
         self.assertContains(page, "Most visited cities")
 
 
+class ProfileRankingTests(BaseTestCase):
+    def test_see_all_links_open_the_whole_ranking(self):
+        for i in range(7):
+            event = Event.objects.create(title=f"Show {i}", venue=Venue.objects.create(name=f"Venue {i}", city=f"City {i}"),
+                                         date=date(2020, 1, i + 1))
+            Log.objects.create(user=self.user, event=event, rating=8)
+        page = self.client.get(reverse("events:profile", args=["ana"]))
+        for kind in ["venues", "cities"]:
+            url = reverse("events:user_ranking", args=["ana", kind])
+            self.assertContains(page, url)
+            self.assertEqual(len(self.client.get(url).context["rows"]), 7)
+        self.assertEqual(self.client.get(reverse("events:user_ranking", args=["ana", "artists"])).status_code, 200)
+        self.assertEqual(self.client.get(reverse("events:user_ranking", args=["ana", "nope"])).status_code, 404)
+
+
 class TheaterCreditsTests(BaseTestCase):
     def test_author_and_director_are_credits_not_acts(self):
         play = Event.objects.create(title="", event_type=EventType.THEATER, date=date(2020, 1, 1))

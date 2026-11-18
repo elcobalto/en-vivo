@@ -20,10 +20,10 @@
   {% if top_artists or top_venues or top_cities %}
     <div class="row g-4 mb-5">
       {% if home_country %}
-        {% include "events/_artist_rank.html" with title="Most seen local artists" subtitle=home_country.name artists=local_artists %}
-        {% include "events/_artist_rank.html" with title="Most seen foreign artists" artists=foreign_artists %}
+        {% include "events/_artist_rank.html" with title="Most seen local artists" subtitle=home_country.name artists=local_artists kind="local-artists" %}
+        {% include "events/_artist_rank.html" with title="Most seen foreign artists" artists=foreign_artists kind="foreign-artists" %}
       {% else %}
-        {% include "events/_artist_rank.html" with title="Most seen artists" artists=top_artists %}
+        {% include "events/_artist_rank.html" with title="Most seen artists" artists=top_artists kind="artists" %}
         {% if owner == user %}<div class="col-12 small text-body-secondary mt-n3"><a href="{% url 'events:profile_edit' %}">Set your home country</a> to split local and foreign artists.</div>{% endif %}
       {% endif %}
       <div class="col-12 col-md-6">
@@ -35,6 +35,7 @@
             </li>
           {% empty %}<li class="small text-body-secondary">No venues yet.</li>{% endfor %}
         </ol>
+        {% if top_venues %}<a class="small d-inline-block mt-2" href="{% url 'events:user_ranking' owner.get_username 'venues' %}">See all →</a>{% endif %}
       </div>
       <div class="col-12 col-md-6">
         <h2 class="section-title mb-2">Most visited cities</h2>
@@ -45,6 +46,7 @@
             </li>
           {% empty %}<li class="small text-body-secondary">No cities yet.</li>{% endfor %}
         </ol>
+        {% if top_cities %}<a class="small d-inline-block mt-2" href="{% url 'events:user_ranking' owner.get_username 'cities' %}">See all →</a>{% endif %}
       </div>
     </div>
   {% endif %}

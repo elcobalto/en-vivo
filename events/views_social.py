@@ -4,6 +4,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
+from urllib.parse import quote
 
 from django.contrib import messages
 from django.contrib.auth import get_user_model
@@ -11,8 +12,9 @@ from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
 from django.db import transaction
 from django.db.models import Count, F, Max, Q
-from django.http import HttpRequest, HttpResponse
+from django.http import Http404, HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
@@ -90,6 +92,25 @@ def _seen_artists(owner):
     )
 
 
+def _seen_venues(owner):
+    return (
+        Venue.objects.filter(events__logs__user=owner)
+        .annotate(
+            n=Count("events__logs", filter=Q(events__logs__user=owner), distinct=True),
+            last_seen=Max("events__date", filter=Q(events__logs__user=owner)),
+        )
+        .order_by("-n", F("last_seen").desc(nulls_last=True), "name")
+    )
+
+
+def _seen_cities(owner):
+    return (
+        Log.objects.filter(user=owner).exclude(event__venue=None).exclude(event__venue__city="")
+        .values("event__venue__city").annotate(n=Count("id"), last_seen=Max("event__date"))
+        .order_by("-n", F("last_seen").desc(nulls_last=True), "event__venue__city")
+    )
+
+
 def _local_foreign_artists(owner) -> dict:
     """Most seen artists split by the owner's home country (local artists are usually seen more)."""
     home = get_profile(owner).home_country
@@ -127,16 +148,47 @@ def profile(request: HttpRequest, username: str) -> HttpResponse:
             # Only acts the person actually saw count.
             "top_artists": _seen_artists(owner)[:5],
             **_local_foreign_artists(owner),
-            "top_venues": Venue.objects.filter(events__logs__user=owner)
-            .annotate(
-                n=Count("events__logs", filter=Q(events__logs__user=owner), distinct=True),
-                last_seen=Max("events__date", filter=Q(events__logs__user=owner)),
-            )
-            .order_by("-n", F("last_seen").desc(nulls_last=True), "name")[:5],
-            "top_cities": Log.objects.filter(user=owner).exclude(event__venue=None).exclude(event__venue__city="")
-            .values("event__venue__city").annotate(n=Count("id"), last_seen=Max("event__date"))
-            .order_by("-n", F("last_seen").desc(nulls_last=True), "event__venue__city")[:5],
+            "top_venues": _seen_venues(owner)[:5],
+            "top_cities": _seen_cities(owner)[:5],
         },
+    )
+
+
+RANKINGS = {
+    "artists": "Most seen artists",
+    "local-artists": "Most seen local artists",
+    "foreign-artists": "Most seen foreign artists",
+    "venues": "Most visited venues",
+    "cities": "Most visited cities",
+}
+
+
+def user_ranking(request: HttpRequest, username: str, kind: str) -> HttpResponse:
+    """The whole list behind one of the profile's top-5 rankings."""
+    owner = _owner(username)
+    if kind not in RANKINGS:
+        raise Http404
+    seen_by = f"?seen_by={quote(owner.get_username())}"
+    home = get_profile(owner).home_country
+    title = RANKINGS[kind]
+    if kind.endswith("artists"):
+        qs = _seen_artists(owner)
+        if kind != "artists":
+            if not home:
+                raise Http404
+            qs = qs.filter(country=home.code) if kind == "local-artists" else qs.exclude(country=home.code).exclude(country="")
+            if kind == "local-artists":
+                title = f"{title} · {home.name}"
+        rows = [(p.get_absolute_url() + seen_by, p.name, p.n, "show") for p in qs]
+    elif kind == "venues":
+        rows = [(v.get_absolute_url() + seen_by, v.name, v.n, "visit") for v in _seen_venues(owner)]
+    else:
+        base = reverse("events:event_list")
+        rows = [(f"{base}?city={quote(c['event__venue__city'])}", c["event__venue__city"], c["n"], "show")
+                for c in _seen_cities(owner)]
+    return render(
+        request, "events/user_ranking.html",
+        {"owner": owner, "tab": "profile", "title": title, "rows": rows},
     )
 
 
