@@ -3,12 +3,13 @@ from __future__ import annotations
 
 import json
 import ssl
-from urllib.error import HTTPError, URLError
+import logging
 from urllib.request import Request, urlopen
 
 from django.core.cache import cache
 
 USER_AGENT = "EnVivo/1.0 (artist country lookup)"
+logger = logging.getLogger(__name__)
 
 
 def artist_country(mbid: str) -> str:
@@ -28,9 +29,11 @@ def artist_country(mbid: str) -> str:
     try:
         request = Request(f"https://musicbrainz.org/ws/2/artist/{mbid}?fmt=json",
                           headers={"User-Agent": USER_AGENT, "Accept": "application/json"})
-        with urlopen(request, timeout=6, context=ctx) as resp:
+        with urlopen(request, timeout=3, context=ctx) as resp:
             data = json.loads(resp.read().decode("utf-8") or "{}")
-    except (HTTPError, URLError, TimeoutError, ValueError):
+    except Exception as e:  # any network/HTTP/SSL/JSON problem: the country is just left empty
+        logger.warning("MusicBrainz lookup for %s failed: %r", mbid, e)
+        cache.set(key, "", 60 * 60)  # don't retry this artist for an hour
         return ""
     code = (data.get("country") or "").upper()
     if not code:

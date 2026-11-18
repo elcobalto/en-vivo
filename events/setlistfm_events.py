@@ -7,6 +7,7 @@ duplicate venues, tours, performers or events.
 """
 from __future__ import annotations
 
+import logging
 import time
 import uuid
 from dataclasses import dataclass
@@ -14,6 +15,8 @@ from decimal import Decimal, InvalidOperation
 from typing import Any
 
 from django.db import transaction
+
+logger = logging.getLogger(__name__)
 
 from . import google_places
 from .models import Event, EventPerformer, EventType, Production, Setlist, Venue
@@ -159,4 +162,7 @@ def import_many(setlist_ids: list[str], user=None, pause: float = 0.6) -> list[t
             results.append((setlist_id, create_event_from_setlist(get_setlist(setlist_id), user), ""))
         except SetlistFmError as e:
             results.append((setlist_id, None, str(e)))
+        except Exception:  # never turn one bad setlist into a 500 for the whole import
+            logger.exception("Importing setlist %s failed", setlist_id)
+            results.append((setlist_id, None, "Something went wrong importing this setlist. Nothing was saved for it."))
     return results

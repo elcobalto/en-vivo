@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from urllib.parse import urlencode
 
 from django.contrib import messages
@@ -595,6 +596,10 @@ def setlist_import(request: HttpRequest, pk: int) -> HttpResponse:
         setlist = import_setlist(event, get_setlist(setlist_id))
     except SetlistFmError as e:
         messages.error(request, str(e))
+        return redirect("events:setlist_search", pk=event.pk)
+    except Exception:
+        logging.getLogger(__name__).exception("Importing setlist %s into event %s failed", setlist_id, event.pk)
+        messages.error(request, "Something went wrong importing that setlist. Nothing was saved.")
         return redirect("events:setlist_search", pk=event.pk)
 
     messages.success(request, f"Imported {setlist.entries.count()} songs for {setlist.performer}.")

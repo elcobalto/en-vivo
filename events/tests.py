@@ -8,7 +8,10 @@ from django.contrib.auth import get_user_model
 from django.test import TestCase, override_settings
 from django.urls import reverse
 
-# Tests never call MusicBrainz for real.
+# Tests never call MusicBrainz for real (the real function is kept for the tests that need it).
+from events import musicbrainz as _musicbrainz  # noqa: E402
+
+REAL_ARTIST_COUNTRY = _musicbrainz.artist_country
 mock.patch("events.musicbrainz.artist_country", return_value="").start()
 
 from .models import Event, EventPerformer, EventType, Log, Performer, Production, Setlist, Venue
@@ -1978,3 +1981,24 @@ class LocalForeignAndSearchTests(BaseTestCase):
         rows_start = html.index('id="lineup-rows"')
         self.assertLess(html.index(">Set time</div>"), rows_start)
         self.assertNotIn('class="form-label small">Performer', html[rows_start:])
+
+
+class ImportFailsSafelyTests(BaseTestCase):
+    def test_musicbrainz_connection_drop_returns_no_country(self):
+        from http.client import RemoteDisconnected
+        from ssl import SSLError
+
+        cache.clear()
+        for error in [RemoteDisconnected("closed"), ConnectionResetError(), SSLError(), TimeoutError()]:
+            with self.subTest(error=type(error).__name__):
+                cache.clear()
+                with mock.patch("events.musicbrainz.urlopen", side_effect=error):
+                    self.assertEqual(REAL_ARTIST_COUNTRY("084308bd-1654-436f-ba03-df6697104e19"), "")
+
+    def test_unexpected_error_is_reported_not_500(self):
+        self.client.force_login(self.user)
+        with mock.patch("events.setlistfm_events.get_setlist", side_effect=RuntimeError("boom")):
+            response = self.client.post(reverse("events:setlistfm_shows") + "?artist=X",
+                                        {"setlist_id": ["abc"]}, follow=True)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Something went wrong importing this setlist")
