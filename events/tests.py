@@ -1913,3 +1913,22 @@ class SameFestivalDayTests(BaseTestCase):
         remaining = set(Event.objects.filter(event_type=EventType.FESTIVAL).values_list("pk", flat=True))
         self.assertEqual(remaining, {days[0].pk, elsewhere.pk})
         self.assertTrue(Log.objects.filter(user=bob, event=days[0]).exists())
+
+
+class DiaryFilterTests(BaseTestCase):
+    def test_filter_by_type_and_year(self):
+        comedy = Event.objects.create(title="Burr", event_type=EventType.COMEDY, date=date(2024, 5, 1))
+        music24 = Event.objects.create(title="Gig 24", event_type=EventType.MUSIC, date=date(2024, 6, 1))
+        for e in [self.event, comedy, music24]:
+            Log.objects.create(user=self.user, event=e, rating=8)
+        url = reverse("events:user_diary", args=["ana"])
+        titles = lambda q: [l.event.title for l in self.client.get(url + q).context["logs"]]  # noqa: E731
+        self.assertEqual(len(titles("")), 3)
+        self.assertEqual(titles("?type=comedy"), ["Burr"])
+        self.assertEqual(titles("?year=2024"), ["Gig 24", "Burr"])
+        self.assertEqual(titles("?type=music&year=2024"), ["Gig 24"])
+        page = self.client.get(url + "?type=comedy")
+        self.assertEqual(page.context["log_count"], 1)  # stats follow the filter
+        self.assertEqual(list(page.context["years"]), [2024, 1992])
+        self.assertEqual([v for v, _ in page.context["event_types"]], ["music", "comedy"])
+        self.assertContains(self.client.get(url + "?year=2001"), "No events match these filters.")

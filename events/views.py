@@ -310,11 +310,17 @@ def diary(request: HttpRequest, username: str | None = None) -> HttpResponse:
         return redirect("events:user_diary", username=request.user.get_username())
 
     owner = get_object_or_404(get_user_model(), username=username)
-    logs = (
-        Log.objects.filter(user=owner)
-        .select_related("event", "event__venue")
-        .order_by("-event__date", "-created_at")
-    )
+    all_logs = Log.objects.filter(user=owner)
+    event_type = request.GET.get("type") or ""
+    year = request.GET.get("year") or ""
+    logs = all_logs.select_related("event", "event__venue").order_by("-event__date", "-created_at")
+    if event_type in EventType.values:
+        logs = logs.filter(event__event_type=event_type)
+    if year.isdigit():
+        logs = logs.filter(event__date__year=int(year))
+    years = (all_logs.exclude(event__date=None).annotate(y=ExtractYear("event__date"))
+             .values_list("y", flat=True).distinct().order_by("-y"))
+    types_logged = all_logs.values_list("event__event_type", flat=True).distinct()
     stats = logs.aggregate(avg_rating=Avg("rating"), log_count=Count("id"))
     by_type = logs.values("event__event_type").annotate(n=Count("id")).order_by("-n")
     type_labels = dict(EventType.choices)
@@ -325,6 +331,9 @@ def diary(request: HttpRequest, username: str | None = None) -> HttpResponse:
             "owner": owner,
             "tab": "diary",
             "logs": logs,
+            "f": {"type": event_type, "year": year},
+            "years": years,
+            "event_types": [(v, l) for v, l in EventType.choices if v in set(types_logged)],
             "by_type": [(type_labels.get(r["event__event_type"], "Other"), r["n"]) for r in by_type],
             **stats,
         },
