@@ -11,9 +11,10 @@
     <div class="col-12 col-md-6">
       <div class="mb-1"><span class="badge text-bg-secondary type-badge">{{ production.get_event_type_display }}</span></div>
       <h1 class="h3 fw-bold">{{ production.title }}</h1>
+      {% if production.performer %}<div class="mb-2">Tour by <a class="fw-semibold" href="{{ production.performer.get_absolute_url }}">{{ production.performer.name }}</a></div>{% endif %}
       {% if user|is_admin %}<a class="btn btn-sm btn-outline-secondary mb-2" href="{% url 'events:production_edit' production.pk %}">Edit production</a>{% endif %}
       {% if production.description %}<p>{{ production.description|linebreaksbr }}</p>{% endif %}
-      {% if user.is_authenticated %}<a class="btn btn-sm btn-outline-secondary" href="{% url 'events:event_create' %}?production={{ production.pk }}">+ Add a date</a>{% endif %}
+      {% if user.is_authenticated and production.event_type == "festival" %}<a class="btn btn-sm btn-outline-secondary" href="{% url 'events:event_create' %}?production={{ production.pk }}">+ Add a day</a>{% endif %}
     </div>
     <div class="col-7 col-md-3">
       <div class="card"><div class="card-body text-center">

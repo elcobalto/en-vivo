@@ -96,8 +96,9 @@ def profile(request: HttpRequest, username: str) -> HttpResponse:
             "recent": recent,
             "reviews": reviews,
             "owner_logs": Log.objects.filter(user=owner),
-            "top_artists": Performer.objects.filter(events__logs__user=owner)
-            .annotate(n=Count("events__logs", filter=Q(events__logs__user=owner), distinct=True))
+            # Only acts the person actually saw count.
+            "top_artists": Performer.objects.filter(act_logs__log__user=owner)
+            .annotate(n=Count("act_logs", filter=Q(act_logs__log__user=owner), distinct=True))
             .order_by("-n", "name")[:5],
             "top_venues": Venue.objects.filter(events__logs__user=owner)
             .annotate(n=Count("events__logs", filter=Q(events__logs__user=owner), distinct=True))
@@ -219,6 +220,8 @@ def review_detail(request: HttpRequest, pk: int) -> HttpResponse:
         {
             "log": log,
             "comments": log.comments.select_related("user__profile"),
+            "acts": log.acts.select_related("performer"),
+            "missed": log.event.eventperformer_set.exclude(performer__act_logs__log=log).select_related("performer"),
             "liked": liked,
             "comment_form": CommentForm(),
             "likers": User.objects.filter(review_likes__log=log).select_related("profile")[:12],

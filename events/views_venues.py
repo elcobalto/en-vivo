@@ -12,7 +12,7 @@ from django.urls import reverse
 from django.views.decorators.http import require_GET, require_POST
 
 from . import google_places, image_search, setlistfm_events
-from .models import Event, Log, Performer, Setlist, Venue
+from .models import Event, Log, Performer, Setlist, Venue, add_all_acts
 from .roles import can_edit_event, home_place, is_admin
 from .setlistfm import SetlistFmError, _as_list, parse_event_date, search_setlists
 
@@ -114,8 +114,10 @@ def setlistfm_shows(request: HttpRequest) -> HttpResponse:
                     messages.error(request, f"{setlist_id}: {error}")
                     continue
                 if mark_attended and result.event.has_happened:
-                    _, added = Log.objects.get_or_create(user=request.user, event=result.event)
+                    log, added = Log.objects.get_or_create(user=request.user, event=result.event)
                     attended += added
+                    if not added:
+                        add_all_acts(log)  # an act this import added to an event you'd logged
                 if result.setlist_already_imported:
                     skipped += 1
                 elif result.created:

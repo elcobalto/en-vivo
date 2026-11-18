@@ -24,7 +24,7 @@
               <td class="text-nowrap small">{{ log.event.date|date:"j M"|default:"—" }}</td>
               <td><a class="fw-semibold" href="{{ log.event.get_absolute_url }}">{{ log.event.title }}</a>{% if log.event.venue %}<div class="small text-body-secondary">{{ log.event.venue.name }}</div>{% endif %}</td>
               <td class="small">{{ log.event.get_event_type_display }}</td>
-              <td class="stars">{{ log.rating|stars }}</td>
+              <td class="stars"><a class="text-decoration-none stars" href="{% url 'events:review_detail' log.pk %}" title="Open this log">{{ log.rating|stars|default:"·" }}</a></td>
               <td>{% if log.liked %}<span class="liked">♥</span>{% endif %}</td>
               <td class="small">{% if log.review %}{% if log.contains_spoilers %}<span class="text-warning">Spoilers</span>{% else %}{{ log.review|truncatewords:14 }}{% endif %}{% endif %}</td>
             </tr>

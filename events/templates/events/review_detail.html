@@ -33,6 +33,20 @@
         <p class="text-body-secondary">No written review.</p>
       {% endif %}
 
+      {% if acts or missed %}
+        <h2 class="section-title mt-4 mb-2">Acts seen</h2>
+        <ul class="list-unstyled mb-0">
+          {% for act in acts %}
+            <li class="d-flex align-items-baseline gap-2 py-1">
+              <a href="{{ act.performer.get_absolute_url }}">{{ act.performer.name }}</a>
+              {% if act.rating %}<span class="stars small">{{ act.rating|stars }}</span>{% endif %}
+              {% if act.note %}<span class="small text-body-secondary">— {{ act.note }}</span>{% endif %}
+            </li>
+          {% endfor %}
+        </ul>
+        {% if missed %}<div class="small text-body-secondary mt-1">Didn't see: {% for link in missed %}{{ link.performer.name }}{% if not forloop.last %}, {% endif %}{% endfor %}</div>{% endif %}
+      {% endif %}
+
       <div class="d-flex align-items-center gap-3 mt-3">
         {% if user.is_authenticated %}
           <form method="post" action="{% url 'events:review_like_toggle' log.pk %}">

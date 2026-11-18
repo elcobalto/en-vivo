@@ -42,7 +42,7 @@ def _move_lineup(keep: Event, remove: Event, role: str | None) -> None:
             continue
         EventPerformer.objects.create(
             event=keep, performer_id=link.performer_id, role=role or link.role, billing_order=next_order,
-            start_time=link.start_time,
+            start_time=link.start_time, production_id=link.production_id,
         )
         next_order += 1
 
@@ -60,6 +60,10 @@ def _move_logs(keep: Event, remove: Event) -> None:
         existing.contains_spoilers = existing.contains_spoilers or log.contains_spoilers
         existing.save()
         log.comments.update(log=existing)
+        for act in log.acts.all():  # acts seen at either show are kept
+            if not existing.acts.filter(performer_id=act.performer_id).exists():
+                act.log = existing
+                act.save(update_fields=["log"])
         for like in log.likes.all():
             if not existing.likes.filter(user_id=like.user_id).exists():
                 like.log = existing

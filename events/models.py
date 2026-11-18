@@ -100,10 +100,14 @@ class Performer(TimestampedModel):
 
 
 class Production(TimestampedModel):
-    """A show, tour or run that groups several events (Letterboxd's 'film' page)."""
+    """A tour or run by a performer (linked per lineup act), or a festival grouping events."""
 
     title = models.CharField(max_length=240, db_index=True)
     event_type = models.CharField(max_length=20, choices=EventType.choices, default=EventType.MUSIC)
+    # Whose tour/run this is. Empty for festivals, which group whole events instead.
+    performer = models.ForeignKey(
+        "Performer", on_delete=models.SET_NULL, null=True, blank=True, related_name="tours"
+    )
     description = models.TextField(blank=True, default="")
     image_url = models.URLField(max_length=1000, blank=True, default="")
 
@@ -262,6 +266,11 @@ class EventPerformer(models.Model):
     role = models.CharField(max_length=20, choices=Role.choices, default=Role.HEADLINER)
     billing_order = models.PositiveIntegerField(default=1)
     start_time = models.TimeField("Set time", null=True, blank=True)
+    # The tour this act was on at this event (tours belong to performers, not events).
+    production = models.ForeignKey(
+        Production, on_delete=models.SET_NULL, null=True, blank=True, related_name="lineup_entries",
+        verbose_name="Tour",
+    )
 
     class Meta:
         constraints = [
@@ -300,6 +309,33 @@ class Log(TimestampedModel):
 
     def __str__(self) -> str:
         return f"{self.user} — {self.event}"
+
+
+class ActLog(TimestampedModel):
+    """One act the user actually saw at a logged event, with its own rating and note."""
+
+    log = models.ForeignKey(Log, on_delete=models.CASCADE, related_name="acts")
+    performer = models.ForeignKey(Performer, on_delete=models.CASCADE, related_name="act_logs")
+    rating = models.PositiveSmallIntegerField(
+        null=True, blank=True, validators=[MinValueValidator(1), MaxValueValidator(10)]
+    )
+    note = models.CharField(max_length=200, blank=True, default="")
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["log", "performer"], name="uq_actlog_log_performer")]
+        ordering = ["pk"]
+
+    def __str__(self) -> str:
+        return f"{self.log.user} saw {self.performer} at {self.log.event}"
+
+
+def add_all_acts(log: Log) -> None:
+    """Mark every act in the event's lineup as seen (the default for a new log)."""
+    seen = set(log.acts.values_list("performer_id", flat=True))
+    ActLog.objects.bulk_create(
+        [ActLog(log=log, performer_id=pid)
+         for pid in log.event.eventperformer_set.values_list("performer_id", flat=True) if pid not in seen]
+    )
 
 
 # --------------------------------------------------------------------------- setlists (music)

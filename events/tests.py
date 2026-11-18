@@ -905,7 +905,10 @@ class SetlistShowImportTests(BaseTestCase):
         self.assertEqual((event.venue.name, event.venue.city, event.venue.country.code),
                          ("Estadio Nacional", "Santiago", "CL"))
         self.assertEqual(event.venue.setlistfm_id, "6bd6ca6e")
-        self.assertEqual(event.production.title, "Freshen Up")
+        link = event.eventperformer_set.get(performer__name="Paul McCartney")
+        self.assertEqual(link.production.title, "Freshen Up")  # the tour belongs to the act
+        self.assertEqual(link.production.performer.name, "Paul McCartney")
+        self.assertIsNone(event.production)
         self.assertEqual(event.created_by, self.user)
         self.assertEqual(event.setlists.get().entries.count(), 3)
 
@@ -919,7 +922,8 @@ class SetlistShowImportTests(BaseTestCase):
         self.assertNotEqual(second_night.event, first.event)
         self.assertEqual(Venue.objects.filter(name="Estadio Nacional").count(), 1)
         self.assertEqual(Production.objects.filter(title="Freshen Up").count(), 1)
-        self.assertEqual(second_night.event.production, first.event.production)
+        tour = lambda e: e.eventperformer_set.get(performer__name="Paul McCartney").production  # noqa: E731
+        self.assertEqual(tour(second_night.event), tour(first.event))
 
     def test_joins_event_added_by_hand_and_hand_typed_venue(self):
         typed_venue = Venue.objects.create(name="estadio nacional", city="santiago")
@@ -1445,7 +1449,7 @@ class SetTimesAndFestivalTests(BaseTestCase):
         })
         event = Event.objects.get(performers=star)
         page = self.client.get(event.get_absolute_url())
-        self.assertEqual([l.performer.name for l in page.context["lineup"]], ["Opener", "Star"])  # running order
+        self.assertEqual([l.performer.name for l in page.context["lineup"]], ["Star", "Opener"])  # billing order wins
         self.assertContains(page, "21:30")
 
     def test_migration_moves_event_time_to_headliner(self):
@@ -1563,3 +1567,149 @@ class UpcomingSortTests(BaseTestCase):
         self.assertEqual(titles("?when=upcoming&sort=newest"), ["Far", "Soon"])  # explicit choice wins
         self.assertEqual(titles("")[:2], ["Far", "Soon"])  # everything: latest date first
         self.assertTrue(far.pk and soon.pk)
+
+
+# --------------------------------------------------------------------------- acts seen at an event
+
+from .models import ActLog  # noqa: E402
+
+
+class ActLogTests(BaseTestCase):
+    def setUp(self):
+        super().setUp()
+        self.star = Performer.objects.create(name="Star")
+        self.opener = Performer.objects.create(name="Opener")
+        EventPerformer.objects.create(event=self.event, performer=self.star)
+        EventPerformer.objects.create(event=self.event, performer=self.opener, role="support", billing_order=2)
+        self.client.force_login(self.user)
+
+    def _log(self, **data):
+        return self.client.post(reverse("events:log_save", args=[self.event.pk]), {"rating": "8", **data})
+
+    def test_new_log_sees_every_act_by_default(self):
+        Log.objects.create(user=self.user, event=self.event)
+        self.assertEqual(set(ActLog.objects.values_list("performer__name", flat=True)), {"Star", "Opener"})
+
+    def test_untick_rate_and_note_acts(self):
+        self._log(acts_submitted="1",
+                  **{f"act_seen_{self.star.pk}": "1", f"act_rating_{self.star.pk}": "10",
+                     f"act_note_{self.star.pk}": "Played Yesterday"})
+        log = Log.objects.get(user=self.user, event=self.event)
+        self.assertEqual(log.rating, 8)  # event rating stays on the event
+        self.assertEqual([(a.performer.name, a.rating, a.note) for a in log.acts.all()],
+                         [("Star", 10, "Played Yesterday")])
+
+        page = self.client.get(reverse("events:review_detail", args=[log.pk]))
+        self.assertContains(page, "Acts seen")
+        self.assertContains(page, "Played Yesterday")
+        self.assertContains(page, "Didn't see: Opener")
+
+    def test_artist_stats_count_only_acts_seen(self):
+        self._log(acts_submitted="1", **{f"act_seen_{self.star.pk}": "1", f"act_rating_{self.star.pk}": "6"})
+        profile = self.client.get(reverse("events:profile", args=["ana"]))
+        self.assertEqual([p.name for p in profile.context["top_artists"]], ["Star"])
+        opener_page = self.client.get(self.opener.get_absolute_url())
+        self.assertEqual(opener_page.context["log_count"], 0)
+        star_page = self.client.get(self.star.get_absolute_url())
+        self.assertEqual((star_page.context["log_count"], star_page.context["avg_rating"]), (1, 6))
+
+    def test_event_page_form_and_lineup_average(self):
+        page = self.client.get(self.event.get_absolute_url())
+        self.assertContains(page, "Acts you saw")
+        self.assertContains(page, f'name="act_seen_{self.opener.pk}" value="1" checked')
+        self._log(acts_submitted="1", **{f"act_seen_{self.star.pk}": "1", f"act_rating_{self.star.pk}": "9"})
+        page = self.client.get(self.event.get_absolute_url())
+        self.assertNotContains(page, f'name="act_seen_{self.opener.pk}" value="1" checked')
+        self.assertContains(page, 'title="Average from 1 who saw them"')
+
+    def test_migration_marks_existing_logs_as_seeing_everyone(self):
+        import importlib
+
+        from django.apps import apps
+
+        log = Log.objects.create(user=self.user, event=self.event)
+        log.acts.all().delete()  # as if logged before acts existed
+        importlib.import_module("events.migrations.0014_act_logs").everyone_saw_every_act(apps, None)
+        self.assertEqual(log.acts.count(), 2)
+
+
+
+class ToursBelongToPerformersTests(BaseTestCase):
+    def test_tour_page_lists_the_acts_dates_and_act_ratings(self):
+        artist = Performer.objects.create(name="Paul McCartney")
+        tour = Production.objects.create(title="Got Back", performer=artist)
+        link = EventPerformer.objects.create(event=self.event, performer=artist, production=tour)
+        log = Log.objects.create(user=self.user, event=self.event, rating=4)
+        log.acts.filter(performer=artist).update(rating=10)
+        page = self.client.get(tour.get_absolute_url())
+        self.assertContains(page, "Tour by")
+        self.assertEqual(page.context["avg_rating"], 10)  # the act's rating, not the event's
+        self.assertContains(self.client.get(self.event.get_absolute_url()), "Got Back")
+        self.assertContains(self.client.get(artist.get_absolute_url()), "Got Back")
+        self.assertTrue(link.pk)
+
+    def test_migration_moves_event_tour_to_headliner(self):
+        import importlib
+
+        from django.apps import apps
+
+        headliner = Performer.objects.create(name="Headliner")
+        EventPerformer.objects.create(event=self.event, performer=headliner)
+        tour = Production.objects.create(title="Old tour")
+        Event.objects.filter(pk=self.event.pk).update(production=tour)
+        importlib.import_module("events.migrations.0015_tours_belong_to_performers").tours_to_headliners(apps, None)
+        self.event.refresh_from_db(); tour.refresh_from_db()
+        self.assertIsNone(self.event.production)
+        self.assertEqual(tour.performer, headliner)
+        self.assertEqual(self.event.eventperformer_set.get().production, tour)
+
+
+class AdminFestivalButtonsTests(BaseTestCase):
+    def setUp(self):
+        super().setUp()
+        self.admin = get_user_model().objects.create_user("mod", password="pw-test-000")
+        call_command("make_admin", "mod", stdout=open("/dev/null", "w"))
+        for i, name in enumerate(["A", "B"], start=1):
+            EventPerformer.objects.create(event=self.event, performer=Performer.objects.create(name=name), billing_order=i)
+
+    def test_turn_into_festival_admin_only(self):
+        self.client.force_login(self.user)
+        self.assertNotContains(self.client.get(self.event.get_absolute_url()), "Turn into festival")
+        self.assertEqual(self.client.post(reverse("events:make_festival", args=[self.event.pk]), {"name": "X"}).status_code, 403)
+        self.client.force_login(self.admin)
+        self.assertContains(self.client.get(self.event.get_absolute_url()), "Turn into festival")
+        self.client.post(reverse("events:make_festival", args=[self.event.pk]), {"name": "Rock en Ñuñoa"})
+        self.event.refresh_from_db()
+        self.assertEqual((self.event.event_type, self.event.production.title), ("festival", "Rock en Ñuñoa"))
+
+    def test_add_show_to_same_day_festival_in_city(self):
+        other_venue = Venue.objects.create(name="Parque O'Higgins", city="Santiago")
+        fest = Event.objects.create(title="Lollapalooza", event_type=EventType.FESTIVAL, venue=other_venue,
+                                    date=self.event.date)
+        self.client.force_login(self.admin)
+        page = self.client.get(self.event.get_absolute_url())
+        self.assertContains(page, "Add to Lollapalooza")
+        response = self.client.post(reverse("events:add_to_festival", args=[self.event.pk]), {"festival": fest.pk})
+        self.assertRedirects(response, fest.get_absolute_url())
+        self.assertFalse(Event.objects.filter(pk=self.event.pk).exists())
+        self.assertEqual(set(fest.performers.values_list("name", flat=True)), {"A", "B"})
+
+
+class LineupOrderTests(BaseTestCase):
+    def test_lineup_and_setlists_follow_billing_order(self):
+        first = Performer.objects.create(name="Zed")  # alphabetically last, billed first
+        second = Performer.objects.create(name="Abe")
+        EventPerformer.objects.create(event=self.event, performer=first, billing_order=1)
+        EventPerformer.objects.create(event=self.event, performer=second, billing_order=2)
+        Setlist.objects.create(event=self.event, performer=second)
+        Setlist.objects.create(event=self.event, performer=first)
+        page = self.client.get(self.event.get_absolute_url())
+        self.assertEqual([r["link"].performer.name for r in page.context["act_rows"]], ["Zed", "Abe"])
+        self.assertEqual([s.performer.name for s in page.context["setlists"]], ["Zed", "Abe"])
+
+    def test_form_has_drag_handles_and_hidden_order(self):
+        self.client.force_login(self.user)
+        page = self.client.get(reverse("events:event_create"))
+        self.assertContains(page, 'class="drag-handle')
+        self.assertContains(page, 'type="hidden" name="eventperformer_set-0-billing_order"')
+        self.assertContains(page, "lineup-order.js")

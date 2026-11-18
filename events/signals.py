@@ -68,3 +68,15 @@ def promote_configured_superusers(sender, request, user, **kwargs):
         user.is_superuser = True
         user.is_staff = True
         user.save(update_fields=["is_superuser", "is_staff"])
+
+
+# --------------------------------------------------------------------------- acts seen at a logged event
+
+from .models import Log, add_all_acts  # noqa: E402
+
+
+@receiver(post_save, sender=Log)
+def new_log_sees_every_act(sender, instance, created, raw=False, **kwargs):
+    """A new diary entry starts with every act ticked; the log form can untick them."""
+    if created and not raw:
+        add_all_acts(instance)

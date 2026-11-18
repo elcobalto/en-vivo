@@ -9,7 +9,7 @@ from django.contrib.auth.views import redirect_to_login
 from django.core.exceptions import PermissionDenied
 from django.core.paginator import Paginator
 from django.db import transaction
-from django.db.models import Avg, Count, F, Prefetch, Q
+from django.db.models import Avg, Count, F, OuterRef, Prefetch, Q, Subquery
 from django.db.models.functions import ExtractYear
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -18,8 +18,9 @@ from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 
-from .forms import EventForm, EventPerformerFormSet, LogForm, PerformerForm, ProductionForm, VenueForm
+from .forms import RATING_CHOICES, EventForm, EventPerformerFormSet, LogForm, PerformerForm, ProductionForm, VenueForm
 from .models import (
+    ActLog,
     Event,
     EventList,
     EventPerformer,
@@ -40,7 +41,7 @@ SORTS = {
 }
 WHEN = {"": "Any time", "upcoming": "Upcoming", "past": "Past"}
 from .roles import can_delete_event, can_edit_event, home_place, is_admin
-from .views_merge import festival_suggestion, suggestions_for
+from .views_merge import festival_admin_actions, festival_suggestion, suggestions_for
 from .setlistfm import SetlistFmError, get_setlist, import_setlist, parse_event_date, search_setlists
 
 
@@ -174,10 +175,13 @@ def event_detail(request: HttpRequest, pk: int) -> HttpResponse:
     event = get_object_or_404(
         Event.objects.with_stats().select_related("venue", "production"), pk=pk
     )
-    lineup = EventPerformer.objects.filter(event=event).select_related("performer").order_by(
-        F("start_time").asc(nulls_last=True), "billing_order", "performer__name"
+    lineup = EventPerformer.objects.filter(event=event).select_related("performer", "production").order_by(
+        "billing_order", F("start_time").asc(nulls_last=True), "performer__name"  # the order set in the form
     )
-    setlists = event.setlists.select_related("performer").prefetch_related(
+    billing = EventPerformer.objects.filter(event=event, performer=OuterRef("performer")).values("billing_order")[:1]
+    setlists = event.setlists.select_related("performer").annotate(order=Subquery(billing)).order_by(
+        F("order").asc(nulls_last=True), "performer__name"
+    ).prefetch_related(
         Prefetch("entries", queryset=SetlistSong.objects.select_related("song"))
     )
     my_log = None
@@ -202,7 +206,10 @@ def event_detail(request: HttpRequest, pk: int) -> HttpResponse:
             "can_edit": _can_edit(request.user, event),
             "can_delete": can_delete_event(request.user, event),
             "slot_suggestions": suggestions_for(request.user, event),
+            "act_rows": _act_rows(event, lineup, my_log),
+            "rating_choices": RATING_CHOICES,
             "festival_suggestion": festival_suggestion(request.user, event),
+            **festival_admin_actions(request.user, event),
             "wanted": wanted,
             "my_lists": my_lists,
             "in_lists": in_lists[:5],
@@ -213,20 +220,30 @@ def event_detail(request: HttpRequest, pk: int) -> HttpResponse:
 
 
 def production_detail(request: HttpRequest, pk: int) -> HttpResponse:
-    production = get_object_or_404(Production, pk=pk)
-    logs = Log.objects.filter(event__production=production)
-    stats = logs.aggregate(avg_rating=Avg("rating"), log_count=Count("id"))
+    production = get_object_or_404(Production.objects.select_related("performer"), pk=pk)
+    if production.event_type == EventType.FESTIVAL:
+        # Festivals group whole events (their days).
+        events = Event.objects.filter(production=production)
+        logs = Log.objects.filter(event__production=production)
+        rated = logs
+    else:
+        # Tours belong to a performer: its dates are the events where that act was on this tour.
+        events = Event.objects.filter(eventperformer__production=production).distinct()
+        logs = Log.objects.filter(event__in=events)
+        rated = ActLog.objects.filter(log__event__in=events, performer_id=production.performer_id) \
+            if production.performer_id else logs
+    stats = rated.aggregate(avg_rating=Avg("rating"), log_count=Count("id"))
     return render(
         request,
         "events/production_detail.html",
         {
             "production": production,
-            "events": production.events.with_stats().select_related("venue")
+            "events": events.with_stats().select_related("venue")
             .prefetch_related(Prefetch("eventperformer_set", queryset=EventPerformer.objects.select_related("performer")
                                        .filter(role=EventPerformer.Role.HEADLINER)))
             .order_by(F("date").asc(nulls_last=True)),
             "reviews": _reviews(logs),
-            "production_logs": logs,
+            "production_logs": rated,
             **stats,
         },
     )
@@ -234,14 +251,16 @@ def production_detail(request: HttpRequest, pk: int) -> HttpResponse:
 
 def performer_detail(request: HttpRequest, pk: int) -> HttpResponse:
     performer = get_object_or_404(Performer, pk=pk)
-    stats = Log.objects.filter(event__performers=performer).aggregate(
-        avg_rating=Avg("rating"), log_count=Count("id")
-    )
+    # Ratings for the artist come from people who saw this act, not from the whole event.
+    act_logs = ActLog.objects.filter(performer=performer)
+    stats = act_logs.aggregate(avg_rating=Avg("rating"), log_count=Count("id"))
     return render(
         request,
         "events/performer_detail.html",
         {
             "performer": performer,
+            "tours": performer.tours.order_by("title"),
+            "act_logs": act_logs,
             "events": performer.events.with_stats().select_related("venue").distinct(),
             **stats,
         },
@@ -419,10 +438,48 @@ def log_save(request: HttpRequest, pk: int) -> HttpResponse:
         entry.user = request.user
         entry.event = event
         entry.save()
+        if request.POST.get("acts_submitted"):
+            _save_acts(entry, request.POST)
         messages.success(request, "Saved to your diary.")
     else:
         messages.error(request, "Could not save your log: " + form.errors.as_text())
     return redirect(event)
+
+
+def _save_acts(log: Log, data) -> None:
+    """Sync which acts the user saw at this event, with each act's rating and note."""
+    for performer_id in log.event.eventperformer_set.values_list("performer_id", flat=True):
+        if data.get(f"act_seen_{performer_id}"):
+            raw = data.get(f"act_rating_{performer_id}") or ""
+            rating = int(raw) if raw.isdigit() and 1 <= int(raw) <= 10 else None
+            ActLog.objects.update_or_create(
+                log=log, performer_id=performer_id,
+                defaults={"rating": rating, "note": (data.get(f"act_note_{performer_id}") or "").strip()[:200]},
+            )
+        else:
+            ActLog.objects.filter(log=log, performer_id=performer_id).delete()
+
+
+def _act_rows(event: Event, lineup, my_log: Log | None) -> list[dict]:
+    """One row per act for the event page: my seen/rating/note plus everyone's average."""
+    mine = {a.performer_id: a for a in my_log.acts.all()} if my_log else {}
+    stats = {
+        row["performer_id"]: row
+        for row in ActLog.objects.filter(log__event=event).values("performer_id")
+        .annotate(avg=Avg("rating"), seen_by=Count("id"))
+    }
+    rows = []
+    for link in lineup:
+        act = mine.get(link.performer_id)
+        rows.append({
+            "link": link,
+            "seen": bool(act) if my_log else True,  # a new log starts with every act ticked
+            "rating": act.rating if act else None,
+            "note": act.note if act else "",
+            "avg": (stats.get(link.performer_id) or {}).get("avg"),
+            "seen_by": (stats.get(link.performer_id) or {}).get("seen_by", 0),
+        })
+    return rows
 
 
 @login_required

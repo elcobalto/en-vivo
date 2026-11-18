@@ -155,3 +155,70 @@ def festival_group(request: HttpRequest, pk: int) -> HttpResponse:
             day.save()
     messages.success(request, f"Grouped {len(suggestion['days']) + 1} days as “{festival.title}”.")
     return redirect(festival)
+
+
+# --------------------------------------------------------------------------- admins: festivals
+
+def same_day_festivals(event: Event):
+    """Festival events on the same day in the same city as this (non-festival) event."""
+    from .models import EventType
+
+    if event.event_type == EventType.FESTIVAL or not (event.date and event.venue_id and event.venue.city):
+        return Event.objects.none()
+    return (
+        Event.objects.filter(event_type=EventType.FESTIVAL, date=event.date, venue__city__iexact=event.venue.city)
+        .exclude(pk=event.pk).select_related("venue", "production").order_by("pk")
+    )
+
+
+def festival_admin_actions(user, event: Event) -> dict:
+    """Admin-only festival buttons for the event page."""
+    from .models import EventType
+    from .roles import is_admin
+
+    if not is_admin(user):
+        return {}
+    return {
+        "can_make_festival": event.event_type == EventType.MUSIC and event.eventperformer_set.count() > 1,
+        "festivals_same_day": list(same_day_festivals(event)),
+    }
+
+
+@login_required
+@require_POST
+def make_festival(request: HttpRequest, pk: int) -> HttpResponse:
+    """Admins: turn a multi-act music event into a festival with the given name."""
+    from .models import EventType, Production
+    from .roles import is_admin
+
+    event = get_object_or_404(Event, pk=pk)
+    if not is_admin(request.user):
+        raise PermissionDenied
+    name = (request.POST.get("name") or "").strip()[:240]
+    if not name:
+        messages.error(request, "Give the festival a name.")
+        return redirect(event)
+    festival = next((p for p in Production.objects.filter(event_type=EventType.FESTIVAL, title__icontains=name[:3])
+                     if p.title.casefold() == name.casefold()), None) \
+        or Production.objects.create(title=name, event_type=EventType.FESTIVAL)
+    event.event_type = EventType.FESTIVAL
+    event.production = festival
+    event.save()
+    messages.success(request, f"“{event.title}” is now part of the festival “{festival.title}”.")
+    return redirect(event)
+
+
+@login_required
+@require_POST
+def add_to_festival(request: HttpRequest, pk: int) -> HttpResponse:
+    """Admins: fold this show into a festival happening the same day in the same city."""
+    from .roles import is_admin
+
+    event = get_object_or_404(Event, pk=pk)
+    if not is_admin(request.user):
+        raise PermissionDenied
+    festival_event = get_object_or_404(same_day_festivals(event), pk=request.POST.get("festival") or 0)
+    title = event.title
+    kept = merge_events(festival_event, event, mode="festival")
+    messages.success(request, f"“{title}” was added to “{kept.title}”.")
+    return redirect(kept)

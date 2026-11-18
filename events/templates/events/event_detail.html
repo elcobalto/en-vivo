@@ -46,6 +46,27 @@
           <a class="small ms-2" href="{% url 'events:event_edit' event.pk %}">Add {% if not event.venue %}venue{% if not event.date %} &amp; date{% endif %}{% else %}date{% endif %}</a>
         {% endif %}
       </div>
+      {% if can_make_festival or festivals_same_day %}
+        <div class="card border-warning mb-3"><div class="card-body py-3">
+          <div class="small text-warning mb-2">Admin</div>
+          {% for f in festivals_same_day %}
+            <form method="post" action="{% url 'events:add_to_festival' event.pk %}" class="mb-2"
+                  onsubmit="return confirm('Add {{ event.title|escapejs }} to {{ f.title|escapejs }}? This event merges into the festival day.');">
+              {% csrf_token %}<input type="hidden" name="festival" value="{{ f.pk }}" />
+              <button class="btn btn-sm btn-warning" type="submit">Add to {{ f.title }}</button>
+              <span class="small text-body-secondary ms-1">{{ f.venue.name }}, same day</span>
+            </form>
+          {% endfor %}
+          {% if can_make_festival %}
+            <form method="post" action="{% url 'events:make_festival' event.pk %}" class="d-flex flex-wrap gap-2">
+              {% csrf_token %}
+              <input class="form-control form-control-sm" style="max-width:16rem" name="name" required placeholder="Festival name" aria-label="Festival name" />
+              <button class="btn btn-sm btn-outline-warning" type="submit">Turn into festival</button>
+            </form>
+          {% endif %}
+        </div></div>
+      {% endif %}
+
       {% if festival_suggestion %}
         <div class="card border-info mb-3"><div class="card-body py-3">
           <div class="fw-semibold mb-1">Other festival days at {{ event.venue.name }}</div>
@@ -106,19 +127,20 @@
       {% endfor %}
 
       {% if event.production %}
-        <p class="small">Part of <a class="fw-semibold" href="{{ event.production.get_absolute_url }}">{{ event.production.title }}</a></p>
+        <p class="small">Part of the festival <a class="fw-semibold" href="{{ event.production.get_absolute_url }}">{{ event.production.title }}</a></p>
       {% endif %}
       {% if event.description %}<p>{{ event.description|linebreaksbr }}</p>{% endif %}
 
       <h2 class="section-title mt-4 mb-2">Lineup</h2>
       {% if lineup %}
         <ul class="list-unstyled">
-          {% for link in lineup %}
+          {% for row in act_rows %}{% with link=row.link %}
             <li class="mb-1 d-flex align-items-baseline gap-2">
               <span class="event-date" style="min-width:3.2rem">{% if link.start_time %}{{ link.start_time|time:"H:i" }}{% endif %}</span>
-              <span><a href="{{ link.performer.get_absolute_url }}">{{ link.performer.name }}</a> <span class="small text-body-secondary">{{ link.get_role_display }}</span></span>
+              <span class="flex-grow-1"><a href="{{ link.performer.get_absolute_url }}">{{ link.performer.name }}</a> <span class="small text-body-secondary">{{ link.get_role_display }}{% if link.production %} · <a class="link-secondary" href="{{ link.production.get_absolute_url }}">{{ link.production.title }}</a>{% endif %}</span></span>
+              {% if row.avg %}<span class="stars small" title="Average from {{ row.seen_by }} who saw them">{{ row.avg|stars }}</span>{% endif %}
             </li>
-          {% endfor %}
+          {% endwith %}{% endfor %}
         </ul>
       {% else %}
         <p class="small text-body-secondary">No performers added yet.</p>
@@ -185,6 +207,26 @@
               {% csrf_token %}
               <div class="mb-2">{{ log_form.rating }}</div>
               <div class="form-check mb-2">{{ log_form.liked }} <label class="form-check-label" for="{{ log_form.liked.id_for_label }}">{{ log_form.liked.label }}</label></div>
+              {% if act_rows %}
+                <input type="hidden" name="acts_submitted" value="1" />
+                <div class="small text-body-secondary mb-1">Acts you saw</div>
+                <div class="border rounded border-secondary-subtle p-2 mb-2">
+                  {% for row in act_rows %}{% with pid=row.link.performer_id %}
+                    <div class="{% if not forloop.last %}mb-2 pb-2 border-bottom border-secondary-subtle{% endif %}">
+                      <div class="form-check">
+                        <input class="form-check-input act-seen" type="checkbox" id="act-seen-{{ pid }}" name="act_seen_{{ pid }}" value="1" {% if row.seen %}checked{% endif %} />
+                        <label class="form-check-label small" for="act-seen-{{ pid }}">{{ row.link.performer.name }}</label>
+                      </div>
+                      <div class="d-flex gap-1 mt-1 act-details">
+                        <select class="form-select form-select-sm" name="act_rating_{{ pid }}" aria-label="Rating for {{ row.link.performer.name }}" style="max-width:6.5rem">
+                          {% for value, label in rating_choices %}<option value="{{ value }}" {% if row.rating == value %}selected{% endif %}>{{ label }}</option>{% endfor %}
+                        </select>
+                        <input class="form-control form-control-sm" name="act_note_{{ pid }}" value="{{ row.note }}" maxlength="200" placeholder="Note" aria-label="Note for {{ row.link.performer.name }}" />
+                      </div>
+                    </div>
+                  {% endwith %}{% endfor %}
+                </div>
+              {% endif %}
               <div class="mb-2">{{ log_form.review }}</div>
               <div class="form-check mb-2">{{ log_form.contains_spoilers }} <label class="form-check-label small" for="{{ log_form.contains_spoilers.id_for_label }}">{{ log_form.contains_spoilers.label }}</label></div>
               <button class="btn btn-success w-100" type="submit">{% if my_log %}Update{% else %}Log it{% endif %}</button>

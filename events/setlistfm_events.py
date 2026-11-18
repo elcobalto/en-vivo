@@ -16,7 +16,7 @@ from typing import Any
 from django.db import transaction
 
 from . import google_places
-from .models import Event, EventType, Production, Setlist, Venue
+from .models import Event, EventPerformer, EventType, Production, Setlist, Venue
 from .setlistfm import SetlistFmError, get_setlist, import_setlist, parse_event_date
 
 
@@ -97,14 +97,19 @@ def match_venue(venue_payload: dict[str, Any]) -> Venue | None:
     )
 
 
-def match_tour(tour_payload: dict[str, Any] | None) -> Production | None:
+def match_tour(tour_payload: dict[str, Any] | None, performer) -> Production | None:
+    """The performer's tour with this name (tours belong to artists), created if new."""
     name = ((tour_payload or {}).get("name") or "").strip()
     if not name:
         return None
-    for production in Production.objects.filter(title__icontains=name[:3], event_type=EventType.MUSIC):
-        if production.title.casefold() == name.casefold():
+    candidates = Production.objects.filter(title__icontains=name[:3], event_type=EventType.MUSIC)
+    for production in candidates:
+        if production.title.casefold() == name.casefold() and production.performer_id in (performer.pk, None):
+            if not production.performer_id:
+                production.performer = performer
+                production.save(update_fields=["performer", "updated_at"])
             return production
-    return Production.objects.create(title=name[:240], event_type=EventType.MUSIC)
+    return Production.objects.create(title=name[:240], event_type=EventType.MUSIC, performer=performer)
 
 
 @transaction.atomic
@@ -120,7 +125,6 @@ def create_event_from_setlist(payload: dict[str, Any], user=None) -> ImportResul
 
     event_date = parse_event_date(payload.get("eventDate"))
     venue = match_venue(payload.get("venue") or {})
-    tour = match_tour(payload.get("tour"))
 
     # Same date at the same venue is the same show (e.g. support acts, festivals, an event added by hand).
     event = None
@@ -134,14 +138,13 @@ def create_event_from_setlist(payload: dict[str, Any], user=None) -> ImportResul
             event_type=EventType.MUSIC,
             date=event_date,
             venue=venue,
-            production=tour,
             created_by=user,
         )
-    elif tour and not event.production_id:
-        event.production = tour
-        event.save(update_fields=["production", "updated_at"])
 
-    import_setlist(event, payload)
+    setlist = import_setlist(event, payload)
+    tour = match_tour(payload.get("tour"), setlist.performer)
+    if tour:  # the tour is this act's, at this event
+        EventPerformer.objects.filter(event=event, performer=setlist.performer, production=None).update(production=tour)
     event.refresh_from_db()
     return ImportResult(event, created=created)
 

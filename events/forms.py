@@ -7,6 +7,7 @@ from django_countries import countries
 from .models import (
     Comment,
     Event,
+    EventType,
     EventList,
     EventPerformer,
     FavoriteEvent,
@@ -58,10 +59,12 @@ class EventForm(BootstrapMixin, forms.ModelForm):
             "description": forms.Textarea(attrs={"rows": 4}),
         }
         labels = {"event_type": "Type", "image_url": "Poster / image URL"}
-        help_texts = {"production": "Optional: the tour, run or show this date belongs to."}
+        help_texts = {"production": "Only for festivals: the festival this day belongs to. Tours are set per act in the lineup."}
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.fields["production"].queryset = Production.objects.filter(event_type=EventType.FESTIVAL)
+        self.fields["production"].label = "Festival"
         self.fields["title"].required = False
         placeholder = "Leave blank to use the headliner's name"
         if self.instance.pk and self.instance.title_is_auto:
@@ -110,8 +113,8 @@ class EventPerformerForm(BootstrapMixin, forms.ModelForm):
 
     class Meta:
         model = EventPerformer
-        fields = ["performer", "role", "billing_order", "start_time"]
-        labels = {"billing_order": "Order", "start_time": "Time"}
+        fields = ["performer", "role", "billing_order", "start_time", "production"]
+        labels = {"billing_order": "Order", "start_time": "Time", "production": "Tour"}
         widgets = {"start_time": forms.TimeInput(attrs={"type": "time"}, format="%H:%M")}
 
     def __init__(self, *args, **kwargs):
@@ -119,6 +122,10 @@ class EventPerformerForm(BootstrapMixin, forms.ModelForm):
         self.fields["role"].required = False
         self.fields["billing_order"].required = False
         self.fields["performer"].required = False
+        tours = self.fields["production"]
+        tours.queryset = Production.objects.exclude(event_type=EventType.FESTIVAL).select_related("performer")
+        tours.label_from_instance = lambda p: f"{p.title} ({p.performer.name})" if p.performer_id else p.title
+        tours.empty_label = "No tour"
 
     def has_changed(self) -> bool:
         # A new row without a performer (picked or typed) is an unused blank row, whatever role/order say.
@@ -179,9 +186,10 @@ class VenueForm(BootstrapMixin, forms.ModelForm):
 class ProductionForm(BootstrapMixin, forms.ModelForm):
     class Meta:
         model = Production
-        fields = ["title", "event_type", "description", "image_url"]
+        fields = ["title", "event_type", "performer", "description", "image_url"]
         widgets = {"description": forms.Textarea(attrs={"rows": 4})}
-        labels = {"event_type": "Type", "image_url": "Poster / image URL"}
+        labels = {"event_type": "Type", "image_url": "Poster / image URL", "performer": "Artist"}
+        help_texts = {"performer": "Whose tour or run this is. Leave empty for a festival."}
 
 
 RATING_CHOICES = [("", "No rating")] + [(i, stars(i)) for i in range(1, 11)]

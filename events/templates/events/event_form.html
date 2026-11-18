@@ -3,7 +3,7 @@
 
 {% block title %}{% if event %}Edit {{ event.title }}{% else %}New event{% endif %} · En Vivo{% endblock %}
 
-{% block scripts %}<script src="{% static 'events/venue-search.js' %}"></script>{% endblock %}
+{% block scripts %}<script src="{% static 'events/venue-search.js' %}"></script><script src="{% static 'events/lineup-order.js' %}"></script>{% endblock %}
 
 {% block content %}
   <div class="row justify-content-center">
@@ -59,22 +59,26 @@
         <h2 class="section-title mt-4 mb-2">Lineup</h2>
         <p class="small text-body-secondary">
           Bands, artists, cast, comedians… <a href="{% url 'events:performer_create' %}?next={{ request.get_full_path|urlencode }}">+ New performer</a>
-          <span class="d-block">Tip: create any new venue, production or performer before filling this form.</span>
+          <span class="d-block">Tip: create any new tour before filling this form.</span>
         </p>
         {{ formset.management_form }}
         {{ formset.non_form_errors }}
+        <p class="small text-body-secondary mb-2">Drag ⠿ to set the order: first is the headliner / top of the bill. Setlists follow this order.</p>
+        <div id="lineup-rows">
         {% for f in formset %}
-          <div class="row g-2 align-items-end mb-2">
-            {{ f.id }}
-            <div class="col-12 col-md-4">{% if forloop.first %}<label class="form-label small">Performer</label>{% endif %}{{ f.performer }}{{ f.new_performer }}</div>
-            <div class="col-5 col-md-3">{% if forloop.first %}<label class="form-label small">Role</label>{% endif %}{{ f.role }}</div>
-            <div class="col-3 col-md-1">{% if forloop.first %}<label class="form-label small">Order</label>{% endif %}{{ f.billing_order }}</div>
+          <div class="row g-2 align-items-end mb-2 lineup-row">
+            {{ f.id }}{{ f.billing_order.as_hidden }}
+            <div class="col-1 text-center"><span class="drag-handle fs-5 text-body-secondary" title="Drag (or ↑/↓) to reorder" aria-label="Reorder" role="button" tabindex="0" style="cursor:grab">⠿</span></div>
+            <div class="col-11 col-md-3">{% if forloop.first %}<label class="form-label small">Performer</label>{% endif %}{{ f.performer }}{{ f.new_performer }}</div>
+            <div class="col-5 col-md-2">{% if forloop.first %}<label class="form-label small">Role</label>{% endif %}{{ f.role }}</div>
             <div class="col-4 col-md-2">{% if forloop.first %}<label class="form-label small">Set time</label>{% endif %}{{ f.start_time }}</div>
-            <div class="col-12 col-md-2">{% if f.instance.pk %}<div class="form-check">{{ f.DELETE }} <label class="form-check-label small" for="{{ f.DELETE.id_for_label }}">Remove</label></div>{% endif %}</div>
+            <div class="col-8 col-md-2">{% if forloop.first %}<label class="form-label small">Tour</label>{% endif %}{{ f.production }}</div>
+            <div class="col-3 col-md-1">{% if f.instance.pk %}<div class="form-check">{{ f.DELETE }} <label class="form-check-label small" for="{{ f.DELETE.id_for_label }}">Remove</label></div>{% endif %}</div>
             {% for error in f.non_field_errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
             {% for field in f %}{% for error in field.errors %}<div class="text-danger small">{{ field.label }}: {{ error }}</div>{% endfor %}{% endfor %}
           </div>
         {% endfor %}
+        </div>
 
         <div class="d-flex gap-2 mt-4">
           <button class="btn btn-success" type="submit">Save event</button>

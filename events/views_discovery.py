@@ -197,7 +197,8 @@ def search(request: HttpRequest) -> HttpResponse:
             .filter(Q(title__icontains=q) | Q(performers__name__icontains=q))
             .distinct()[:12],
             "performers": Performer.objects.filter(name__icontains=q).annotate(n=Count("events"))[:12],
-            "productions": Production.objects.filter(title__icontains=q).annotate(n=Count("events"))[:12],
+            "productions": Production.objects.filter(title__icontains=q).select_related("performer")
+            .annotate(n=Count("events", distinct=True) + Count("lineup_entries__event", distinct=True))[:12],
             "venues": Venue.objects.filter(Q(name__icontains=q) | Q(city__icontains=q)).annotate(n=Count("events"))[:12],
             "lists": _lists_with_preview(EventList.objects.filter(title__icontains=q))[:12],
         }
