@@ -23,6 +23,7 @@ urlpatterns = [
     path("events/<int:pk>/setlist/import/", views.setlist_import, name="setlist_import"),
     path("productions/new/", views.production_create, name="production_create"),
     path("productions/<int:pk>/", views.production_detail, name="production_detail"),
+    path("productions/<int:pk>/photo/", views_venues.production_photo, name="production_photo"),
     path("productions/<int:pk>/edit/", views.production_edit, name="production_edit"),
     path("performers/new/", views.performer_create, name="performer_create"),
     path("performers/<int:pk>/", views.performer_detail, name="performer_detail"),

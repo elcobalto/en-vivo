@@ -267,11 +267,19 @@ class Event(TimestampedModel):
 
     @property
     def display_image(self) -> str:
-        """The event's own photo, else its headliner's photo, else "" (the placeholder is shown)."""
+        """Own photo, else festival photo, else the headliner's tour photo, else the headliner's photo."""
         if self.image_url:
             return self.image_url
-        headliner = self.headliner if self.pk else None
-        return headliner.image_url if headliner else ""
+        if self.production_id and self.production.image_url:  # festival days
+            return self.production.image_url
+        if not self.pk:
+            return ""
+        link = self.eventperformer_set.select_related("performer", "production").first()
+        if not link:
+            return ""
+        if link.production_id and link.production.image_url:
+            return link.production.image_url
+        return link.performer.image_url
 
     @property
     def has_happened(self) -> bool:

@@ -1134,8 +1134,8 @@ class FindPhotoTests(BaseTestCase):
         self.assertNotContains(page, "img.example")
         called = [c.args[0] for c in get_json.call_args_list]
         self.assertFalse(any("googleapis" in u for u in called))
-        self.assertEqual(page.context["query"], "Paul McCartney Santiago 10 November 1992")
-        self.assertContains(page, "https://www.google.com/search?tbm=isch&amp;q=Paul+McCartney+Santiago+10+November+1992")
+        self.assertEqual(page.context["query"], "Green Day in Chile Teatro Caupolicán 10 November 1992")
+        self.assertContains(page, "https://www.google.com/search?tbm=isch&amp;q=Green+Day+in+Chile+Teatro+Caupolic%C3%A1n+10+November+1992")
         self.assertContains(page, "Use this link")
 
     @override_settings(GOOGLE_SEARCH_API_KEY="k", GOOGLE_SEARCH_ENGINE_ID="cx")
@@ -2077,3 +2077,36 @@ class MostSeenTieBreakTests(BaseTestCase):
         page = self.client.get(reverse("events:profile", args=["ana"]))
         self.assertEqual([p.name for p in page.context["top_artists"]], ["Zzz Recent", "Aaa Old"])
         self.assertEqual([v.name for v in page.context["top_venues"]][:2], ["Zzz Arena", "Aaa Hall"])
+
+
+@override_settings(GOOGLE_SEARCH_API_KEY="", GOOGLE_SEARCH_ENGINE_ID="")
+class ProductionPhotoTests(BaseTestCase):
+    def test_event_photo_fallback_order(self):
+        artist = Performer.objects.create(name="Paul McCartney", image_url="https://img.example/artist.jpg")
+        tour = Production.objects.create(title="Got Back", performer=artist)
+        link = EventPerformer.objects.create(event=self.event, performer=artist)
+        self.assertEqual(self.event.display_image, "https://img.example/artist.jpg")
+        link.production = tour
+        link.save()
+        tour.image_url = "https://img.example/tour.jpg"
+        tour.save()
+        self.assertEqual(Event.objects.get(pk=self.event.pk).display_image, "https://img.example/tour.jpg")
+        fest = Production.objects.create(title="Lolla", event_type=EventType.FESTIVAL, image_url="https://img.example/fest.jpg")
+        self.event.production = fest
+        self.event.save()
+        self.assertEqual(Event.objects.get(pk=self.event.pk).display_image, "https://img.example/fest.jpg")
+        self.event.image_url = "https://img.example/own.jpg"
+        self.assertEqual(self.event.display_image, "https://img.example/own.jpg")
+
+    @mock.patch("events.image_search._get_json", side_effect=lambda url, params: {})
+    def test_find_photo_for_production(self, _):
+        cache.clear()
+        fest = Production.objects.create(title="Lolla", event_type=EventType.FESTIVAL)
+        self.client.force_login(self.user)
+        self.assertContains(self.client.get(fest.get_absolute_url()), "Find photo")
+        self.assertEqual(self.client.get(reverse("events:production_photo", args=[fest.pk])).status_code, 200)
+        self.client.post(reverse("events:production_photo", args=[fest.pk]), {"url": "https://img.example/f.jpg"})
+        fest.refresh_from_db()
+        self.assertEqual(fest.image_url, "https://img.example/f.jpg")
+        # changing an existing photo is admin-only
+        self.assertEqual(self.client.get(reverse("events:production_photo", args=[fest.pk])).status_code, 403)

@@ -168,11 +168,10 @@ MONTHS = ["January", "February", "March", "April", "May", "June", "July", "Augus
 
 
 def default_query(event) -> str:
-    """“Paul McCartney Santiago 20 March 2019”: artist, city and date, as people would type it."""
-    headliner = event.headliner if event.pk else None
-    bits = [headliner.name if headliner else event.title]
+    """“Paul McCartney Estadio Nacional 20 March 2019”: the event's name, venue and date."""
+    bits = [event.title]
     if event.venue_id:
-        bits.append(event.venue.city or event.venue.name)
+        bits.append(event.venue.name or event.venue.city)
     if event.date:
         bits.append(f"{event.date.day} {MONTHS[event.date.month - 1]} {event.date.year}")
     return " ".join(b for b in bits if b)

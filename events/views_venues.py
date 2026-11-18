@@ -230,6 +230,24 @@ def event_photo(request: HttpRequest, pk: int) -> HttpResponse:
 
 
 @login_required
+def production_photo(request: HttpRequest, pk: int) -> HttpResponse:
+    """Festivals and tours: anyone logged in adds a missing photo; changing it is for admins."""
+    from .models import Production
+
+    production = get_object_or_404(Production.objects.select_related("performer"), pk=pk)
+    if production.image_url and not is_admin(request.user):
+        raise PermissionDenied
+    artist = production.performer.name if production.performer_id else ""
+    query = " ".join(b for b in [production.title, artist, "poster"] if b)
+    return _photo_picker(
+        request, obj=production, default_query=query, artist="",
+        context={"subject_title": production.title, "back_url": production.get_absolute_url(),
+                 "edit_url": reverse("events:production_edit", args=[production.pk]) if is_admin(request.user) else "",
+                 "hint": "Pick the festival or tour poster. It's also used for its events that have no photo."},
+    )
+
+
+@login_required
 def performer_photo(request: HttpRequest, pk: int) -> HttpResponse:
     """Anyone logged in can add a photo to an artist without one; changing it is for admins."""
     performer = get_object_or_404(Performer, pk=pk)

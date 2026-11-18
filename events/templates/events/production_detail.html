@@ -6,7 +6,16 @@
 {% block content %}
   <div class="row g-4 mb-4">
     <div class="col-5 col-md-3">
-      <div class="poster position-relative">{% if production.image_url %}<img src="{{ production.image_url }}" alt="" />{% endif %}</div>
+      {% if production.image_url %}
+        <img class="event-photo" src="{{ production.image_url }}" alt="{{ production.title }}" referrerpolicy="no-referrer" />
+        {% if user|is_admin %}<a class="btn btn-sm btn-outline-secondary w-100 mt-2" href="{% url 'events:production_photo' production.pk %}">Change photo</a>{% endif %}
+      {% else %}
+        <div class="poster position-relative">
+          {% if user.is_authenticated %}
+            <a class="poster-placeholder text-decoration-none flex-column gap-1" href="{% url 'events:production_photo' production.pk %}"><span class="fs-4">＋</span><span>Find photo</span></a>
+          {% else %}<div class="poster-placeholder">{{ production.get_event_type_display }}</div>{% endif %}
+        </div>
+      {% endif %}
     </div>
     <div class="col-12 col-md-6">
       <div class="mb-1"><span class="badge text-bg-secondary type-badge">{{ production.get_event_type_display }}</span></div>
