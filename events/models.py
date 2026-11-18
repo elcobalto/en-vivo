@@ -14,6 +14,7 @@ from django.conf import settings
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.db.models import Avg, Count
+from django.db.models.functions import Lower
 from django.urls import reverse
 from django_countries.fields import CountryField
 
@@ -101,6 +102,14 @@ class Performer(TimestampedModel):
         return reverse("events:performer_detail", args=[self.pk])
 
 
+def normalize_name(text: str) -> str:
+    """Comparable name: ignores capitals, accents and extra spaces."""
+    import unicodedata
+
+    plain = "".join(c for c in unicodedata.normalize("NFKD", text or "") if not unicodedata.combining(c))
+    return " ".join(plain.casefold().split())
+
+
 class Production(TimestampedModel):
     """A tour or run by a performer (linked per lineup act), or a festival grouping events."""
 
@@ -117,6 +126,10 @@ class Production(TimestampedModel):
 
     class Meta:
         ordering = ["title"]
+        constraints = [
+            # One production per name (ignoring capitals); forms also ignore accents.
+            models.UniqueConstraint(Lower("title"), name="uq_production_title_ci"),
+        ]
 
     def __str__(self) -> str:
         return self.title
@@ -124,11 +137,42 @@ class Production(TimestampedModel):
     def get_absolute_url(self) -> str:
         return reverse("events:production_detail", args=[self.pk])
 
+    @classmethod
+    def find_by_name(cls, title: str, exclude_pk=None):
+        """The production with this name, ignoring capitals, accents and extra spaces (or None)."""
+        wanted = normalize_name(title)
+        if not wanted:
+            return None
+        qs = cls.objects.all() if exclude_pk is None else cls.objects.exclude(pk=exclude_pk)
+        return next((p for p in qs.only("pk", "title", "performer_id", "event_type") if normalize_name(p.title) == wanted), None)
+
 
 class EventQuerySet(LogStatsQuerySet):
     def with_stats(self):
         return self.with_log_stats("logs")
 
+
+
+def production_named(title: str, event_type: str, performer=None) -> Production:
+    """The one production with this name, created if needed (names are unique).
+
+    A tour already owned by another artist isn't hijacked: the new one gets the artist's
+    name added, e.g. “World Tour (Green Day)”. A name used by a tour isn't reused as a
+    festival (or vice versa) for the same reason.
+    """
+    title = " ".join(title.split())[:240]
+    existing = Production.find_by_name(title)
+    is_festival = event_type == EventType.FESTIVAL
+    if existing:
+        same_kind = (existing.event_type == EventType.FESTIVAL) == is_festival
+        same_owner = performer is None or existing.performer_id in (None, getattr(performer, "pk", None))
+        if same_kind and same_owner:
+            if performer is not None and not existing.performer_id and not is_festival:
+                Production.objects.filter(pk=existing.pk).update(performer=performer)
+            return Production.objects.get(pk=existing.pk)
+        suffix = performer.name if (performer is not None and not same_owner) else ("festival" if is_festival else "tour")
+        return production_named(f"{title} ({suffix})", event_type, performer)
+    return Production.objects.create(title=title, event_type=event_type, performer=performer)
 
 class Event(TimestampedModel):
     """One specific performance: a date at a venue. This is what people attend and log."""

@@ -563,8 +563,14 @@ def log_delete(request: HttpRequest, pk: int) -> HttpResponse:
 @login_required
 def setlist_search(request: HttpRequest, pk: int) -> HttpResponse:
     event = get_object_or_404(Event, pk=pk)
-    headliner = event.headliner
-    artist = (request.GET.get("artist") or (headliner.name if headliner else "")).strip()
+    # Suggest the highest-billed act that doesn't have a setlist on this event yet.
+    next_act = (
+        EventPerformer.objects.filter(event=event)
+        .exclude(performer__setlists__event=event)
+        .select_related("performer").order_by("billing_order", "pk").first()
+    )
+    default = next_act.performer.name if next_act else (event.headliner.name if event.headliner else "")
+    artist = (request.GET.get("artist") or default).strip()
     match_date = request.GET.get("any_date") != "1" and event.date is not None
 
     results: list[dict] = []

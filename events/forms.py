@@ -191,6 +191,18 @@ class ProductionForm(BootstrapMixin, forms.ModelForm):
         labels = {"event_type": "Type", "image_url": "Poster / image URL", "performer": "Artist"}
         help_texts = {"performer": "Whose tour or run this is. Leave empty for a festival."}
 
+    def clean_title(self) -> str:
+        from django.utils.html import format_html
+
+        title = " ".join((self.cleaned_data.get("title") or "").split())
+        existing = Production.find_by_name(title, exclude_pk=self.instance.pk)
+        if existing:
+            raise forms.ValidationError(
+                format_html('“{}” already exists: <a href="{}">open it</a> instead of creating a new one.',
+                            existing.title, existing.get_absolute_url())
+            )
+        return title
+
 
 RATING_CHOICES = [("", "No rating")] + [(i, stars(i)) for i in range(1, 11)]
 

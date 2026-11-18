@@ -2002,3 +2002,78 @@ class ImportFailsSafelyTests(BaseTestCase):
                                         {"setlist_id": ["abc"]}, follow=True)
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Something went wrong importing this setlist")
+
+
+class SetlistImportSuggestsNextActTests(BaseTestCase):
+    @mock.patch("events.views.search_setlists", return_value=[])
+    def test_suggests_highest_billed_act_without_setlist(self, search):
+        top = Performer.objects.create(name="Headliner")
+        second = Performer.objects.create(name="Second")
+        EventPerformer.objects.create(event=self.event, performer=top, billing_order=1)
+        EventPerformer.objects.create(event=self.event, performer=second, billing_order=2)
+        self.client.force_login(self.user)
+        url = reverse("events:setlist_search", args=[self.event.pk])
+        self.assertEqual(self.client.get(url).context["artist"], "Headliner")
+        Setlist.objects.create(event=self.event, performer=top)
+        self.assertEqual(self.client.get(url).context["artist"], "Second")
+        Setlist.objects.create(event=self.event, performer=second)
+        self.assertEqual(self.client.get(url).context["artist"], "Headliner")  # all done: back to the headliner
+
+
+class UniqueProductionNameTests(BaseTestCase):
+    def test_database_rejects_same_name_ignoring_case(self):
+        from django.db import IntegrityError, transaction
+
+        Production.objects.create(title="Freshen Up")
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            Production.objects.create(title="freshen up")
+
+    def test_form_blocks_duplicate_and_links_to_existing(self):
+        existing = Production.objects.create(title="Rock en Ñuñoa", event_type=EventType.FESTIVAL)
+        self.client.force_login(self.user)
+        page = self.client.post(reverse("events:production_create"), {"title": "ROCK EN NUNOA", "event_type": "festival"})
+        self.assertContains(page, f'<a href="{existing.get_absolute_url()}">open it</a>', html=False)
+        self.assertEqual(Production.objects.count(), 1)
+
+    def test_tour_of_another_artist_gets_artist_suffix(self):
+        from .models import production_named
+
+        gd = Performer.objects.create(name="Green Day")
+        pm = Performer.objects.create(name="Paul McCartney")
+        first = production_named("World Tour", EventType.MUSIC, gd)
+        self.assertEqual(production_named("world tour", EventType.MUSIC, gd), first)  # reused
+        other = production_named("World Tour", EventType.MUSIC, pm)
+        self.assertEqual(other.title, "World Tour (Paul McCartney)")
+        fest = production_named("World Tour", EventType.FESTIVAL)
+        self.assertEqual(fest.title, "World Tour (festival)")
+
+    def test_migration_merges_same_name_productions(self):
+        import importlib
+
+        from django.apps import apps
+
+        from .models import Production as P
+
+        keep = P.objects.create(title="Tour A")
+        # bypass the unique rule the way old data would look: different accents
+        dup = P.objects.create(title="Tóur A", image_url="https://img.example/t.jpg")
+        link = EventPerformer.objects.create(event=self.event, performer=Performer.objects.create(name="X"), production=dup)
+        importlib.import_module("events.migrations.0018_unique_production_names").merge_same_name_productions(apps, None)
+        link.refresh_from_db(); keep.refresh_from_db()
+        self.assertFalse(P.objects.filter(pk=dup.pk).exists())
+        self.assertEqual((link.production_id, keep.image_url), (keep.pk, "https://img.example/t.jpg"))
+
+
+class MostSeenTieBreakTests(BaseTestCase):
+    def test_ties_go_to_most_recently_seen(self):
+        old_fav = Performer.objects.create(name="Aaa Old")
+        recent = Performer.objects.create(name="Zzz Recent")
+        old_venue = Venue.objects.create(name="Aaa Hall", city="Santiago")
+        new_venue = Venue.objects.create(name="Zzz Arena", city="Santiago")
+        for performer, venue, when in [(old_fav, old_venue, date(2010, 1, 1)), (recent, new_venue, date(2024, 1, 1))]:
+            e = Event.objects.create(title=performer.name, venue=venue, date=when)
+            EventPerformer.objects.create(event=e, performer=performer)
+            Log.objects.create(user=self.user, event=e)
+        page = self.client.get(reverse("events:profile", args=["ana"]))
+        self.assertEqual([p.name for p in page.context["top_artists"]], ["Zzz Recent", "Aaa Old"])
+        self.assertEqual([v.name for v in page.context["top_venues"]][:2], ["Zzz Arena", "Aaa Hall"])

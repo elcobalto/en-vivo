@@ -10,7 +10,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
 from django.db import transaction
-from django.db.models import Count, Q
+from django.db.models import Count, F, Max, Q
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
@@ -82,8 +82,11 @@ def with_social_counts(logs_qs):
 def _seen_artists(owner):
     return (
         Performer.objects.filter(act_logs__log__user=owner)
-        .annotate(n=Count("act_logs", filter=Q(act_logs__log__user=owner), distinct=True))
-        .order_by("-n", "name")
+        .annotate(
+            n=Count("act_logs", filter=Q(act_logs__log__user=owner), distinct=True),
+            last_seen=Max("act_logs__log__event__date", filter=Q(act_logs__log__user=owner)),
+        )
+        .order_by("-n", F("last_seen").desc(nulls_last=True), "name")  # ties: most recently seen first
     )
 
 
@@ -122,8 +125,11 @@ def profile(request: HttpRequest, username: str) -> HttpResponse:
             "top_artists": _seen_artists(owner)[:5],
             **_local_foreign_artists(owner),
             "top_venues": Venue.objects.filter(events__logs__user=owner)
-            .annotate(n=Count("events__logs", filter=Q(events__logs__user=owner), distinct=True))
-            .order_by("-n", "name")[:5],
+            .annotate(
+                n=Count("events__logs", filter=Q(events__logs__user=owner), distinct=True),
+                last_seen=Max("events__date", filter=Q(events__logs__user=owner)),
+            )
+            .order_by("-n", F("last_seen").desc(nulls_last=True), "name")[:5],
         },
     )
 

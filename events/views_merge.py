@@ -148,7 +148,9 @@ def festival_group(request: HttpRequest, pk: int) -> HttpResponse:
     festival = suggestion["existing"]
     if not festival:
         name = (request.POST.get("name") or "").strip()[:240] or event.title
-        festival = Production.objects.create(title=name, event_type=EventType.FESTIVAL)
+        from .models import production_named
+
+        festival = production_named(name, EventType.FESTIVAL)
     for day in [event, *suggestion["days"]]:
         if day.production_id != festival.pk:
             day.production = festival
@@ -199,9 +201,9 @@ def make_festival(request: HttpRequest, pk: int) -> HttpResponse:
     if not name:
         messages.error(request, "Give the festival a name.")
         return redirect(event)
-    festival = next((p for p in Production.objects.filter(event_type=EventType.FESTIVAL, title__icontains=name[:3])
-                     if p.title.casefold() == name.casefold()), None) \
-        or Production.objects.create(title=name, event_type=EventType.FESTIVAL)
+    from .models import production_named
+
+    festival = production_named(name, EventType.FESTIVAL)
     event.event_type = EventType.FESTIVAL
     event.production = festival
     event.save()

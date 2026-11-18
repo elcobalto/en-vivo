@@ -19,7 +19,7 @@ from django.db import transaction
 logger = logging.getLogger(__name__)
 
 from . import google_places
-from .models import Event, EventPerformer, EventType, Production, Setlist, Venue
+from .models import Event, EventPerformer, EventType, Production, Setlist, Venue, production_named
 from .setlistfm import SetlistFmError, get_setlist, import_setlist, parse_event_date
 
 
@@ -105,14 +105,7 @@ def match_tour(tour_payload: dict[str, Any] | None, performer) -> Production | N
     name = ((tour_payload or {}).get("name") or "").strip()
     if not name:
         return None
-    candidates = Production.objects.filter(title__icontains=name[:3], event_type=EventType.MUSIC)
-    for production in candidates:
-        if production.title.casefold() == name.casefold() and production.performer_id in (performer.pk, None):
-            if not production.performer_id:
-                production.performer = performer
-                production.save(update_fields=["performer", "updated_at"])
-            return production
-    return Production.objects.create(title=name[:240], event_type=EventType.MUSIC, performer=performer)
+    return production_named(name, EventType.MUSIC, performer)
 
 
 @transaction.atomic
