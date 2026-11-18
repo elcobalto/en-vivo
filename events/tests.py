@@ -1713,3 +1713,97 @@ class LineupOrderTests(BaseTestCase):
         self.assertContains(page, 'class="drag-handle')
         self.assertContains(page, 'type="hidden" name="eventperformer_set-0-billing_order"')
         self.assertContains(page, "lineup-order.js")
+
+
+class ArtistVenueEventsTests(BaseTestCase):
+    def setUp(self):
+        super().setUp()
+        self.artist = Performer.objects.create(name="Paul McCartney")
+        self.e2010 = Event.objects.create(title="2010", venue=self.venue, date=date(2010, 5, 1))
+        self.e2019 = Event.objects.create(title="2019", venue=self.venue, date=date(2019, 3, 20))
+        self.undated = Event.objects.create(title="Undated", venue=self.venue)
+        for e in [self.e2010, self.e2019, self.undated, self.event]:
+            EventPerformer.objects.create(event=e, performer=self.artist)
+
+    def test_events_sorted_latest_first(self):
+        for url in [self.artist.get_absolute_url(), self.venue.get_absolute_url()]:
+            with self.subTest(url=url):
+                titles = [e.title for e in self.client.get(url).context["events"]]
+                self.assertEqual(titles, ["2019", "2010", "Green Day in Chile", "Undated"])
+
+    def test_most_seen_links_filter_to_that_persons_shows(self):
+        Log.objects.create(user=self.user, event=self.e2019)
+        Log.objects.create(user=self.user, event=self.e2010)
+        log = Log.objects.create(user=self.user, event=self.event)
+        log.acts.filter(performer=self.artist).delete()  # was there but missed this act
+
+        profile = self.client.get(reverse("events:profile", args=["ana"]))
+        self.assertContains(profile, f"{self.artist.get_absolute_url()}?seen_by=ana")
+
+        page = self.client.get(self.artist.get_absolute_url(), {"seen_by": "ana"})
+        self.assertEqual([e.title for e in page.context["events"]], ["2019", "2010"])
+        self.assertContains(page, "has seen Paul McCartney")
+        self.assertContains(page, "2 times")
+        venue_page = self.client.get(self.venue.get_absolute_url(), {"seen_by": "ana"})
+        self.assertEqual(len(venue_page.context["events"]), 3)  # venue visits count every logged event
+        self.assertContains(venue_page, "3 times")
+
+
+class LineupFormUiTests(BaseTestCase):
+    def test_single_new_artist_box_and_add_act_button(self):
+        self.client.force_login(self.user)
+        html = self.client.get(reverse("events:event_create")).content.decode()
+        self.assertEqual(html.count('id="new-artist-box"'), 1)
+        self.assertIn('id="add-act"', html)
+        self.assertIn('id="lineup-row-template"', html)
+        self.assertIn("eventperformer_set-__prefix__-performer", html)  # template row for new acts
+        self.assertNotIn("…or type a new artist", html)
+        self.assertIn('type="hidden" name="eventperformer_set-0-new_performer"', html)
+
+    def test_rows_added_on_the_page_are_saved(self):
+        self.client.force_login(self.user)
+        existing = Performer.objects.create(name="Headliner")
+        self.client.post(reverse("events:event_create"), {
+            "title": "", "event_type": "music", "date": "2020-02-02",
+            "eventperformer_set-TOTAL_FORMS": "3", "eventperformer_set-INITIAL_FORMS": "0",
+            "eventperformer_set-MIN_NUM_FORMS": "0", "eventperformer_set-MAX_NUM_FORMS": "1000",
+            "eventperformer_set-0-performer": str(existing.pk), "eventperformer_set-0-billing_order": "1",
+            # row 1 was removed with × on the page: its fields are simply missing
+            "eventperformer_set-2-new_performer": "Brand New Band", "eventperformer_set-2-billing_order": "2",
+            "eventperformer_set-2-role": "support",
+        })
+        event = Event.objects.get(performers=existing)
+        self.assertEqual(list(event.eventperformer_set.values_list("performer__name", "billing_order")),
+                         [("Headliner", 1), ("Brand New Band", 2)])
+
+
+class PerformerDeleteTests(BaseTestCase):
+    def setUp(self):
+        super().setUp()
+        self.artist = Performer.objects.create(name="Old Band")
+        self.other = Performer.objects.create(name="Stays")
+        EventPerformer.objects.create(event=self.event, performer=self.other)
+        EventPerformer.objects.create(event=self.event, performer=self.artist, billing_order=2)
+        self.log = Log.objects.create(user=self.user, event=self.event, rating=9)
+        import_setlist(self.event, {**SETLIST_PAYLOAD, "artist": {"name": "Old Band"}})
+        self.tour = Production.objects.create(title="Farewell", performer=self.artist)
+
+    def test_regular_users_cannot_delete(self):
+        self.client.force_login(self.user)
+        self.assertEqual(self.client.get(reverse("events:performer_delete", args=[self.artist.pk])).status_code, 403)
+        self.assertNotContains(self.client.get(self.artist.get_absolute_url()), "Delete performer")
+
+    def test_admin_deletes_performer_keeps_events_and_logs(self):
+        admin = get_user_model().objects.create_user("mod", password="pw-test-000")
+        call_command("make_admin", "mod", stdout=open("/dev/null", "w"))
+        self.client.force_login(admin)
+        confirm = self.client.get(reverse("events:performer_delete", args=[self.artist.pk]))
+        self.assertContains(confirm, "1 setlist")
+        self.client.post(reverse("events:performer_delete", args=[self.artist.pk]))
+        self.assertFalse(Performer.objects.filter(pk=self.artist.pk).exists())
+        self.assertTrue(Event.objects.filter(pk=self.event.pk).exists())
+        self.log.refresh_from_db()
+        self.assertEqual(list(self.log.acts.values_list("performer__name", flat=True)), ["Stays"])
+        self.assertFalse(Setlist.objects.exists())
+        self.tour.refresh_from_db()
+        self.assertIsNone(self.tour.performer)

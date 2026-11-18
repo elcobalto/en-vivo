@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+
+{% block title %}Delete {{ performer.name }} · En Vivo{% endblock %}
+
+{% block content %}
+  <div class="row justify-content-center">
+    <div class="col-12 col-md-8 col-lg-6">
+      <div class="card border-danger"><div class="card-body">
+        <h1 class="h5">Delete “{{ performer.name }}”?</h1>
+        <p>This permanently removes the performer for everyone, together with:</p>
+        <ul class="small">
+          <li>their place in the lineup of {{ impact.events }} event{{ impact.events|pluralize }}</li>
+          <li>{{ impact.setlists }} setlist{{ impact.setlists|pluralize }} and their songs</li>
+          <li>{{ impact.act_logs }} “I saw this act” entr{{ impact.act_logs|pluralize:"y,ies" }} in people's logs, with their act ratings and notes</li>
+        </ul>
+        <p class="small text-warning">This cannot be undone. The events themselves, people's event logs and reviews are kept{% if impact.tours %}; {{ impact.tours }} tour{{ impact.tours|pluralize }} stay but lose their artist{% endif %}.</p>
+        <form method="post" class="d-flex gap-2">
+          {% csrf_token %}
+          <button class="btn btn-danger" type="submit">Delete performer</button>
+          <a class="btn btn-outline-secondary" href="{{ performer.get_absolute_url }}">Cancel</a>
+        </form>
+      </div></div>
+    </div>
+  </div>
+{% endblock %}

@@ -1,0 +1,21 @@
+{% comment %}One lineup row (also used, with __prefix__, as the template for "+ Add another act").{% endcomment %}
+<div class="row g-2 align-items-end mb-2 lineup-row">
+  {{ f.id }}{{ f.billing_order.as_hidden }}{{ f.new_performer.as_hidden }}
+  <div class="col-1 text-center"><span class="drag-handle fs-5 text-body-secondary" title="Drag (or ↑/↓) to reorder" aria-label="Reorder" role="button" tabindex="0" style="cursor:grab">⠿</span></div>
+  <div class="col-11 col-md-3">
+    {% if labels %}<label class="form-label small">Performer</label>{% endif %}
+    <div class="performer-pick {% if f.new_performer.value %}d-none{% endif %}">{{ f.performer }}</div>
+    <div class="new-artist-label form-control form-control-sm {% if not f.new_performer.value %}d-none{% endif %}">
+      <span class="fw-semibold">{{ f.new_performer.value }}</span> <span class="badge text-bg-success">new artist</span>
+    </div>
+  </div>
+  <div class="col-5 col-md-2">{% if labels %}<label class="form-label small">Role</label>{% endif %}{{ f.role }}</div>
+  <div class="col-4 col-md-2">{% if labels %}<label class="form-label small">Set time</label>{% endif %}{{ f.start_time }}</div>
+  <div class="col-8 col-md-2">{% if labels %}<label class="form-label small">Tour</label>{% endif %}{{ f.production }}</div>
+  <div class="col-3 col-md-1">
+    {% if f.instance.pk %}<div class="form-check">{{ f.DELETE }} <label class="form-check-label small" for="{{ f.DELETE.id_for_label }}">Remove</label></div>
+    {% else %}<button type="button" class="btn btn-sm btn-link text-danger p-0 remove-row" title="Remove this row" aria-label="Remove this row">×</button>{% endif %}
+  </div>
+  {% for error in f.non_field_errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
+  {% for field in f %}{% for error in field.errors %}<div class="text-danger small">{{ field.label }}: {{ error }}</div>{% endfor %}{% endfor %}
+</div>

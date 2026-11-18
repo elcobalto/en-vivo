@@ -24,6 +24,16 @@
         <a class="btn btn-sm {% if event.display_image %}btn-outline-secondary{% else %}btn-outline-warning{% endif %} w-100 mt-2" href="{% url 'events:event_photo' event.pk %}">{% if event.display_image %}Change photo{% else %}Find photo{% endif %}</a>
         <a class="btn btn-sm btn-outline-secondary w-100 mt-2" href="{% url 'events:event_edit' event.pk %}">Edit event</a>
       {% endif %}
+      {% if can_make_festival %}
+        <details class="mt-2">
+          <summary class="btn btn-sm btn-outline-warning w-100">Turn into festival</summary>
+          <form method="post" action="{% url 'events:make_festival' event.pk %}" class="mt-2">
+            {% csrf_token %}
+            <input class="form-control form-control-sm mb-2" name="name" required placeholder="Festival name" aria-label="Festival name" />
+            <button class="btn btn-sm btn-warning w-100" type="submit">Make it a festival</button>
+          </form>
+        </details>
+      {% endif %}
       {% if can_delete %}<a class="btn btn-sm btn-outline-danger w-100 mt-2" href="{% url 'events:event_delete' event.pk %}">Delete event</a>{% endif %}
     </div>
 
@@ -46,7 +56,7 @@
           <a class="small ms-2" href="{% url 'events:event_edit' event.pk %}">Add {% if not event.venue %}venue{% if not event.date %} &amp; date{% endif %}{% else %}date{% endif %}</a>
         {% endif %}
       </div>
-      {% if can_make_festival or festivals_same_day %}
+      {% if festivals_same_day %}
         <div class="card border-warning mb-3"><div class="card-body py-3">
           <div class="small text-warning mb-2">Admin</div>
           {% for f in festivals_same_day %}
@@ -57,13 +67,6 @@
               <span class="small text-body-secondary ms-1">{{ f.venue.name }}, same day</span>
             </form>
           {% endfor %}
-          {% if can_make_festival %}
-            <form method="post" action="{% url 'events:make_festival' event.pk %}" class="d-flex flex-wrap gap-2">
-              {% csrf_token %}
-              <input class="form-control form-control-sm" style="max-width:16rem" name="name" required placeholder="Festival name" aria-label="Festival name" />
-              <button class="btn btn-sm btn-outline-warning" type="submit">Turn into festival</button>
-            </form>
-          {% endif %}
         </div></div>
       {% endif %}
 

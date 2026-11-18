@@ -249,11 +249,24 @@ def production_detail(request: HttpRequest, pk: int) -> HttpResponse:
     )
 
 
+LATEST_FIRST = (F("date").desc(nulls_last=True), "-pk")
+
+
+def _seen_by(request: HttpRequest):
+    """The user from ?seen_by=<username> (links from a profile's "Most seen" lists), or None."""
+    username = (request.GET.get("seen_by") or "").strip()
+    return get_user_model().objects.filter(username=username).select_related("profile").first() if username else None
+
+
 def performer_detail(request: HttpRequest, pk: int) -> HttpResponse:
     performer = get_object_or_404(Performer, pk=pk)
     # Ratings for the artist come from people who saw this act, not from the whole event.
     act_logs = ActLog.objects.filter(performer=performer)
     stats = act_logs.aggregate(avg_rating=Avg("rating"), log_count=Count("id"))
+    events = performer.events.all()
+    seen_by = _seen_by(request)
+    if seen_by:  # only the shows where this person saw the act
+        events = events.filter(logs__user=seen_by, logs__acts__performer=performer)
     return render(
         request,
         "events/performer_detail.html",
@@ -261,7 +274,8 @@ def performer_detail(request: HttpRequest, pk: int) -> HttpResponse:
             "performer": performer,
             "tours": performer.tours.order_by("title"),
             "act_logs": act_logs,
-            "events": performer.events.with_stats().select_related("venue").distinct(),
+            "events": events.with_stats().select_related("venue").distinct().order_by(*LATEST_FIRST),
+            "seen_by": seen_by,
             **stats,
         },
     )
@@ -269,10 +283,15 @@ def performer_detail(request: HttpRequest, pk: int) -> HttpResponse:
 
 def venue_detail(request: HttpRequest, pk: int) -> HttpResponse:
     venue = get_object_or_404(Venue, pk=pk)
+    events = venue.events.all()
+    seen_by = _seen_by(request)
+    if seen_by:
+        events = events.filter(logs__user=seen_by)
     return render(
         request,
         "events/venue_detail.html",
-        {"venue": venue, "events": venue.events.with_stats()},
+        {"venue": venue, "seen_by": seen_by,
+         "events": events.with_stats().select_related("venue").distinct().order_by(*LATEST_FIRST)},
     )
 
 
@@ -387,6 +406,30 @@ def _simple_edit(request: HttpRequest, model, pk: int, form_class, title: str,
     if model is Venue:
         context.update(venue=obj, next="", link_url=reverse("events:venue_link_place", args=[obj.pk]))
     return render(request, template, context)
+
+
+@login_required
+def performer_delete(request: HttpRequest, pk: int) -> HttpResponse:
+    """Admins only: remove a performer from the catalog (events and tours stay)."""
+    if not is_admin(request.user):
+        raise PermissionDenied
+    performer = get_object_or_404(Performer, pk=pk)
+    if request.method == "POST":
+        name = performer.name
+        with transaction.atomic():
+            # Setlist songs protect their Song rows, so remove the setlists (and their entries) first.
+            SetlistSong.objects.filter(song__performer=performer).delete()
+            performer.setlists.all().delete()
+            performer.delete()  # lineup spots, songs and acts seen go with it; tours lose their artist
+        messages.success(request, f"Deleted “{name}”.")
+        return redirect("events:event_list")
+    impact = {
+        "events": performer.events.distinct().count(),
+        "setlists": performer.setlists.count(),
+        "act_logs": performer.act_logs.count(),
+        "tours": performer.tours.count(),
+    }
+    return render(request, "events/performer_confirm_delete.html", {"performer": performer, "impact": impact})
 
 
 @login_required

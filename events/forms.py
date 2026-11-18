@@ -164,7 +164,7 @@ EventPerformerFormSet = inlineformset_factory(
     Event,
     EventPerformer,
     form=EventPerformerForm,
-    extra=3,
+    extra=1,
     can_delete=True,
 )
 
