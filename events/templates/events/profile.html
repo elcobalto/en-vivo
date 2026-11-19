@@ -68,15 +68,20 @@
     <p class="text-body-secondary mb-5">Nothing logged yet.</p>
   {% endif %}
 
-  {% if reviews %}
-    <div class="d-flex justify-content-between align-items-end mb-1">
-      <h2 class="section-title flex-grow-1 m-0">Recent reviews</h2>
-      <a class="small ms-2" href="{% url 'events:user_reviews' owner.get_username %}">All reviews →</a>
+  <div class="row g-4">
+    {% if reviews %}
+      <div class="col-12 col-lg-8">
+        <div class="d-flex justify-content-between align-items-end mb-1">
+          <h2 class="section-title flex-grow-1 m-0">Recent reviews</h2>
+          <a class="small ms-2" href="{% url 'events:user_reviews' owner.get_username %}">All reviews →</a>
+        </div>
+        {% for log in reviews %}{% include "events/_review.html" with show_event=True %}{% endfor %}
+      </div>
+    {% endif %}
+    {% url 'events:user_diary' owner.get_username as diary_url %}
+    <div class="col-12 col-lg-4 d-flex flex-column gap-4" style="max-width:28rem">
+      {% rating_histogram owner_logs "Ratings" True diary_url %}
+      {% year_histogram owner_logs "Events by year" diary_url %}
     </div>
-    {% for log in reviews %}{% include "events/_review.html" with show_event=True %}{% endfor %}
-  {% endif %}
-  <div class="row g-4 mt-4">
-    <div class="col-12 col-md-6" style="max-width:28rem">{% rating_histogram owner_logs "Ratings" True %}</div>
-    <div class="col-12 col-md-6" style="max-width:28rem">{% year_histogram owner_logs "Events by year" %}</div>
   </div>
 {% endblock %}

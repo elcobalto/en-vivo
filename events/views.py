@@ -58,6 +58,7 @@ from .views_merge import (
     artist_duplicate_candidates,
     suggestions_for,
 )
+from .templatetags.event_extras import stars
 from .setlistfm import SetlistFmError, get_setlist, import_setlist, parse_event_date, search_setlists
 
 
@@ -546,36 +547,50 @@ def diary(request: HttpRequest, username: str | None = None) -> HttpResponse:
     all_logs = Log.objects.filter(user=owner)
     event_type = request.GET.get("type") or ""
     year = request.GET.get("year") or ""
+    rating = request.GET.get("rating") or ""
+    if not (rating.isdigit() and 1 <= int(rating) <= 10):
+        rating = ""  # ratings are stored 1–10 (half stars)
     logs = all_logs.select_related("event", "event__venue").order_by("-event__date", "-created_at")
     if event_type in EventType.values:
         logs = logs.filter(event__event_type=event_type)
     if year.isdigit():
         logs = logs.filter(event__date__year=int(year))
+    if rating:
+        logs = logs.filter(rating=int(rating))
     years = (all_logs.exclude(event__date=None).annotate(y=ExtractYear("event__date"))
              .values_list("y", flat=True).distinct().order_by("-y"))
     types_logged = all_logs.values_list("event__event_type", flat=True).distinct()
     expanded = request.GET.get("view") == "expanded"
-    if expanded:  # posters and lineups: fetch every event's bill in one query
+    if expanded:  # posters and lineups: fetch every event's bill (and which acts they saw) in one query each
         logs = logs.prefetch_related(Prefetch(
             "event__eventartist_set",
             queryset=EventArtist.objects.select_related("artist").order_by("billing_order", "artist__name"),
             to_attr="bill",
-        ))
+        ), "acts")
     stats = logs.aggregate(avg_rating=Avg("rating"), log_count=Count("id"))
     by_type = logs.values("event__event_type").annotate(n=Count("id")).order_by("-n")
     type_labels = dict(EventType.choices)
+    # Expanded rows are heavier (posters, lineups), so fewer per page.
+    page = Paginator(logs, 25 if expanded else 100).get_page(request.GET.get("page"))
+    if expanded:
+        page.object_list = list(page.object_list)
+        for log in page.object_list:
+            # Only the acts this person saw (credits like a play's author always show).
+            seen = {act.artist_id for act in log.acts.all()}
+            log.seen_bill = [link for link in log.event.bill if link.role in CREDIT_ROLES or link.artist_id in seen]
+    filters = {k: v for k, v in {"type": event_type, "year": year, "rating": rating}.items() if v}
     return render(
         request,
         "events/diary.html",
         {
             "owner": owner,
             "tab": "diary",
-            # Expanded rows are heavier (posters, lineups), so fewer per page.
-            "logs": (page := Paginator(logs, 25 if expanded else 100).get_page(request.GET.get("page"))),
+            "logs": page,
             "page": page,
-            "querystring": urlencode({k: v for k, v in
-                                      {"type": event_type, "year": year, "view": "expanded" if expanded else ""}.items() if v}),
-            "f": {"type": event_type, "year": year},
+            "querystring": urlencode({**filters, **({"view": "expanded"} if expanded else {})}),
+            "filters_qs": urlencode(filters),  # for the List / Expanded switch
+            "f": {"type": event_type, "year": year, "rating": rating},
+            "ratings": [(r, stars(r)) for r in range(10, 0, -1)],
             "expanded": expanded,
             "years": years,
             "event_types": [(v, l) for v, l in EventType.choices if v in set(types_logged)],

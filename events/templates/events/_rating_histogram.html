@@ -7,9 +7,9 @@
   </div>
   <div class="rating-bars" role="img" aria-label="Ratings: {% for b in bars %}{{ b.label }} {{ b.count }}{% if not forloop.last %}, {% endif %}{% endfor %}">
     {% for b in bars %}
-      <div class="rating-bar" title="{{ b.count }} × {{ b.label }}">
+      {% if b.url %}<a class="rating-bar" href="{{ b.url }}" title="{{ b.count }} × {{ b.label }} · show in diary">{% else %}<div class="rating-bar" title="{{ b.count }} × {{ b.label }}">{% endif %}
         <div style="height: {{ b.height }}%{% if b.count %};min-height:2px{% endif %}"></div>
-      </div>
+      {% if b.url %}</a>{% else %}</div>{% endif %}
     {% endfor %}
   </div>
   <div class="d-flex justify-content-between mt-1" aria-hidden="true">

@@ -2183,9 +2183,37 @@ class YearHistogramTests(BaseTestCase):
         Log.objects.create(user=self.user, event=Event.objects.create(title="undated"))
         page = self.client.get(reverse("events:profile", args=["ana"]))
         self.assertContains(page, "Events by year")
-        self.assertContains(page, 'title="2019: 2 events"')
+        self.assertContains(page, 'title="2019: 2 events · show in diary"')
         self.assertContains(page, 'title="2020: 0 events"')
-        self.assertContains(page, 'title="2021: 1 event"')
+        self.assertContains(page, 'title="2021: 1 event · show in diary"')
+
+
+class ProfileChartLinkTests(BaseTestCase):
+    def test_chart_bars_open_the_diary_filtered_by_that_rating_or_year(self):
+        old = Log.objects.create(user=self.user, event=Event.objects.create(title="Old show", date=date(2019, 3, 1)),
+                                 rating=7, review="Loud.")
+        Log.objects.create(user=self.user, event=Event.objects.create(title="New show", date=date(2021, 1, 1)), rating=9)
+        page = self.client.get(reverse("events:profile", args=["ana"]))
+        diary = reverse("events:user_diary", args=["ana"])
+        html = page.content.decode()
+        self.assertIn(f'href="{diary}?rating=7"', html)
+        self.assertIn(f'href="{diary}?year=2019"', html)
+        self.assertNotIn(f'href="{diary}?rating=8"', html)  # empty bars aren't links
+        self.assertNotIn(f'href="{diary}?year=2020"', html)
+        # Reviews on the left, the charts in a column beside them.
+        self.assertLess(html.index("Recent reviews"), html.index('class="rating-bars'))
+        titles = lambda qs: [log.event.title for log in self.client.get(diary + qs).context["logs"]]
+        self.assertEqual(titles("?rating=7"), ["Old show"])
+        self.assertEqual(titles("?year=2021"), ["New show"])
+        self.assertEqual(titles("?rating=11"), ["New show", "Old show"])  # not a rating: ignored
+        filtered = self.client.get(diary + "?rating=7")
+        self.assertContains(filtered, '<option value="7" selected>')
+        self.assertContains(filtered, "?view=expanded&rating=7")
+        self.assertEqual(old.rating, 7)
+
+    def test_charts_elsewhere_are_not_links(self):
+        Log.objects.create(user=self.user, event=self.event, rating=8)
+        self.assertNotContains(self.client.get(self.event.get_absolute_url()), "?rating=8")
 
 
 class ArtistListTests(BaseTestCase):
@@ -2245,6 +2273,23 @@ class ExpandedDiaryTests(BaseTestCase):
         expanded = self.client.get(url + "?view=expanded")
         self.assertContains(expanded, "Supporting Act")
         self.assertContains(expanded, "https://img.example/p.jpg")
+
+    def test_expanded_lineup_lists_only_the_acts_they_saw(self):
+        headliner = Artist.objects.create(name="Green Day")
+        opener = Artist.objects.create(name="Missed Opener")
+        EventArtist.objects.create(event=self.event, artist=headliner)
+        EventArtist.objects.create(event=self.event, artist=opener, role="support", billing_order=2)
+        play = Event.objects.create(title="Bodas de sangre", event_type=EventType.THEATER, date=date(1993, 1, 1))
+        EventArtist.objects.create(event=play, artist=Artist.objects.create(name="Lorca"), role="author")
+        EventArtist.objects.create(event=play, artist=Artist.objects.create(name="Lead Actor"))
+        log = Log.objects.create(user=self.user, event=self.event)
+        log.acts.filter(artist=opener).delete()  # got there after the opener
+        Log.objects.create(user=self.user, event=play)
+        page = self.client.get(reverse("events:user_diary", args=["ana"]) + "?view=expanded")
+        self.assertContains(page, "Green Day</a>")
+        self.assertNotContains(page, "Missed Opener")
+        self.assertContains(page, "Lorca")  # credits aren't acts: always listed
+        self.assertContains(page, "Lead Actor")
 
 
 class ArtistSortTests(BaseTestCase):

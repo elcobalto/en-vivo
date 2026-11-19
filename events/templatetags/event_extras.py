@@ -35,8 +35,9 @@ def is_admin(user) -> bool:
 
 
 @register.inclusion_tag("events/_rating_histogram.html")
-def rating_histogram(logs, title: str = "Ratings", show_average: bool = False):
-    """Letterboxd-style bars for ½★ … ★★★★★ from a queryset of logs (ratings stored 1–10)."""
+def rating_histogram(logs, title: str = "Ratings", show_average: bool = False, link: str = ""):
+    """Letterboxd-style bars for ½★ … ★★★★★ from a queryset of logs (ratings stored 1–10).
+    With ``link`` (a diary URL), each bar with logs links to the diary filtered by that rating."""
     from django.db.models import Count
 
     counts = dict(logs.exclude(rating=None).values_list("rating").annotate(n=Count("id")).values_list("rating", "n"))
@@ -48,6 +49,7 @@ def rating_histogram(logs, title: str = "Ratings", show_average: bool = False):
             "label": stars(r),
             "count": counts.get(r, 0),
             "height": round(counts.get(r, 0) / peak * 100) if peak else 0,
+            "url": f"{link}?rating={r}" if link and counts.get(r) else "",
         }
         for r in range(1, 11)
     ]
@@ -56,8 +58,9 @@ def rating_histogram(logs, title: str = "Ratings", show_average: bool = False):
 
 
 @register.inclusion_tag("events/_year_histogram.html")
-def year_histogram(logs, title: str = "Events by year"):
-    """Bars for how many dated events were attended each year, gap years included as empty bars."""
+def year_histogram(logs, title: str = "Events by year", link: str = ""):
+    """Bars for how many dated events were attended each year, gap years included as empty bars.
+    With ``link`` (a diary URL), each year with events links to the diary filtered by that year."""
     from django.db.models import Count
     from django.db.models.functions import ExtractYear
 
@@ -69,7 +72,8 @@ def year_histogram(logs, title: str = "Events by year"):
         return {"total": 0}
     peak = max(counts.values())
     years = range(min(counts), max(counts) + 1)
-    bars = [{"year": y, "count": counts.get(y, 0), "height": round(counts.get(y, 0) / peak * 100)} for y in years]
+    bars = [{"year": y, "count": counts.get(y, 0), "height": round(counts.get(y, 0) / peak * 100),
+             "url": f"{link}?year={y}" if link and counts.get(y) else ""} for y in years]
     return {"bars": bars, "total": sum(counts.values()), "title": title, "first": years[0], "last": years[-1]}
 
 
