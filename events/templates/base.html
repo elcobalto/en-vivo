@@ -38,6 +38,8 @@
       .poster img.poster-fit { object-fit: contain; }
       .poster img.poster-stretch { object-fit: fill; }
       .poster img.poster-backdrop { filter: blur(14px) brightness(.55); transform: scale(1.15); }
+      .poster.poster-filled img.poster-fit { object-fit: fill; }
+      .poster.poster-filled img.poster-backdrop { display: none; }
       .poster-placeholder {
         position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
         font-size: .7rem; text-transform: uppercase; letter-spacing: .12em; color: #777;
@@ -71,6 +73,7 @@
       a { color: #fff; }
       a:hover { color: var(--ev-accent); }
     </style>
+    <script src="{% static 'events/poster-auto.js' %}"></script>
   </head>
   <body>
     <nav class="navbar navbar-expand-lg navbar-dark">

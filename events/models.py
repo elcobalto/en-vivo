@@ -229,6 +229,7 @@ class Event(TimestampedModel):
         FIT = "fit", "Whole photo on a blurred background"
         CROP = "crop", "Crop to fill"
         STRETCH = "stretch", "Stretch to fill (may look distorted)"
+        AUTO = "auto", "Auto: stretch photos close to poster shape, blur wider ones"
 
     # How the photo sits in the poster-shaped thumbnails.
     image_display = models.CharField(

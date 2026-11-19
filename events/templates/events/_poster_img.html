@@ -1,9 +1,13 @@
-{% comment %}An event's thumbnail: whole photo on a blurred copy (default), cropped, or stretched.{% endcomment %}
+{% comment %}An event's thumbnail: whole photo on a blurred copy (default), cropped, stretched, or auto
+(poster-auto.js stretches it once loaded if its shape is close to a poster's, else it stays blurred).{% endcomment %}
 {% load event_extras %}{% poster_mode event as mode %}
 {% if mode == "crop" %}
   <img src="{{ event.display_image }}" alt="{{ event.title }}" loading="lazy" referrerpolicy="no-referrer" />
 {% elif mode == "stretch" %}
   <img class="poster-stretch" src="{{ event.display_image }}" alt="{{ event.title }}" loading="lazy" referrerpolicy="no-referrer" />
+{% elif mode == "auto" %}
+  <img class="poster-backdrop" src="{{ event.display_image }}" alt="" aria-hidden="true" loading="lazy" referrerpolicy="no-referrer" />
+  <img class="poster-fit poster-auto" src="{{ event.display_image }}" alt="{{ event.title }}" loading="lazy" referrerpolicy="no-referrer" />
 {% else %}
   <img class="poster-backdrop" src="{{ event.display_image }}" alt="" aria-hidden="true" loading="lazy" referrerpolicy="no-referrer" />
   <img class="poster-fit" src="{{ event.display_image }}" alt="{{ event.title }}" loading="lazy" referrerpolicy="no-referrer" />

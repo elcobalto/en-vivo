@@ -3110,6 +3110,15 @@ class ImageFitTests(BaseTestCase):
         self.event.save()
         self.assertIn('class="poster-stretch" src="https://img.example/wide.jpg"', self._listing())
 
+    def test_auto_mode_renders_the_blurred_layout_for_the_script_to_switch(self):
+        self.event.image_url = "https://img.example/poster.jpg"
+        self.event.image_display = "auto"
+        self.event.save()
+        html = self._listing()
+        self.assertIn('class="poster-fit poster-auto" src="https://img.example/poster.jpg"', html)
+        self.assertIn('class="poster-backdrop"', html)  # stays blurred unless the photo is poster-shaped
+        self.assertIn("events/poster-auto.js", html)
+
     def test_profile_preference_overrides_event_only_for_that_viewer(self):
         from events.models import Profile
         self.event.image_url = "https://img.example/wide.jpg"
