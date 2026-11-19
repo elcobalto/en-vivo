@@ -14,6 +14,7 @@
     .lineup-act > summary::-webkit-details-marker { display: none; }
     .lineup-act[open] .lineup-caret { transform: rotate(90deg); }
     .lineup-caret { display: inline-block; transition: transform .15s; }
+    .lineup-setlist { background: rgba(255,255,255,.04); color: var(--bs-secondary-color); }
     @media (min-width: 768px) {
       .event-layout { grid-template-columns: 1fr 2fr 1fr; grid-template-rows: auto 1fr;
         grid-template-areas: "photo main side" "photo rest side"; }
@@ -78,7 +79,7 @@
                 {% if row.setlists %}<span class="small text-body-secondary text-nowrap">{% with n=row.setlists.0.entries.all|length %}{{ n }} song{{ n|pluralize }}{% endwith %}</span>{% endif %}
                 {% if row.avg %}<span class="stars small" title="Average from {{ row.seen_by }} who saw them">{{ row.avg|stars }}</span>{% endif %}
               </summary>
-              <div class="ps-4 pb-3">
+              <div class="lineup-setlist ps-4 pe-3 py-2 mb-2 rounded">
                 {% for setlist in row.setlists %}
               <ol class="mb-1">
                 {% for entry in setlist.entries.all %}
@@ -194,7 +195,6 @@
           {% endif %}
           <button class="btn btn-sm btn-outline-light" type="button" data-bs-toggle="modal" data-bs-target="#listModal">Add to a list</button>
           {% if event.is_music %}<a class="btn btn-sm btn-outline-secondary" href="{% url 'events:setlist_search' event.pk %}">Import setlist from setlist.fm</a>{% endif %}
-          <a class="btn btn-sm btn-outline-secondary" href="{% url 'events:event_videos' event.pk %}">Add a video</a>
         {% endif %}
 
         {% if can_edit or can_make_festival or user|is_admin or can_delete %}<hr class="my-1">{% endif %}
