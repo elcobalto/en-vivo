@@ -8,7 +8,7 @@
     .setlist .is-tape { color: var(--bs-secondary-color); opacity: .6; }
   </style>
   <p class="small mb-1"><a href="{{ event.get_absolute_url }}">← {{ event.title }}</a></p>
-  <h1 class="h3 fw-bold mb-1">{{ setlist.artist.name }}: setlist</h1>
+  <h1 class="h3 fw-bold mb-1"><a class="link-light" href="{{ setlist.artist.get_absolute_url }}">{{ setlist.artist.name }}</a>: setlist</h1>
   <div class="text-body-secondary mb-4">
     {% if event.venue %}{{ event.venue.name }}{% if event.venue.city %}, {{ event.venue.city }}{% endif %} · {% endif %}{{ event.date|date:"j F Y"|default:"Date not added" }}
   </div>
@@ -48,10 +48,7 @@
         {% if timeline or skip_empty %}
           {% include "events/_album_chart.html" with rows=timeline top=top_album unit="song" keep=None %}
         {% endif %}
-        {% if pending %}
-          <p class="small text-body-secondary mt-3 mb-2" id="album-status" aria-live="polite">{{ pending|length }} song{{ pending|length|pluralize }} {{ pending|length|pluralize:"hasn't,haven't" }} been looked up yet.</p>
-          <button class="btn btn-sm btn-outline-secondary" type="button" id="album-find">Find albums on MusicBrainz</button>
-        {% endif %}
+        {% include "events/_album_lookup.html" %}
       </div></div>
     </div>
   </div>
@@ -80,31 +77,5 @@
   </div>
   {% endif %}
 
-  {% if pending %}
-  {{ pending|json_script:"pending-songs" }}
-  <script>
-    // On click, look each song up once (MusicBrainz allows about one request a second), then reload to show them.
-    (function () {
-      var all = JSON.parse(document.getElementById("pending-songs").textContent), ids = all.slice(),
-          status = document.getElementById("album-status"), button = document.getElementById("album-find"),
-          total = ids.length, failed = 0,
-          csrf = (document.cookie.match(/csrftoken=([^;]+)/) || [])[1] || "";
-      function next() {
-        if (!ids.length) {
-          if (failed < total) { location.reload(); return; }
-          status.textContent = "MusicBrainz is busy right now. Try again in a while.";
-          button.disabled = false;
-          button.textContent = "Try again";
-          return;
-        }
-        var id = ids.shift();
-        status.textContent = "Finding albums… " + (total - ids.length) + " of " + total;
-        fetch("{% url 'events:song_album_lookup' 0 %}".replace("/0/", "/" + id + "/"), {method: "POST", headers: {"X-CSRFToken": csrf}})
-          .then(function (r) { if (!r.ok) failed++; }).catch(function () { failed++; })
-          .then(function () { setTimeout(next, 1100); });
-      }
-      button.addEventListener("click", function () { button.disabled = true; ids = all.slice(); failed = 0; next(); });
-    })();
-  </script>
-  {% endif %}
+
 {% endblock %}

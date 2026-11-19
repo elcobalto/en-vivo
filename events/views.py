@@ -10,7 +10,7 @@ from django.contrib.auth.views import redirect_to_login
 from django.core.exceptions import PermissionDenied
 from django.core.paginator import Paginator
 from django.db import models, transaction
-from django.db.models import Avg, Count, F, Max, OuterRef, Prefetch, Q, Subquery
+from django.db.models import Avg, Count, Exists, F, Max, OuterRef, Prefetch, Q, Subquery
 from django.db.models.functions import ExtractYear
 from django.http import Http404, HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -364,6 +364,49 @@ def _artist_plays(artist: Artist, events, *, skip_empty: bool = False, sort: str
 
 
 @login_required
+def artist_songs_manage(request: HttpRequest, pk: int) -> HttpResponse:
+    """Admins only: every song of an artist grouped by album (newest first, no album last) to fix in bulk."""
+    if not is_admin(request.user):
+        raise PermissionDenied
+    artist = get_object_or_404(Artist, pk=pk)
+    songs = list(artist.songs.annotate(plays=Count("setlist_entries", filter=Q(setlist_entries__is_tape=False))))
+    if request.method == "POST":
+        changed = 0
+        for song in songs:
+            if f"album_title_{song.pk}" not in request.POST:
+                continue
+            title = " ".join((request.POST.get(f"album_title_{song.pk}") or "").split())[:240]
+            raw_year = (request.POST.get(f"album_year_{song.pk}") or "").strip()
+            year = int(raw_year) if raw_year.isdigit() and 1000 < int(raw_year) < 3000 and title else None
+            if (title, year) == (song.album_title, song.album_year):
+                continue
+            if title != song.album_title:
+                song.album_mbid = ""
+            song.album_title, song.album_year = title, year
+            song.album_checked_at = timezone.now()  # fixed by hand: never looked up again
+            song.save(update_fields=["album_title", "album_year", "album_mbid", "album_checked_at"])
+            remember_album(song)
+            changed += 1
+        messages.success(request, f"Updated the album of {changed} song{'s' if changed != 1 else ''}.")
+        return redirect("events:artist_songs_manage", pk=artist.pk)
+    groups: dict[str, dict] = {}
+    for song in songs:
+        key = normalize_name(song.album_title)
+        group = groups.setdefault(key, {"title": song.album_title or "No album", "year": song.album_year,
+                                        "is_none": not song.album_title, "songs": []})
+        if group["year"] is None:
+            group["year"] = song.album_year
+        group["songs"].append(song)
+    ordered = sorted(groups.values(), key=lambda g: (g["is_none"], -(g["year"] or 0), g["title"].casefold()))
+    for group in ordered:
+        group["songs"].sort(key=lambda s: s.title.casefold())
+    known = artist.albums.values_list("title", flat=True).order_by("title")
+    return render(request, "events/artist_songs_manage.html", {
+        "artist": artist, "groups": ordered, "song_total": len(songs), "known_albums": known,
+    })
+
+
+@login_required
 @require_POST
 def artist_albums_edit(request: HttpRequest, pk: int) -> HttpResponse:
     """Admins only: add an album to an artist (so unplayed albums show), or remove one."""
@@ -431,8 +474,14 @@ def artist_detail(request: HttpRequest, pk: int) -> HttpResponse:
             **(dict(zip(("merge_similar", "merge_rest"), artist_duplicate_candidates(artist)))
                if is_admin(request.user) else {}),
             "act_logs": act_logs,
-            "events": events.with_stats().select_related("venue").distinct().order_by(*LATEST_FIRST),
+            # Cards open this artist's setlist at the event when there is one.
+            "events": events.with_stats().select_related("venue").distinct().order_by(*LATEST_FIRST).annotate(
+                artist_setlist=Exists(Setlist.objects.filter(event=OuterRef("pk"), artist=artist))
+            ),
             "seen_by": seen_by,
+            # Played songs nobody has looked up on MusicBrainz yet (for "Find albums").
+            "pending": list(artist.songs.filter(album_checked_at=None, setlist_entries__is_tape=False)
+                            .values_list("pk", flat=True).distinct().order_by("pk")),
             "top_songs": songs[:10],
             "album_chart": albums,
             "top_album": top_album(albums),

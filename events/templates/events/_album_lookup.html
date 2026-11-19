@@ -1,0 +1,32 @@
+{% comment %}
+"Find albums on MusicBrainz" for the songs in ``pending`` (song ids not looked up yet). Each song is looked up
+once, one a second (MusicBrainz's limit), then the page reloads to show them. Used on setlist and artist pages.
+{% endcomment %}
+{% if pending %}
+  <p class="small text-body-secondary mt-3 mb-2" id="album-status" aria-live="polite">{{ pending|length }} song{{ pending|length|pluralize }} {{ pending|length|pluralize:"hasn't,haven't" }} been looked up yet.{% if pending|length > 50 %} Takes about {% widthratio pending|length 50 1 %} minutes; keep the page open.{% endif %}</p>
+  <button class="btn btn-sm btn-outline-secondary" type="button" id="album-find">Find albums on MusicBrainz</button>
+  {{ pending|json_script:"pending-songs" }}
+  <script>
+    (function () {
+      var all = JSON.parse(document.getElementById("pending-songs").textContent), ids = all.slice(),
+          status = document.getElementById("album-status"), button = document.getElementById("album-find"),
+          total = ids.length, failed = 0,
+          csrf = (document.cookie.match(/csrftoken=([^;]+)/) || [])[1] || "";
+      function next() {
+        if (!ids.length) {
+          if (failed < total) { location.reload(); return; }
+          status.textContent = "MusicBrainz is busy right now. Try again in a while.";
+          button.disabled = false;
+          button.textContent = "Try again";
+          return;
+        }
+        var id = ids.shift();
+        status.textContent = "Finding albums… " + (total - ids.length) + " of " + total;
+        fetch("{% url 'events:song_album_lookup' 0 %}".replace("/0/", "/" + id + "/"), {method: "POST", headers: {"X-CSRFToken": csrf}})
+          .then(function (r) { if (!r.ok) failed++; }).catch(function () { failed++; })
+          .then(function () { setTimeout(next, 1100); });
+      }
+      button.addEventListener("click", function () { button.disabled = true; ids = all.slice(); failed = 0; next(); });
+    })();
+  </script>
+{% endif %}

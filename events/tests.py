@@ -2298,6 +2298,7 @@ class LineupSetlistTests(BaseTestCase):
         self.assertEqual(resp.context["pending"], [])
         self.assertEqual((resp.context["top_album"]["title"], resp.context["top_album"]["n"]), ("Dookie", 2))
         self.assertContains(resp, "Most played album")
+        self.assertContains(resp, f'<a class="link-light" href="{band.get_absolute_url()}">Green Day</a>: setlist')
         self.assertEqual([(a["title"], a["n"], a["pct"]) for a in resp.context["timeline"]],
                          [("American Idiot", 1, 50), ("Dookie", 2, 100)])  # newest first by default
         by_count = self.client.get(url + "?sort=count").context["timeline"]
@@ -2729,6 +2730,58 @@ class AlbumMeasureToggleTests(BaseTestCase):
         self.assertEqual([(r["title"], r["pct"]) for r in by_songs.context["album_chart"]],
                          [("Deep album", 100), ("One-hit album", 50)])
         self.assertContains(by_songs, 'id="by-songs" checked')
+
+
+class ManageSongsTests(BaseTestCase):
+    def test_admins_fix_songs_grouped_by_album_newest_first_no_album_last(self):
+        from events.models import Song
+        band = Artist.objects.create(name="Band")
+        Song.objects.create(artist=band, title="Old one", album_title="Debut", album_year=1990)
+        Song.objects.create(artist=band, title="New one", album_title="Latest", album_year=2020)
+        loose = Song.objects.create(artist=band, title="Loose")
+        url = reverse("events:artist_songs_manage", args=[band.pk])
+        self.client.force_login(self.user)
+        self.assertEqual(self.client.get(url).status_code, 403)
+        self.user.is_superuser = True
+        self.user.save()
+        self.assertContains(self.client.get(band.get_absolute_url()), url)
+        page = self.client.get(url)
+        self.assertEqual([g["title"] for g in page.context["groups"]], ["Latest", "Debut", "No album"])
+        self.client.post(url, {f"album_title_{loose.pk}": "Debut", f"album_year_{loose.pk}": "1990"})
+        loose.refresh_from_db()
+        self.assertEqual((loose.album_title, loose.album_year), ("Debut", 1990))
+        self.assertIsNotNone(loose.album_checked_at)
+        self.assertEqual([g["title"] for g in self.client.get(url).context["groups"]], ["Latest", "Debut"])
+
+    def test_artist_page_offers_find_albums_for_unchecked_played_songs(self):
+        from events.models import SetlistSong, Song
+        band = Artist.objects.create(name="Band")
+        sl = Setlist.objects.create(event=self.event, artist=band)
+        unchecked = Song.objects.create(artist=band, title="Unchecked")
+        tape = Song.objects.create(artist=band, title="Intro")
+        SetlistSong.objects.create(setlist=sl, song=unchecked, position=1)
+        SetlistSong.objects.create(setlist=sl, song=tape, position=2, is_tape=True)
+        page = self.client.get(band.get_absolute_url())
+        self.assertEqual(page.context["pending"], [unchecked.pk])
+        self.assertContains(page, "Find albums on MusicBrainz")
+        self.assertContains(page, "1 song hasn&#x27;t been looked up yet.")
+
+    def test_event_cards_open_the_artists_setlist_when_there_is_one(self):
+        band = Artist.objects.create(name="Band")
+        EventArtist.objects.create(event=self.event, artist=band)
+        other = Event.objects.create(title="No setlist", date=date(2000, 1, 1))
+        EventArtist.objects.create(event=other, artist=band)
+        Setlist.objects.create(event=self.event, artist=band)
+        page = self.client.get(band.get_absolute_url())
+        self.assertContains(page, reverse("events:act_setlist", args=[self.event.pk, band.pk]))
+        self.assertContains(page, f'href="{other.get_absolute_url()}"')
+
+    def test_tours_sit_in_the_header(self):
+        band = Artist.objects.create(name="Band")
+        Production.objects.create(title="World Tour", artist=band)
+        html = self.client.get(band.get_absolute_url()).content.decode()
+        self.assertLess(html.index('class="artist-tours'), html.index('<h2 class="section-title mb-3">Events'))
+        self.assertIn("World Tour", html)
 
 
 class TheaterCreditsTests(BaseTestCase):

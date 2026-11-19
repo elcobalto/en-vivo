@@ -43,6 +43,7 @@ urlpatterns = [
     path("artists/new/", views.artist_create, name="artist_create"),
     path("artists/<int:pk>/", views.artist_detail, name="artist_detail"),
     path("artists/<int:pk>/albums/", views.artist_albums_edit, name="artist_albums_edit"),
+    path("artists/<int:pk>/songs/manage/", views.artist_songs_manage, name="artist_songs_manage"),
     path("artists/<int:pk>/songs/", views.artist_songs, name="artist_songs"),
     path("artists/<int:pk>/edit/", views.artist_edit, name="artist_edit"),
     path("artists/<int:pk>/delete/", views.artist_delete, name="artist_delete"),

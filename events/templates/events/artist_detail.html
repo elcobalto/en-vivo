@@ -38,12 +38,18 @@
     <div class="my-2" style="max-width:24rem">{% rating_histogram act_logs "Ratings of this act" True %}</div>
     {% if artist.bio %}<p class="mt-2">{{ artist.bio|linebreaksbr }}</p>{% endif %}
   </div>
-  </div>
-
   {% if tours %}
-    <h2 class="section-title mb-2">Tours</h2>
-    <ul class="list-unstyled mb-4">{% for t in tours %}<li class="py-1"><a href="{{ t.get_absolute_url }}">{{ t.title }}</a></li>{% endfor %}</ul>
+    {# Beside the profile (top right) instead of below it, so the header doesn't leave empty space. #}
+    <div class="artist-tours flex-shrink-0">
+      <h2 class="section-title mb-2">Tours</h2>
+      <ul class="list-unstyled mb-0">{% for t in tours %}<li class="py-1"><a href="{{ t.get_absolute_url }}">{{ t.title }}</a></li>{% endfor %}</ul>
+    </div>
   {% endif %}
+  </div>
+  <style>
+    .artist-tours { width: 100%; }
+    @media (min-width: 768px) { .artist-tours { width: 16rem; max-height: 24rem; overflow-y: auto; } }
+  </style>
 
   {% if seen_by %}
     <div class="alert alert-secondary d-flex flex-wrap justify-content-between align-items-center gap-2 py-2">
@@ -52,7 +58,7 @@
       <a class="small" href="{{ request.path }}">Show all events</a>
     </div>
   {% endif %}
-  {% if top_songs or album_chart or can_fix_albums %}
+  {% if top_songs or album_chart or can_fix_albums or pending %}
     {% with seen_q=seen_by.get_username|urlencode %}
     <div class="row g-4 mb-4">
       <div class="col-12 col-md-6">
@@ -80,7 +86,9 @@
         {% else %}
           <p class="small text-body-secondary mb-0">No albums yet. They're found when setlist pages are opened{% if can_fix_albums %}, or add them below{% endif %}.</p>
         {% endif %}
-        {% if can_fix_albums %}<button class="btn btn-sm btn-outline-secondary mt-2" type="button" data-bs-toggle="modal" data-bs-target="#artistAlbumsModal">Manage albums</button>{% endif %}
+        {% include "events/_album_lookup.html" %}
+        {% if can_fix_albums %}<button class="btn btn-sm btn-outline-secondary mt-2" type="button" data-bs-toggle="modal" data-bs-target="#artistAlbumsModal">Manage albums</button>
+        <a class="btn btn-sm btn-outline-secondary mt-2" href="{% url 'events:artist_songs_manage' artist.pk %}">Manage songs</a>{% endif %}
       </div>
     </div>
     {% endwith %}
@@ -122,7 +130,10 @@
   <h2 class="section-title mb-3">Events{% if seen_by %} they saw{% endif %}</h2>
   {% if events %}
     <div class="row row-cols-2 row-cols-sm-3 row-cols-lg-6 g-3">
-      {% for event in events %}<div class="col">{% include "events/_event_card.html" %}</div>{% endfor %}
+      {% for event in events %}<div class="col">
+        {% if event.artist_setlist and event.is_music %}{% url 'events:act_setlist' event.pk artist.pk as setlist_url %}{% include "events/_event_card.html" with card_url=setlist_url %}
+        {% else %}{% include "events/_event_card.html" with card_url="" %}{% endif %}
+      </div>{% endfor %}
     </div>
   {% else %}
     <p class="text-body-secondary">No events yet.</p>
