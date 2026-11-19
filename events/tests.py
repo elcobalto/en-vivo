@@ -1702,10 +1702,12 @@ class ArtistVenueEventsTests(BaseTestCase):
 
 
 class LineupFormUiTests(BaseTestCase):
-    def test_single_new_artist_box_and_add_act_button(self):
+    def test_artist_search_replaces_the_new_artist_box_and_add_act_button(self):
         self.client.force_login(self.user)
         html = self.client.get(reverse("events:event_create")).content.decode()
-        self.assertEqual(html.count('id="new-artist-box"'), 1)
+        self.assertNotIn('id="new-artist-box"', html)
+        self.assertIn('id="artist-options"', html)  # the list the search box suggests from
+        self.assertIn("Type to search artists", html)
         self.assertIn('id="add-act"', html)
         self.assertIn('id="lineup-row-template"', html)
         self.assertIn("eventartist_set-__prefix__-artist", html)  # template row for new acts
@@ -2149,6 +2151,9 @@ class ArtistListTests(BaseTestCase):
         Artist.objects.create(name="Mon Laferte")
         page = self.client.get(reverse("events:artist_list"))
         self.assertContains(page, 'href="/artists/">Artists</a>')
+        self.assertNotContains(page, "+ New artist")
+        self.client.force_login(self.user)
+        self.assertContains(self.client.get(reverse("events:artist_list")), reverse("events:artist_create"))
         self.assertContains(page, "Los Bunkers")
         page = self.client.get(reverse("events:artist_list") + "?q=bunk")
         self.assertContains(page, "Los Bunkers")

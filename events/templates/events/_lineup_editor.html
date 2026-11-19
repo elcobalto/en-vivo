@@ -20,11 +20,4 @@
         <template id="lineup-row-template">{% include "events/_lineup_row.html" with f=formset.empty_form labels=False %}</template>
         <button type="button" class="btn btn-sm btn-outline-secondary" id="add-act">+ Add another act</button>
 
-        <details class="mt-3" id="new-artist-box">
-          <summary class="small">Artist not in the list? Add a new artist</summary>
-          <div class="d-flex flex-wrap gap-2 mt-2">
-            <input class="form-control form-control-sm" style="max-width:20rem" id="new-artist-name" maxlength="200" placeholder="Artist name, e.g. Los Bunkers" aria-label="New artist name" />
-            <button type="button" class="btn btn-sm btn-outline-success" id="new-artist-add">Add to lineup</button>
-          </div>
-          <div class="form-text">It's created when you save the event. If an artist with that name already exists, that one is used.</div>
-        </details>
+        <div class="form-text">Type to search artists. A name that isn't on En Vivo yet is added as a new artist when you save.</div>

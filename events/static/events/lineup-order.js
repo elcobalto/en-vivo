@@ -85,8 +85,9 @@
   var addAct = document.getElementById("add-act");
   if (addAct) addAct.addEventListener("click", function () {
     var row = addRow();
-    var select = row.querySelector('select[name$="-artist"]');
-    if (select) select.focus();
+    setupSearch(row);
+    var search = row.querySelector(".artist-search") || row.querySelector('select[name$="-artist"]');
+    if (search) search.focus();
   });
 
   var nameInput = document.getElementById("new-artist-name");
@@ -151,6 +152,74 @@
       if (e.target.matches && e.target.matches("select[data-options]")) fill(e.target);
     });
   });
+
+  // Artist search: a text box with suggestions replaces each row's long artist dropdown (kept hidden for the
+  // form). Picking a known name selects that artist; a name that doesn't exist becomes a new artist on save.
+  var artistData = null, byName = {};
+  function artists() {
+    if (artistData) return artistData;
+    var holder = document.getElementById("artist-options");
+    artistData = holder ? JSON.parse(holder.textContent) : [];
+    var counts = {};
+    artistData.forEach(function (pair) { var k = pair[1].toLowerCase(); counts[k] = (counts[k] || 0) + 1; });
+    var datalist = document.createElement("datalist");
+    datalist.id = "artist-search-options";
+    artistData.forEach(function (pair) {
+      // Two artists with the same name get their number added so either can be picked.
+      var label = counts[pair[1].toLowerCase()] > 1 ? pair[1] + " (#" + pair[0] + ")" : pair[1];
+      byName[label.toLowerCase()] = pair;
+      var option = document.createElement("option");
+      option.value = label;
+      datalist.appendChild(option);
+    });
+    document.body.appendChild(datalist);
+    return artistData;
+  }
+
+  function setupSearch(row) {
+    var select = row.querySelector('select[name$="-artist"]');
+    var typed = row.querySelector('input[name$="-new_artist"]');
+    if (!select || row.querySelector(".artist-search")) return;
+    var box = document.createElement("input");
+    box.type = "search";
+    box.className = "form-control form-control-sm artist-search";
+    box.setAttribute("list", "artist-search-options");
+    box.setAttribute("autocomplete", "off");
+    box.placeholder = "Search artists…";
+    box.setAttribute("aria-label", "Artist");
+    box.value = select.value ? select.options[select.selectedIndex].text : (typed ? typed.value : "");
+    select.classList.add("d-none");
+    select.parentNode.insertBefore(box, select);
+    var note = document.createElement("div");
+    note.className = "small text-success artist-new-note" + (typed && typed.value && !select.value ? "" : " d-none");
+    note.textContent = "New artist: created when you save.";
+    box.parentNode.appendChild(note);
+    // Rows that already show the "new artist" label from the old box switch to the search box instead.
+    var pick = row.querySelector(".artist-pick"), label = row.querySelector(".new-artist-label");
+    if (pick) pick.classList.remove("d-none");
+    if (label) label.classList.add("d-none");
+
+    box.addEventListener("focus", artists, { once: true });
+    box.addEventListener("change", function () {
+      artists();
+      var text = box.value.trim(), match = byName[text.toLowerCase()];
+      if (match) {
+        if (!select.querySelector('option[value="' + match[0] + '"]')) select.appendChild(new Option(match[1], match[0]));
+        select.value = String(match[0]);
+        if (typed) typed.value = "";
+        box.value = match[1];
+        note.classList.add("d-none");
+      } else {
+        select.value = "";
+        if (typed) typed.value = text;
+        note.classList.toggle("d-none", !text);
+      }
+      renumber();
+    });
+  }
+  list.querySelectorAll(".lineup-row").forEach(setupSearch);
+  new MutationObserver(function () { list.querySelectorAll(".lineup-row").forEach(setupSearch); })
+    .observe(list, { childList: true });
 
   list.closest("form").addEventListener("submit", renumber);
   renumber();
