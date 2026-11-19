@@ -48,6 +48,12 @@
         {% if timeline or skip_empty %}
           {% include "events/_album_chart.html" with rows=timeline top=top_album unit="song" keep=None %}
         {% endif %}
+        {% for chart in band_charts %}
+          <div class="mt-3">
+            <div class="small text-body-secondary mb-1">As a member of <a href="{{ chart.band.get_absolute_url }}">{{ chart.band.name }}</a></div>
+            {% include "events/_album_chart.html" with rows=chart.rows top=None unit="song" keep=None hide_controls=True %}
+          </div>
+        {% endfor %}
         {% include "events/_album_lookup.html" %}
       </div></div>
     </div>

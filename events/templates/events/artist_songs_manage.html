@@ -7,7 +7,7 @@
   <h1 class="h4 mb-1">{{ artist.name }}: manage songs</h1>
   <p class="small text-body-secondary mb-3">
     {{ song_total }} song{{ song_total|pluralize }}, grouped by album (newest first, songs with no album last).
-    Change an album or year to move a song; only changed rows are saved, and fixed songs aren't looked up again.
+    Change an album or year to move a song, or name the original artist if it's a cover (a band they were in gets its own chart); only changed rows are saved, and fixed songs aren't looked up again.
   </p>
   {% if groups %}
     <form method="post" style="max-width:52rem">
@@ -17,11 +17,12 @@
         <h2 class="section-title mt-4 mb-2">{% if group.is_none %}<em>No album</em>{% else %}{{ group.title }}{% if group.year %} · {{ group.year }}{% endif %}{% endif %} <span class="text-body-secondary">({{ group.songs|length }})</span></h2>
         {% for song in group.songs %}
           <div class="row g-2 align-items-center py-1 border-bottom border-secondary-subtle">
-            <div class="col-12 col-md-5">
+            <div class="col-12 col-md-4">
               <label class="small" for="album-title-{{ song.pk }}">{{ song.title }}</label>
               <span class="small text-body-secondary">· {{ song.plays }} play{{ song.plays|pluralize }}</span>
             </div>
-            <div class="col-8 col-md-5"><input class="form-control form-control-sm" id="album-title-{{ song.pk }}" name="album_title_{{ song.pk }}" value="{{ song.album_title }}" maxlength="240" list="known-albums" placeholder="No album"></div>
+            <div class="col-6 col-md-3"><input class="form-control form-control-sm" name="cover_of_{{ song.pk }}" value="{{ song.cover_of_name }}" maxlength="200" placeholder="Not a cover" aria-label="Cover of (original artist) for {{ song.title }}" title="Cover of (original artist)"></div>
+            <div class="col-6 col-md-3"><input class="form-control form-control-sm" id="album-title-{{ song.pk }}" name="album_title_{{ song.pk }}" value="{{ song.album_title }}" maxlength="240" list="known-albums" placeholder="No album"></div>
             <div class="col-4 col-md-2"><input class="form-control form-control-sm" name="album_year_{{ song.pk }}" value="{{ song.album_year|default_if_none:'' }}" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" placeholder="Year" aria-label="Year for {{ song.title }}"></div>
           </div>
         {% endfor %}

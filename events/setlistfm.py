@@ -228,6 +228,10 @@ def import_setlist(event: Event, payload: dict[str, Any]) -> Setlist:
             if not title:
                 continue
             song, _ = Song.objects.get_or_create(artist=artist, title=title)
+            cover = song_payload.get("cover") or {}
+            if isinstance(cover, dict) and cover.get("name") and not song.cover_of_name:
+                song.cover_of_name = str(cover["name"]).strip()[:200]
+                song.save(update_fields=["cover_of_name", "updated_at"])
             position += 1
             SetlistSong.objects.create(
                 setlist=setlist,

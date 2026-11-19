@@ -15,6 +15,12 @@
   {% if tab == "albums" %}
     <div style="max-width:44rem">
       {% include "events/_album_chart.html" with rows=albums top=None unit="play" keep=album_keep %}
+        {% for chart in band_charts %}
+          <div class="mt-3">
+            <div class="small text-body-secondary mb-1">As a member of <a href="{{ chart.band.get_absolute_url }}">{{ chart.band.name }}</a></div>
+            {% include "events/_album_chart.html" with rows=chart.rows top=None unit="play" keep=None hide_controls=True %}
+          </div>
+        {% endfor %}
       {% if can_fix_albums %}<button class="btn btn-sm btn-outline-secondary mt-3" type="button" data-bs-toggle="modal" data-bs-target="#addAlbumModal">+ Add album</button>{% endif %}
     </div>
   {% else %}

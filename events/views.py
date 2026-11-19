@@ -49,7 +49,7 @@ SORTS = {
 }
 WHEN = {"": "Any time", "upcoming": "Upcoming", "past": "Past"}
 from .roles import can_delete_event, can_edit_event, home_place, is_admin
-from .albums import album_rows, remember_album, top_album
+from .albums import album_rows, played_by_album, remember_album, split_plays, top_album
 from .merge import merge_into_same_festival_day, share_photo_with_festival_days
 from .views_merge import (
     festival_admin_actions,
@@ -336,31 +336,29 @@ def _artist_plays(artist: Artist, events, *, skip_empty: bool = False, sort: str
 
     Each song's ``of`` counts only the shows since it came out (shows in or after its album's year,
     plus undated shows), so a new song isn't measured against shows from before it existed.
+    Returns (songs, own album rows, [{"band", "rows"}] for bands the artist was in, number of shows).
+    Covers of those bands go to the band's chart; other covers to a "Covers" row.
     """
     plays = SetlistSong.objects.filter(setlist__artist=artist, setlist__event__in=events, is_tape=False)
     show_years = list(
         Setlist.objects.filter(artist=artist, event__in=events).values_list("event__date__year", flat=True)
     )
-    songs = list(plays.values("song_id", "song__title", "song__album_title", "song__album_year")
+    songs = list(plays.values("song_id", "song__title", "song__album_title", "song__album_year", "song__cover_of_name")
                  .annotate(n=Count("setlist", distinct=True)).order_by("-n", "song__title"))
     for song in songs:
         released = song["song__album_year"]
         song["of"] = sum(1 for y in show_years if y is None or not released or y >= released)
-    played: dict[str, dict] = {}
-    no_album = {"n": 0, "songs": 0, "tracks": []}
-    for song in songs:  # albums: total plays, different songs, and the songs themselves for the drop-down
-        if not song["song__album_title"]:
-            no_album["n"] += song["n"]
-            no_album["songs"] += 1
-            no_album["tracks"].append({"title": song["song__title"], "n": song["n"], "of": song["of"]})
-            continue
-        row = played.setdefault(song["song__album_title"], {
-            "title": song["song__album_title"], "year": song["song__album_year"], "n": 0, "songs": 0, "tracks": [],
-        })
-        row["n"] += song["n"]
-        row["songs"] += 1
-        row["tracks"].append({"title": song["song__title"], "n": song["n"], "of": song["of"]})
-    return songs, album_rows(artist, played, skip_empty=skip_empty, sort=sort, no_album=no_album, by=by), len(show_years)
+    plain = [{"title": s["song__title"], "album_title": s["song__album_title"], "album_year": s["song__album_year"],
+              "cover_of": s["song__cover_of_name"], "n": s["n"], "of": s["of"]} for s in songs]
+    own, by_band, covers = split_plays(artist, plain)
+    played, no_album = played_by_album(own)
+    options = {"skip_empty": skip_empty, "sort": sort, "by": by}
+    albums = album_rows(artist, played, no_album=no_album, covers=covers, **options)
+    band_charts = []
+    for band, band_songs in sorted(by_band.items(), key=lambda kv: kv[0].name.casefold()):
+        band_played, band_none = played_by_album(band_songs)
+        band_charts.append({"band": band, "rows": album_rows(band, band_played, no_album=band_none, **options)})
+    return songs, albums, band_charts, len(show_years)
 
 
 @login_required
@@ -378,13 +376,14 @@ def artist_songs_manage(request: HttpRequest, pk: int) -> HttpResponse:
             title = " ".join((request.POST.get(f"album_title_{song.pk}") or "").split())[:240]
             raw_year = (request.POST.get(f"album_year_{song.pk}") or "").strip()
             year = int(raw_year) if raw_year.isdigit() and 1000 < int(raw_year) < 3000 and title else None
-            if (title, year) == (song.album_title, song.album_year):
+            cover = " ".join((request.POST.get(f"cover_of_{song.pk}", song.cover_of_name) or "").split())[:200]
+            if (title, year, cover) == (song.album_title, song.album_year, song.cover_of_name):
                 continue
             if title != song.album_title:
                 song.album_mbid = ""
-            song.album_title, song.album_year = title, year
+            song.album_title, song.album_year, song.cover_of_name = title, year, cover
             song.album_checked_at = timezone.now()  # fixed by hand: never looked up again
-            song.save(update_fields=["album_title", "album_year", "album_mbid", "album_checked_at"])
+            song.save(update_fields=["album_title", "album_year", "album_mbid", "album_checked_at", "cover_of_name"])
             remember_album(song)
             changed += 1
         messages.success(request, f"Updated the album of {changed} song{'s' if changed != 1 else ''}.")
@@ -440,11 +439,13 @@ def artist_songs(request: HttpRequest, pk: int) -> HttpResponse:
     skip_empty = request.GET.get("empty") == "skip"
     sort = "newest" if request.GET.get("sort") == "newest" else "count"
     album_by = "songs" if request.GET.get("by") == "songs" else "n"
-    songs, albums, shows = _artist_plays(artist, events.distinct(), skip_empty=skip_empty, sort=sort, by=album_by)
+    songs, albums, band_charts, shows = _artist_plays(artist, events.distinct(), skip_empty=skip_empty, sort=sort,
+                                                      by=album_by)
     tab = "albums" if request.GET.get("tab") == "albums" else "songs"
     return render(request, "events/artist_songs.html", {
         "artist": artist, "seen_by": seen_by, "tab": tab, "shows": shows,
-        "songs": songs, "albums": albums, "skip_empty": skip_empty, "album_sort": sort, "album_by": album_by,
+        "songs": songs, "albums": albums, "band_charts": band_charts,
+        "skip_empty": skip_empty, "album_sort": sort, "album_by": album_by,
         "album_keep": [("tab", "albums")] + ([("seen_by", seen_by.get_username())] if seen_by else []),
         "can_fix_albums": is_admin(request.user),
         "seen_q": f"seen_by={quote(seen_by.get_username())}" if seen_by else "",
@@ -463,8 +464,8 @@ def artist_detail(request: HttpRequest, pk: int) -> HttpResponse:
     skip_empty = request.GET.get("empty") == "skip"
     album_sort = "count" if request.GET.get("sort") == "count" else "newest"
     album_by = "songs" if request.GET.get("by") == "songs" else "n"
-    songs, albums, setlist_shows = _artist_plays(artist, events.distinct(), skip_empty=skip_empty,
-                                                 sort=album_sort, by=album_by)
+    songs, albums, band_charts, setlist_shows = _artist_plays(artist, events.distinct(), skip_empty=skip_empty,
+                                                              sort=album_sort, by=album_by)
     return render(
         request,
         "events/artist_detail.html",
@@ -484,6 +485,9 @@ def artist_detail(request: HttpRequest, pk: int) -> HttpResponse:
                             .values_list("pk", flat=True).distinct().order_by("pk")),
             "top_songs": songs[:10],
             "album_chart": albums,
+            "band_charts": band_charts,
+            "member_of": artist.member_of.all(),
+            "members": artist.members.all(),
             "top_album": top_album(albums),
             "skip_empty": skip_empty,
             "album_sort": album_sort,
@@ -717,26 +721,23 @@ def act_setlist(request: HttpRequest, pk: int, artist_pk: int) -> HttpResponse:
     )
     entries = list(setlist.entries.all())
     played_entries = [e for e in entries if not e.is_tape]  # tapes are listed but not counted
-    played: dict[str, dict] = {}
-    no_album = {"n": 0, "songs": 0, "tracks": []}
-    for entry in played_entries:
-        if not entry.song.album_title:
-            no_album["n"] += 1
-            no_album["songs"] += 1
-            no_album["tracks"].append({"title": entry.song.title})
-        if entry.song.album_title:
-            row = played.setdefault(entry.song.album_title, {"title": entry.song.album_title,
-                                                            "year": entry.song.album_year, "n": 0, "songs": 0,
-                                                            "tracks": []})
-            row["n"] += 1
-            row["songs"] += 1
-            row["tracks"].append({"title": entry.song.title})
+    own, by_band, covers = split_plays(setlist.artist, [
+        {"title": e.song.title, "album_title": e.song.album_title, "album_year": e.song.album_year,
+         "cover_of": e.song.cover_of_name, "n": 1} for e in played_entries
+    ])
+    played, no_album = played_by_album(own)
     pending = sorted({e.song_id for e in played_entries if e.song.album_checked_at is None})
     album_sort = "count" if request.GET.get("sort") == "count" else "newest"
     skip_empty = request.GET.get("empty") == "skip"
     # Only albums already out at this show (an album released later can't have been "skipped").
+    released_by = event.date.year if event.date else None
     timeline = album_rows(setlist.artist, played, skip_empty=skip_empty, sort=album_sort,
-                          released_by=event.date.year if event.date else None, no_album=no_album)
+                          released_by=released_by, no_album=no_album, covers=covers)
+    band_charts = []
+    for band, band_songs in sorted(by_band.items(), key=lambda kv: kv[0].name.casefold()):
+        band_played, band_none = played_by_album(band_songs)
+        band_charts.append({"band": band, "rows": album_rows(band, band_played, no_album=band_none, skip_empty=skip_empty,
+                                                              sort=album_sort, released_by=released_by)})
     number = 0
     for entry in entries:  # songs are numbered 1, 2, 3… skipping tapes
         if not entry.is_tape:
@@ -744,7 +745,7 @@ def act_setlist(request: HttpRequest, pk: int, artist_pk: int) -> HttpResponse:
         entry.number = None if entry.is_tape else number
     return render(request, "events/act_setlist.html", {
         "event": event, "setlist": setlist, "entries": entries, "song_count": len(played_entries),
-        "top_album": top_album(timeline), "pending": pending, "timeline": timeline,
+        "top_album": top_album(timeline), "pending": pending, "timeline": timeline, "band_charts": band_charts,
         "album_sort": album_sort, "skip_empty": skip_empty, "can_fix_albums": is_admin(request.user),
         "known_albums": (Song.objects.filter(artist=setlist.artist).exclude(album_title="")
                          .values_list("album_title", flat=True).distinct().order_by("album_title")
@@ -770,7 +771,11 @@ def song_album_lookup(request: HttpRequest, pk: int) -> JsonResponse:
             time.sleep(min(wait, 2))
         cache.set("mb-last-call", time.time(), 10)
         try:
-            found = song_album(song.title, song.artist.name, song.artist.mbid or "")
+            # A cover is found on the original artist's albums (a Beatles song on a Beatles album).
+            if song.cover_of_name:
+                found = song_album(song.title, song.cover_of_name, "")
+            else:
+                found = song_album(song.title, song.artist.name, song.artist.mbid or "")
         except Exception as e:  # busy or unreachable: leave it unchecked so it's tried again later
             logging.getLogger(__name__).warning("Album lookup for song %s failed: %r", song.pk, e)
             return JsonResponse({"ok": False}, status=503)

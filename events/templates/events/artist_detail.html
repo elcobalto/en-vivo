@@ -20,6 +20,13 @@
   <div class="flex-grow-1">
     <div class="small text-body-secondary text-uppercase">{{ artist.get_kind_display }}{% if artist.country %} · {{ artist.country.name }}{% endif %}</div>
     <h1 class="h3 fw-bold">{{ artist.name }}</h1>
+    {% if member_of or members %}
+      <div class="small mb-2">
+        {% if member_of %}Member of {% for b in member_of %}<a href="{{ b.get_absolute_url }}">{{ b.name }}</a>{% if not forloop.last %}, {% endif %}{% endfor %}{% endif %}
+        {% if member_of and members %} · {% endif %}
+        {% if members %}Members: {% for m in members %}<a href="{{ m.get_absolute_url }}">{{ m.name }}</a>{% if not forloop.last %}, {% endif %}{% endfor %}{% endif %}
+      </div>
+    {% endif %}
     {% if user|is_admin %}<a class="btn btn-sm btn-outline-secondary mb-2" href="{% url 'events:artist_edit' artist.pk %}">Edit artist</a>
     <a class="btn btn-sm btn-outline-danger mb-2" href="{% url 'events:artist_delete' artist.pk %}">Delete artist</a>
     <details class="mb-2"><summary class="small text-warning">Merge a duplicate into this artist</summary>
@@ -83,6 +90,12 @@
         {% if top_album %}<div class="small text-body-secondary mb-2">Most played: <strong class="text-body">{{ top_album.title }}</strong>{% if top_album.year %} ({{ top_album.year }}){% endif %} · {{ top_album.n }} play{{ top_album.n|pluralize }}</div>{% endif %}
         {% if album_chart or skip_empty %}
           {% include "events/_album_chart.html" with rows=album_chart top=top_album unit="play" keep=album_keep %}
+        {% for chart in band_charts %}
+          <div class="mt-3">
+            <div class="small text-body-secondary mb-1">As a member of <a href="{{ chart.band.get_absolute_url }}">{{ chart.band.name }}</a></div>
+            {% include "events/_album_chart.html" with rows=chart.rows top=None unit="play" keep=None hide_controls=True %}
+          </div>
+        {% endfor %}
         {% else %}
           <p class="small text-body-secondary mb-0">No albums yet. They're found when setlist pages are opened{% if can_fix_albums %}, or add them below{% endif %}.</p>
         {% endif %}

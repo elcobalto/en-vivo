@@ -222,9 +222,18 @@ EventArtistFormSet = inlineformset_factory(
 class ArtistForm(BootstrapMixin, forms.ModelForm):
     class Meta:
         model = Artist
-        fields = ["name", "kind", "country", "bio", "image_url", "mbid"]
-        widgets = {"bio": forms.Textarea(attrs={"rows": 4})}
-        help_texts = {"mbid": "Optional. Helps match setlist.fm imports to this artist."}
+        fields = ["name", "kind", "country", "member_of", "bio", "image_url", "mbid"]
+        widgets = {"bio": forms.Textarea(attrs={"rows": 4}), "member_of": forms.SelectMultiple(attrs={"size": 8})}
+        help_texts = {"mbid": "Optional. Helps match setlist.fm imports to this artist.",
+                      "member_of": "Bands this artist was in (hold Ctrl/Cmd for more than one). Their songs played as "
+                                   "covers get the band's own album chart."}
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        bands = Artist.objects.filter(kind=Artist.Kind.GROUP).order_by("name")
+        if self.instance.pk:
+            bands = bands.exclude(pk=self.instance.pk)
+        self.fields["member_of"].queryset = bands
 
 
 class VenueForm(BootstrapMixin, forms.ModelForm):

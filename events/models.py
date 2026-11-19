@@ -91,6 +91,11 @@ class Artist(TimestampedModel):
     country = CountryField(blank=True, default="")
     # MusicBrainz id: what setlist.fm uses to identify artists.
     mbid = models.CharField("MusicBrainz ID", max_length=36, null=True, blank=True, unique=True)
+    # Bands this artist was in (Paul McCartney → The Beatles): their songs get their own album chart.
+    member_of = models.ManyToManyField(
+        "self", symmetrical=False, blank=True, related_name="members", verbose_name="Member of",
+        help_text="Bands this artist was a member of.",
+    )
 
     class Meta:
         ordering = ["name"]
@@ -469,6 +474,8 @@ class Song(TimestampedModel):
     album_year = models.PositiveSmallIntegerField(null=True, blank=True)
     album_mbid = models.CharField("MusicBrainz release group", max_length=36, blank=True, default="")
     album_checked_at = models.DateTimeField(null=True, blank=True, editable=False)
+    # Whose song it originally is when this artist plays it as a cover (from setlist.fm's "cover").
+    cover_of_name = models.CharField("Cover of", max_length=200, blank=True, default="")
 
     class Meta:
         constraints = [

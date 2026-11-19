@@ -2784,6 +2784,71 @@ class ManageSongsTests(BaseTestCase):
         self.assertIn("World Tour", html)
 
 
+class CoversAndBandsTests(BaseTestCase):
+    def setUp(self):
+        super().setUp()
+        from events.models import SetlistSong, Song
+        self.beatles = Artist.objects.create(name="The Beatles", kind=Artist.Kind.GROUP)
+        self.paul = Artist.objects.create(name="Paul McCartney")
+        self.paul.member_of.add(self.beatles)
+        Album.objects.create(artist=self.beatles, title="Revolver", year=1966)
+        EventArtist.objects.create(event=self.event, artist=self.paul)
+        sl = Setlist.objects.create(event=self.event, artist=self.paul)
+        songs = [
+            Song.objects.create(artist=self.paul, title="Band on the Run", album_title="Band on the Run", album_year=1973),
+            Song.objects.create(artist=self.paul, title="Hey Jude", cover_of_name="The Beatles",
+                                album_title="Hey Jude", album_year=1968),
+            Song.objects.create(artist=self.paul, title="Something", cover_of_name="the beatles"),
+            Song.objects.create(artist=self.paul, title="Foxy Lady", cover_of_name="Jimi Hendrix"),
+        ]
+        for i, song in enumerate(songs, start=1):
+            SetlistSong.objects.create(setlist=sl, song=song, position=i)
+
+    def test_band_songs_get_the_band_chart_and_other_covers_a_covers_row(self):
+        page = self.client.get(self.paul.get_absolute_url())
+        own = [(r["title"], r["n"]) for r in page.context["album_chart"]]
+        self.assertEqual(own, [("Band on the Run", 1), ("Covers", 1)])
+        self.assertEqual(page.context["album_chart"][-1]["tracks"][0]["by"], "Jimi Hendrix")
+        [chart] = page.context["band_charts"]
+        self.assertEqual(chart["band"], self.beatles)
+        self.assertEqual([(r["title"], r["n"]) for r in chart["rows"]],
+                         [("Hey Jude", 1), ("Revolver", 0), ("No album", 1)])
+        self.assertContains(page, "As a member of")
+        self.assertContains(page, "Member of ")
+        self.assertContains(self.client.get(self.beatles.get_absolute_url()), "Members: ")
+
+    def test_setlist_page_has_the_band_chart_too(self):
+        page = self.client.get(reverse("events:act_setlist", args=[self.event.pk, self.paul.pk]))
+        self.assertEqual(page.context["top_album"]["title"], "Band on the Run")
+        self.assertEqual(page.context["band_charts"][0]["band"], self.beatles)
+        self.assertEqual(page.context["timeline"][-1]["title"], "Covers")
+
+    def test_cover_lookups_use_the_original_artist_and_file_albums_under_it(self):
+        song = self.paul.songs.get(title="Something")
+        with mock.patch("events.musicbrainz.song_album",
+                        return_value={"title": "Abbey Road", "year": 1969, "mbid": "x"}) as lookup:
+            self.client.post(reverse("events:song_album_lookup", args=[song.pk]))
+        self.assertEqual(lookup.call_args.args[:2], ("Something", "the beatles"))
+        self.assertTrue(self.beatles.albums.filter(title="Abbey Road").exists())
+        self.assertFalse(self.paul.albums.filter(title="Abbey Road").exists())
+
+    def test_imports_and_old_notes_record_the_original_artist(self):
+        import importlib
+        from django.apps import apps as real_apps
+        from events.models import SetlistSong, Song
+        mig = importlib.import_module("events.migrations.0030_covers_and_bands")
+        sl = Setlist.objects.create(event=Event.objects.create(title="x"), artist=self.paul)
+        old = Song.objects.create(artist=self.paul, title="Old import")
+        SetlistSong.objects.create(setlist=sl, song=old, position=1, note="The Beatles cover; with Ringo")
+        mig.covers_from_notes(real_apps, None)
+        old.refresh_from_db()
+        self.assertEqual(old.cover_of_name, "The Beatles")
+        payload = {"id": "c1", "artist": {"name": "Paul McCartney"}, "url": "",
+                   "sets": {"set": [{"song": [{"name": "Let It Be", "cover": {"name": "The Beatles"}}]}]}}
+        import_setlist(Event.objects.create(title="y"), payload)
+        self.assertEqual(self.paul.songs.get(title="Let It Be").cover_of_name, "The Beatles")
+
+
 class TheaterCreditsTests(BaseTestCase):
     def test_author_and_director_are_credits_not_acts(self):
         play = Event.objects.create(title="", event_type=EventType.THEATER, date=date(2020, 1, 1))

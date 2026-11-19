@@ -5,7 +5,8 @@ from .models import Album, Artist, Song, normalize_name
 
 
 def album_rows(artist: Artist, played: dict, *, skip_empty: bool = False, sort: str = "newest",
-               released_by: int | None = None, no_album: dict | None = None, by: str = "n") -> list[dict]:
+               released_by: int | None = None, no_album: dict | None = None, by: str = "n",
+               covers: dict | None = None) -> list[dict]:
     """Rows of {title, year, n, songs, pct} for a chart or list.
 
     ``played`` maps album title → {"title", "year", "n", "songs"} counted from setlists (tapes left out).
@@ -14,6 +15,7 @@ def album_rows(artist: Artist, played: dict, *, skip_empty: bool = False, sort: 
     saved albums released after it are left out: they didn't exist yet at that show. ``no_album``
     ({"n", "songs", "tracks"} for played songs filed under no album) adds a last "No album" row.
     ``by`` picks what the bars and the "count" sort measure: "n" (plays) or "songs" (different songs).
+    ``covers`` (same shape as ``no_album``, tracks carry "by") adds a last "Covers" row.
     """
     rows = {normalize_name(a["title"]): dict(a) for a in played.values()}
     saved = Album.objects.filter(artist=artist)
@@ -33,6 +35,8 @@ def album_rows(artist: Artist, played: dict, *, skip_empty: bool = False, sort: 
         result.sort(key=lambda r: (-(r["year"] or 0), r["title"].casefold()))
     if no_album and no_album["n"]:
         result.append({"title": "No album", "year": None, "is_none": True, **no_album})
+    if covers and covers["n"]:
+        result.append({"title": "Covers", "year": None, "is_none": True, "is_covers": True, **covers})
     peak = max((r[by] for r in result), default=0)
     for r in result:
         r["pct"] = round(r[by] / peak * 100) if peak else 0
@@ -45,14 +49,67 @@ def top_album(rows: list[dict]) -> dict | None:
     return min(played, key=lambda r: (-r["n"], r["year"] or 9999, r["title"].casefold())) if played else None
 
 
+def album_owner(song: Song):
+    """Whose album list a song's album belongs to: the original artist for covers we know, else the song's artist."""
+    if song.cover_of_name:
+        wanted = normalize_name(song.cover_of_name)
+        return next((a for a in Artist.objects.filter(name__iexact=song.cover_of_name.strip())
+                     if normalize_name(a.name) == wanted), None)
+    return song.artist
+
+
 def remember_album(song: Song) -> None:
-    """Keep the artist's album list in step with what songs are filed under."""
+    """Keep the album list of the song's artist (or the covered artist) in step with what songs are filed under."""
     if not song.album_title:
         return
+    owner = album_owner(song)
+    if owner is None:
+        return
     wanted = normalize_name(song.album_title)
-    existing = next((a for a in Album.objects.filter(artist_id=song.artist_id) if normalize_name(a.title) == wanted), None)
+    existing = next((a for a in Album.objects.filter(artist=owner) if normalize_name(a.title) == wanted), None)
     if existing is None:
-        Album.objects.create(artist_id=song.artist_id, title=song.album_title, year=song.album_year)
+        Album.objects.create(artist=owner, title=song.album_title, year=song.album_year)
     elif existing.year is None and song.album_year:
         existing.year = song.album_year
         existing.save(update_fields=["year", "updated_at"])
+
+
+def split_plays(artist: Artist, songs: list[dict]) -> tuple[list[dict], dict, dict]:
+    """Split played songs into the artist's own, per band they were in, and other covers.
+
+    ``songs`` are dicts with "title", "album_title", "album_year", "cover_of", "n" (plays) and maybe "of".
+    Returns (own songs, {band: [songs]}, covers row {"n", "songs", "tracks"}).
+    """
+    bands = {normalize_name(b.name): b for b in artist.member_of.all()}
+    own, by_band = [], {}
+    covers = {"n": 0, "songs": 0, "tracks": []}
+    for song in songs:
+        cover = normalize_name(song["cover_of"])
+        if cover and cover in bands:
+            by_band.setdefault(bands[cover], []).append(song)
+        elif cover:
+            covers["n"] += song["n"]
+            covers["songs"] += 1
+            covers["tracks"].append({"title": song["title"], "n": song["n"], "of": song.get("of"),
+                                     "by": song["cover_of"]})
+        else:
+            own.append(song)
+    return own, by_band, covers
+
+
+def played_by_album(songs: list[dict]) -> tuple[dict, dict]:
+    """Album rows (title → {"title", "year", "n", "songs", "tracks"}) and the "No album" row for these songs."""
+    played: dict[str, dict] = {}
+    no_album = {"n": 0, "songs": 0, "tracks": []}
+    for song in songs:
+        track = {"title": song["title"], "n": song["n"], "of": song.get("of")}
+        if not song["album_title"]:
+            row = no_album
+        else:
+            row = played.setdefault(song["album_title"], {
+                "title": song["album_title"], "year": song["album_year"], "n": 0, "songs": 0, "tracks": [],
+            })
+        row["n"] += song["n"]
+        row["songs"] += 1
+        row["tracks"].append(track)
+    return played, no_album

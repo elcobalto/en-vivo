@@ -1,5 +1,6 @@
 {% comment %}
 Songs-per-album bars. Pass: rows (from albums.album_rows), top (albums.top_album), album_sort, skip_empty,
+hide_controls (for extra charts under one set of controls),
 keep (list of (name, value) query params to carry, e.g. tab/seen_by) and unit ("song" or "play").
 With unit="play" each row shows plays / different songs, and album_by ("n" or "songs") picks which one the bars measure.
 {% endcomment %}
@@ -20,7 +21,7 @@ With unit="play" each row shows plays / different songs, and album_by ("n" or "s
   .album-row.is-none .album-bar { background: repeating-linear-gradient(45deg, var(--ev-bar) 0 4px, var(--ev-line) 4px 8px); }
   .album-n { min-width: 1.5rem; text-align: right; color: var(--bs-secondary-color); }
 </style>
-<form method="get" class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2" aria-label="Album chart options">
+{% if not hide_controls %}<form method="get" class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2" aria-label="Album chart options">
   {% for name, value in keep %}<input type="hidden" name="{{ name }}" value="{{ value }}">{% endfor %}
   <div class="btn-group btn-group-sm" role="group" aria-label="Sort albums">
     <input type="radio" class="btn-check" name="sort" value="newest" id="sort-newest-{{ unit }}" {% if album_sort == "newest" %}checked{% endif %} onchange="this.form.submit()">
@@ -41,7 +42,7 @@ With unit="play" each row shows plays / different songs, and album_by ("n" or "s
     <label class="form-check-label small" for="skip-empty-{{ unit }}">Skip empty albums</label>
   </div>
   <noscript><button class="btn btn-sm btn-outline-secondary">Apply</button></noscript>
-</form>
+</form>{% endif %}
 {% if rows %}
   <div class="album-chart" role="img" aria-label="{{ unit|capfirst }}s per album: {% for a in rows %}{{ a.title }}{% if a.year %} ({{ a.year }}){% endif %} {{ a.n }}{% if not forloop.last %}, {% endif %}{% endfor %}">
     {% for a in rows %}
@@ -58,7 +59,7 @@ With unit="play" each row shows plays / different songs, and album_by ("n" or "s
           <ul class="list-unstyled small album-tracks mb-2">
             {% for t in a.tracks %}
               <li class="d-flex justify-content-between gap-2">
-                <span>{{ t.title }}</span>
+                <span>{{ t.title }}{% if t.by %} <span class="text-body-secondary">· {{ t.by }}</span>{% endif %}</span>
                 {% if t.of %}<span class="text-body-secondary text-nowrap" title="Played at {{ t.n }} of the {{ t.of }} show{{ t.of|pluralize }} since it came out">{{ t.n }} / {{ t.of }}</span>{% endif %}
               </li>
             {% endfor %}
@@ -67,7 +68,7 @@ With unit="play" each row shows plays / different songs, and album_by ("n" or "s
       </details>
     {% endfor %}
   </div>
-  {% if unit == "play" %}<div class="small text-body-secondary mt-1">Numbers are plays / different songs; bars measure {% if album_by == "songs" %}songs{% else %}plays{% endif %}.</div>{% endif %}
+  {% if unit == "play" and not hide_controls %}<div class="small text-body-secondary mt-1">Numbers are plays / different songs; bars measure {% if album_by == "songs" %}songs{% else %}plays{% endif %}.</div>{% endif %}
 {% else %}
   <p class="small text-body-secondary mb-0">No albums to show.</p>
 {% endif %}
