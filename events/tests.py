@@ -2332,6 +2332,34 @@ class PhotoFallbackTests(BaseTestCase):
         self.assertEqual(self.event.display_image, "https://img.example/own.jpg")
 
 
+class DiaryPaginationTests(BaseTestCase):
+    def test_100_per_page_regular_25_expanded(self):
+        for i in range(101):
+            Log.objects.create(user=self.user, event=Event.objects.create(title=f"Show {i}", date=date(2020, 1, 1)))
+        url = reverse("events:user_diary", args=["ana"])
+        regular = self.client.get(url)
+        self.assertEqual(len(regular.context["page"]), 100)
+        self.assertEqual(regular.context["log_count"], 101)  # stats still cover everything
+        self.assertEqual(len(self.client.get(url + "?page=2").context["page"]), 1)
+        expanded = self.client.get(url + "?view=expanded")
+        self.assertEqual(len(expanded.context["page"]), 25)
+        self.assertContains(expanded, "view=expanded&page=2")
+
+
+class EventActionModalTests(BaseTestCase):
+    def test_actions_are_buttons_that_open_modals(self):
+        Log.objects.create(user=self.user, event=self.event, rating=8)
+        self.client.force_login(self.user)
+        html = self.client.get(self.event.get_absolute_url()).content.decode()
+        self.assertIn('data-bs-target="#logModal"', html)
+        self.assertIn('id="logModal"', html)
+        self.assertIn('data-bs-target="#listModal"', html)
+        self.assertIn("data-confirm=", html)  # remove from diary asks first
+        self.assertNotIn("onsubmit=", html)
+        # actions sit in the right bar, after the ratings card
+        self.assertLess(html.index('class="event-side"'), html.index('data-bs-target="#logModal"'))
+
+
 class TheaterCreditsTests(BaseTestCase):
     def test_author_and_director_are_credits_not_acts(self):
         play = Event.objects.create(title="", event_type=EventType.THEATER, date=date(2020, 1, 1))

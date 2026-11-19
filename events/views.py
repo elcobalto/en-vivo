@@ -390,7 +390,11 @@ def diary(request: HttpRequest, username: str | None = None) -> HttpResponse:
         {
             "owner": owner,
             "tab": "diary",
-            "logs": logs,
+            # Expanded rows are heavier (posters, lineups), so fewer per page.
+            "logs": (page := Paginator(logs, 25 if expanded else 100).get_page(request.GET.get("page"))),
+            "page": page,
+            "querystring": urlencode({k: v for k, v in
+                                      {"type": event_type, "year": year, "view": "expanded" if expanded else ""}.items() if v}),
             "f": {"type": event_type, "year": year},
             "expanded": expanded,
             "years": years,

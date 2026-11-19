@@ -33,38 +33,6 @@
           {% else %}<div class="poster-placeholder">{{ event.get_event_type_display }}</div>{% endif %}
         </div>
       {% endif %}
-      {% if can_edit %}
-        <a class="btn btn-sm {% if event.display_image %}btn-outline-secondary{% else %}btn-outline-warning{% endif %} w-100 mt-2" href="{% url 'events:event_photo' event.pk %}">{% if event.display_image %}Change photo{% else %}Find photo{% endif %}</a>
-        <a class="btn btn-sm btn-outline-secondary w-100 mt-2" href="{% url 'events:event_edit' event.pk %}">Edit event</a>
-      {% endif %}
-      {% if can_make_festival %}
-        <details class="mt-2">
-          <summary class="btn btn-sm btn-outline-warning w-100">Turn into festival</summary>
-          <form method="post" action="{% url 'events:make_festival' event.pk %}" class="mt-2">
-            {% csrf_token %}
-            <input class="form-control form-control-sm mb-2" name="name" required placeholder="Festival name" aria-label="Festival name" />
-            <button class="btn btn-sm btn-warning w-100" type="submit">Make it a festival</button>
-          </form>
-        </details>
-      {% endif %}
-      {% if user|is_admin %}
-        <details class="mt-2">
-          <summary class="btn btn-sm btn-outline-warning w-100">Merge a duplicate</summary>
-          <form method="post" action="{% url 'events:event_merge_duplicate' event.pk %}" class="mt-2"
-                onsubmit="return confirm('Merge the chosen event into this one? Its lineup, logs and setlists move here and it is deleted.');">
-            {% csrf_token %}
-            {% if duplicate_candidates %}
-              <select class="form-select form-select-sm mb-2" name="other" aria-label="Duplicate event">
-                <option value="">Suggested duplicates…</option>
-                {% for d in duplicate_candidates %}<option value="{{ d.pk }}">{{ d.title }} — {% if d.venue %}{{ d.venue.name }} · {% endif %}{{ d.date|date:"j M Y"|default:"no date" }}</option>{% endfor %}
-              </select>
-            {% endif %}
-            <input class="form-control form-control-sm mb-2" name="other_id" placeholder="…or paste its link / number" aria-label="Duplicate event link or number" />
-            <button class="btn btn-sm btn-warning w-100" type="submit">Merge into this event</button>
-          </form>
-        </details>
-      {% endif %}
-      {% if can_delete %}<a class="btn btn-sm btn-outline-danger w-100 mt-2" href="{% url 'events:event_delete' event.pk %}">Delete event</a>{% endif %}
     </div>
 
     <div class="event-main">
@@ -110,79 +78,6 @@
     </div>
 
     <div class="event-rest">
-      {% if festivals_same_day %}
-        <div class="card border-warning mb-3"><div class="card-body py-3">
-          <div class="small text-warning mb-2">Admin</div>
-          {% for f in festivals_same_day %}
-            <form method="post" action="{% url 'events:add_to_festival' event.pk %}" class="mb-2"
-                  onsubmit="return confirm('Add {{ event.title|escapejs }} to {{ f.title|escapejs }}? This event merges into the festival day.');">
-              {% csrf_token %}<input type="hidden" name="festival" value="{{ f.pk }}" />
-              <button class="btn btn-sm btn-warning" type="submit">Add to {{ f.title }}</button>
-              <span class="small text-body-secondary ms-1">{{ f.venue.name }}, same day</span>
-            </form>
-          {% endfor %}
-        </div></div>
-      {% endif %}
-
-      {% if festival_suggestion %}
-        <div class="card border-info mb-3"><div class="card-body py-3">
-          <div class="fw-semibold mb-1">Other festival days at {{ event.venue.name }}</div>
-          <p class="small mb-2">
-            {% for d in festival_suggestion.days %}<a href="{{ d.get_absolute_url }}">{{ d.title }}</a> (<span class="event-date">{{ d.date|date:"j M" }}</span>){% if not forloop.last %}, {% endif %}{% endfor %}.
-            Same festival?
-          </p>
-          <form method="post" action="{% url 'events:festival_group' event.pk %}" class="d-flex flex-wrap gap-2">
-            {% csrf_token %}
-            {% if festival_suggestion.existing %}
-              <button class="btn btn-sm btn-info" type="submit">Add them to “{{ festival_suggestion.existing.title }}”</button>
-            {% else %}
-              <input class="form-control form-control-sm" style="max-width:16rem" name="name" value="{{ festival_suggestion.name }}" aria-label="Festival name" placeholder="Festival name, e.g. Lollapalooza Chile" />
-              <button class="btn btn-sm btn-info" type="submit">Group as one festival</button>
-            {% endif %}
-          </form>
-        </div></div>
-      {% endif %}
-
-      {% for s in slot_suggestions %}
-        <div class="card border-info mb-3">
-          <div class="card-body py-3">
-            <div class="fw-semibold mb-1">Same venue, same day</div>
-            <p class="small mb-2">
-              <a href="{{ s.other.get_absolute_url }}">{{ s.other.title }}</a> is also at {{ event.venue.name }} on
-              <span class="event-date">{{ event.date|date:"j M Y" }}</span>{% with acts=s.other.eventperformer_set.all %}{% if acts %}
-              ({% for link in acts %}{{ link.performer.name }}{% if not forloop.last %}, {% endif %}{% endfor %}){% endif %}{% endwith %}.
-              Is it the same show?
-            </p>
-            <div class="d-flex flex-wrap gap-2">
-              {% if s.festival %}
-                <form method="post" action="{% url 'events:event_merge' event.pk %}" onsubmit="return confirm('Merge both into one festival? Logs, reviews and setlists move to it.');">
-                  {% csrf_token %}<input type="hidden" name="other" value="{{ s.other.pk }}" /><input type="hidden" name="action" value="festival" />
-                  <button class="btn btn-sm btn-info" type="submit">Make it one festival</button>
-                </form>
-              {% endif %}
-              {% if s.this_supports_other %}
-                <form method="post" action="{% url 'events:event_merge' event.pk %}" onsubmit="return confirm('Add {{ event.title|escapejs }} as the support act on {{ s.other.title|escapejs }}? This event merges into that one.');">
-                  {% csrf_token %}<input type="hidden" name="other" value="{{ s.other.pk }}" /><input type="hidden" name="action" value="this_supports_other" />
-                  <button class="btn btn-sm btn-outline-info" type="submit">{{ event.title }} opened for {{ s.other.title }}</button>
-                </form>
-              {% endif %}
-              {% if s.other_supports_this %}
-                <form method="post" action="{% url 'events:event_merge' event.pk %}" onsubmit="return confirm('Add {{ s.other.title|escapejs }} as the support act here? That event merges into this one.');">
-                  {% csrf_token %}<input type="hidden" name="other" value="{{ s.other.pk }}" /><input type="hidden" name="action" value="other_supports_this" />
-                  <button class="btn btn-sm btn-outline-info" type="submit">{{ s.other.title }} opened for {{ event.title }}</button>
-                </form>
-              {% endif %}
-              {% if s.can_dismiss %}
-                <form method="post" action="{% url 'events:event_separate' event.pk %}">
-                  {% csrf_token %}<input type="hidden" name="other" value="{{ s.other.pk }}" />
-                  <button class="btn btn-sm btn-link text-body-secondary" type="submit">Separate shows</button>
-                </form>
-              {% endif %}
-            </div>
-          </div>
-        </div>
-      {% endfor %}
-
       {% if event.production %}
         <p class="small">Part of the festival <a class="fw-semibold" href="{{ event.production.get_absolute_url }}">{{ event.production.title }}</a></p>
       {% endif %}
@@ -191,9 +86,6 @@
       {% if event.is_music or setlists %}
         <div class="d-flex align-items-center justify-content-between mt-4 mb-2">
           <h2 class="section-title flex-grow-1 m-0">Setlist{{ setlists|length|pluralize }}</h2>
-          {% if user.is_authenticated and event.is_music %}
-            <a class="btn btn-sm btn-outline-secondary ms-2" href="{% url 'events:setlist_search' event.pk %}">Import from setlist.fm</a>
-          {% endif %}
         </div>
         {% for setlist in setlists %}
           <div class="mb-3">
@@ -254,22 +146,138 @@
         </div>
       </div>
 
-      <div class="card">
-        <div class="card-body">
-          {% if not event.has_happened %}
-            <h2 class="h6 mb-1">Coming up</h2>
-            <p class="small text-body-secondary mb-0">
-              This event hasn't happened yet. You can log and rate it from
-              <span class="event-date">{{ event.date|date:"j M Y" }}</span>.
-            </p>
-            {% if my_log %}
-              <form method="post" action="{% url 'events:log_delete' event.pk %}" class="mt-2">
-                {% csrf_token %}
-                <button class="btn btn-link btn-sm text-danger p-0" type="submit">Remove your early log</button>
-              </form>
+      {# Every action lives here; each one opens a modal before anything changes. #}
+      <div class="card mb-3"><div class="card-body d-grid gap-2">
+        {% if not event.has_happened %}
+          <div class="small text-body-secondary">Coming up: you can log and rate it from <span class="event-date">{{ event.date|date:"j M Y" }}</span>.</div>
+          {% if my_log %}
+            <form method="post" action="{% url 'events:log_delete' event.pk %}" class="d-grid" data-confirm="Remove your early log of {{ event.title }}?" data-confirm-button="Remove" data-confirm-danger>
+              {% csrf_token %}<button class="btn btn-sm btn-outline-danger" type="submit">Remove your early log</button>
+            </form>
+          {% endif %}
+        {% elif user.is_authenticated %}
+          <button class="btn btn-success" type="button" data-bs-toggle="modal" data-bs-target="#logModal">{% if my_log %}✓ Logged · edit your log{% else %}Log{% endif %}</button>
+          {% if my_log %}
+            <form method="post" action="{% url 'events:log_delete' event.pk %}" class="d-grid" data-confirm="Remove {{ event.title }} from your diary? Your rating and review are deleted." data-confirm-button="Remove" data-confirm-danger>
+              {% csrf_token %}<button class="btn btn-sm btn-outline-danger" type="submit">Remove from diary</button>
+            </form>
+          {% endif %}
+        {% else %}
+          <a class="btn btn-success" href="{% url 'login' %}?next={{ request.path|urlencode }}">Login to log this</a>
+        {% endif %}
+
+        {% if user.is_authenticated %}
+          {% if event.is_upcoming or wanted %}
+            <form method="post" action="{% url 'events:want_to_go_toggle' event.pk %}" class="d-grid"
+                  data-confirm="{% if wanted %}Remove {{ event.title }} from your Want to go?{% else %}Add {{ event.title }} to your Want to go?{% endif %}">
+              {% csrf_token %}
+              <button class="btn btn-sm {% if wanted %}btn-info{% else %}btn-outline-info{% endif %}" type="submit">{% if not event.is_upcoming %}Remove from Want to go{% elif wanted %}✓ In your Want to go{% else %}+ Want to go{% endif %}</button>
+            </form>
+          {% endif %}
+          <button class="btn btn-sm btn-outline-light" type="button" data-bs-toggle="modal" data-bs-target="#listModal">Add to a list</button>
+          {% if event.is_music %}<a class="btn btn-sm btn-outline-secondary" href="{% url 'events:setlist_search' event.pk %}">Import setlist from setlist.fm</a>{% endif %}
+          <a class="btn btn-sm btn-outline-secondary" href="{% url 'events:event_videos' event.pk %}">Add a video</a>
+        {% endif %}
+
+        {% if can_edit or can_make_festival or user|is_admin or can_delete %}<hr class="my-1">{% endif %}
+        {% if can_edit %}
+          <a class="btn btn-sm {% if event.display_image %}btn-outline-secondary{% else %}btn-outline-warning{% endif %}" href="{% url 'events:event_photo' event.pk %}">{% if event.display_image %}Change photo{% else %}Find photo{% endif %}</a>
+          <a class="btn btn-sm btn-outline-secondary" href="{% url 'events:event_edit' event.pk %}">Edit event</a>
+        {% endif %}
+        {% if can_make_festival %}<button class="btn btn-sm btn-outline-warning" type="button" data-bs-toggle="modal" data-bs-target="#festivalModal">Turn into festival</button>{% endif %}
+        {% if user|is_admin %}<button class="btn btn-sm btn-outline-warning" type="button" data-bs-toggle="modal" data-bs-target="#mergeModal">Merge a duplicate</button>{% endif %}
+        {% if can_delete %}<a class="btn btn-sm btn-outline-danger" href="{% url 'events:event_delete' event.pk %}">Delete event</a>{% endif %}
+      </div></div>
+
+      {% if festivals_same_day %}
+        <div class="card border-warning mb-3"><div class="card-body py-3">
+          <div class="small text-warning mb-2">Admin</div>
+          {% for f in festivals_same_day %}
+            <form method="post" action="{% url 'events:add_to_festival' event.pk %}" class="mb-2"
+                  data-confirm="Add {{ event.title|escapejs }} to {{ f.title|escapejs }}? This event merges into the festival day.">
+              {% csrf_token %}<input type="hidden" name="festival" value="{{ f.pk }}" />
+              <button class="btn btn-sm btn-warning" type="submit">Add to {{ f.title }}</button>
+              <span class="small text-body-secondary ms-1">{{ f.venue.name }}, same day</span>
+            </form>
+          {% endfor %}
+        </div></div>
+      {% endif %}
+      {% if festival_suggestion %}
+        <div class="card border-info mb-3"><div class="card-body py-3">
+          <div class="fw-semibold mb-1">Other festival days at {{ event.venue.name }}</div>
+          <p class="small mb-2">
+            {% for d in festival_suggestion.days %}<a href="{{ d.get_absolute_url }}">{{ d.title }}</a> (<span class="event-date">{{ d.date|date:"j M" }}</span>){% if not forloop.last %}, {% endif %}{% endfor %}.
+            Same festival?
+          </p>
+          <form method="post" action="{% url 'events:festival_group' event.pk %}" class="d-flex flex-wrap gap-2" data-confirm="Group these days as one festival?">
+            {% csrf_token %}
+            {% if festival_suggestion.existing %}
+              <button class="btn btn-sm btn-info" type="submit">Add them to “{{ festival_suggestion.existing.title }}”</button>
+            {% else %}
+              <input class="form-control form-control-sm" name="name" value="{{ festival_suggestion.name }}" aria-label="Festival name" placeholder="Festival name, e.g. Lollapalooza Chile" />
+              <button class="btn btn-sm btn-info" type="submit">Group as one festival</button>
             {% endif %}
-          {% elif user.is_authenticated %}
-            <h2 class="h6">{% if my_log %}Your log{% else %}I was there{% endif %}</h2>
+          </form>
+        </div></div>
+      {% endif %}
+      {% for s in slot_suggestions %}
+        <div class="card border-info mb-3">
+          <div class="card-body py-3">
+            <div class="fw-semibold mb-1">Same venue, same day</div>
+            <p class="small mb-2">
+              <a href="{{ s.other.get_absolute_url }}">{{ s.other.title }}</a> is also at {{ event.venue.name }} on
+              <span class="event-date">{{ event.date|date:"j M Y" }}</span>{% with acts=s.other.eventperformer_set.all %}{% if acts %}
+              ({% for link in acts %}{{ link.performer.name }}{% if not forloop.last %}, {% endif %}{% endfor %}){% endif %}{% endwith %}.
+              Is it the same show?
+            </p>
+            <div class="d-flex flex-wrap gap-2">
+              {% if s.festival %}
+                <form method="post" action="{% url 'events:event_merge' event.pk %}" data-confirm="Merge both into one festival? Logs, reviews and setlists move to it.">
+                  {% csrf_token %}<input type="hidden" name="other" value="{{ s.other.pk }}" /><input type="hidden" name="action" value="festival" />
+                  <button class="btn btn-sm btn-info" type="submit">Make it one festival</button>
+                </form>
+              {% endif %}
+              {% if s.this_supports_other %}
+                <form method="post" action="{% url 'events:event_merge' event.pk %}" data-confirm="Add {{ event.title|escapejs }} as the support act on {{ s.other.title|escapejs }}? This event merges into that one.">
+                  {% csrf_token %}<input type="hidden" name="other" value="{{ s.other.pk }}" /><input type="hidden" name="action" value="this_supports_other" />
+                  <button class="btn btn-sm btn-outline-info" type="submit">{{ event.title }} opened for {{ s.other.title }}</button>
+                </form>
+              {% endif %}
+              {% if s.other_supports_this %}
+                <form method="post" action="{% url 'events:event_merge' event.pk %}" data-confirm="Add {{ s.other.title|escapejs }} as the support act here? That event merges into this one.">
+                  {% csrf_token %}<input type="hidden" name="other" value="{{ s.other.pk }}" /><input type="hidden" name="action" value="other_supports_this" />
+                  <button class="btn btn-sm btn-outline-info" type="submit">{{ s.other.title }} opened for {{ event.title }}</button>
+                </form>
+              {% endif %}
+              {% if s.can_dismiss %}
+                <form method="post" action="{% url 'events:event_separate' event.pk %}" data-confirm="Keep these as two separate shows? This suggestion won't be shown again.">
+                  {% csrf_token %}<input type="hidden" name="other" value="{{ s.other.pk }}" />
+                  <button class="btn btn-sm btn-link text-body-secondary" type="submit">Separate shows</button>
+                </form>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+      {% endfor %}
+
+      <div class="small text-body-secondary mt-3">
+        {% if want_count %}<div>{{ want_count }} want{{ want_count|pluralize:"s," }} to go</div>{% endif %}
+        {% if in_lists %}
+          <div class="mt-2">In {{ in_lists_count }} list{{ in_lists_count|pluralize }}:</div>
+          <ul class="list-unstyled mb-0">
+            {% for l in in_lists %}<li><a href="{{ l.get_absolute_url }}">{{ l.title }}</a> by {{ l.user.get_username }}</li>{% endfor %}
+          </ul>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  {# ---- modals ---- #}
+  {% if user.is_authenticated and event.has_happened %}
+  <div class="modal fade" id="logModal" tabindex="-1" aria-labelledby="logModalTitle" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-scrollable"><div class="modal-content">
+      <div class="modal-header"><h2 class="modal-title h5" id="logModalTitle">{% if my_log %}Your log{% else %}I was there{% endif %} · {{ event.title }}</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+      <div class="modal-body">
             <form method="post" action="{% url 'events:log_save' event.pk %}">
               {% csrf_token %}
               <div class="mb-2">{{ log_form.rating }}</div>
@@ -296,38 +304,20 @@
               {% endif %}
               <div class="mb-2">{{ log_form.review }}</div>
               <div class="form-check mb-2">{{ log_form.contains_spoilers }} <label class="form-check-label small" for="{{ log_form.contains_spoilers.id_for_label }}">{{ log_form.contains_spoilers.label }}</label></div>
-              <button class="btn btn-success w-100" type="submit">{% if my_log %}Update{% else %}Log it{% endif %}</button>
+              <div class="d-flex justify-content-end gap-2 mt-3">
+                <button class="btn btn-outline-secondary" type="button" data-bs-dismiss="modal">Cancel</button>
+                <button class="btn btn-success" type="submit">{% if my_log %}Update{% else %}Log it{% endif %}</button>
+              </div>
             </form>
-            {% if my_log %}
-              <form method="post" action="{% url 'events:log_delete' event.pk %}" class="mt-2">
-                {% csrf_token %}
-                <button class="btn btn-link btn-sm text-danger w-100" type="submit">Remove from diary</button>
-              </form>
-            {% endif %}
-          {% else %}
-            <a class="btn btn-success w-100" href="{% url 'login' %}?next={{ request.path|urlencode }}">Login to log this</a>
-          {% endif %}
-        </div>
       </div>
-
-      {% if user.is_authenticated %}
-        {% if event.is_upcoming %}
-          <form method="post" action="{% url 'events:want_to_go_toggle' event.pk %}" class="mt-3">
-            {% csrf_token %}
-            <button class="btn w-100 {% if wanted %}btn-info{% else %}btn-outline-info{% endif %}" type="submit">
-              {% if wanted %}✓ In your Want to go{% else %}+ Want to go{% endif %}
-            </button>
-          </form>
-        {% elif wanted %}
-          <form method="post" action="{% url 'events:want_to_go_toggle' event.pk %}" class="mt-3">
-            {% csrf_token %}
-            <button class="btn btn-link btn-sm w-100 text-body-secondary" type="submit">Remove from Want to go</button>
-          </form>
-        {% endif %}
-
-        <div class="card mt-3">
-          <div class="card-body">
-            <h2 class="h6">Add to a list</h2>
+    </div></div>
+  </div>
+  {% endif %}
+  {% if user.is_authenticated %}
+  <div class="modal fade" id="listModal" tabindex="-1" aria-labelledby="listModalTitle" aria-hidden="true">
+    <div class="modal-dialog"><div class="modal-content">
+      <div class="modal-header"><h2 class="modal-title h5" id="listModalTitle">Add to a list</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+      <div class="modal-body">
             <form method="post" action="{% url 'events:list_add_event' event.pk %}">
               {% csrf_token %}
               {% if my_lists %}
@@ -338,21 +328,80 @@
               {% endif %}
               <input class="form-control form-control-sm mb-2" name="new_list_title" placeholder="New list title" {% if not my_lists %}required{% endif %} aria-label="New list title" />
               <input class="form-control form-control-sm mb-2" name="note" placeholder="Note (optional)" maxlength="300" aria-label="Note" />
-              <button class="btn btn-sm btn-outline-light w-100" type="submit">Add</button>
+              <div class="d-flex justify-content-end gap-2 mt-3">
+                <button class="btn btn-outline-secondary" type="button" data-bs-dismiss="modal">Cancel</button>
+                <button class="btn btn-success" type="submit">Add to list</button>
+              </div>
             </form>
-          </div>
-        </div>
-      {% endif %}
-
-      <div class="small text-body-secondary mt-3">
-        {% if want_count %}<div>{{ want_count }} want{{ want_count|pluralize:"s," }} to go</div>{% endif %}
-        {% if in_lists %}
-          <div class="mt-2">In {{ in_lists_count }} list{{ in_lists_count|pluralize }}:</div>
-          <ul class="list-unstyled mb-0">
-            {% for l in in_lists %}<li><a href="{{ l.get_absolute_url }}">{{ l.title }}</a> by {{ l.user.get_username }}</li>{% endfor %}
-          </ul>
-        {% endif %}
       </div>
-    </div>
+    </div></div>
   </div>
+  {% endif %}
+  {% if can_make_festival %}
+  <div class="modal fade" id="festivalModal" tabindex="-1" aria-labelledby="festivalModalTitle" aria-hidden="true">
+    <div class="modal-dialog"><div class="modal-content">
+      <form method="post" action="{% url 'events:make_festival' event.pk %}">
+        {% csrf_token %}
+        <div class="modal-header"><h2 class="modal-title h5" id="festivalModalTitle">Turn into festival</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+        <div class="modal-body">
+          <p class="small text-body-secondary">This event becomes a day of a festival with this name.</p>
+          <label class="form-label" for="festival-name">Festival name</label>
+          <input class="form-control" id="festival-name" name="name" required placeholder="e.g. Lollapalooza Chile" />
+        </div>
+        <div class="modal-footer"><button class="btn btn-outline-secondary" type="button" data-bs-dismiss="modal">Cancel</button><button class="btn btn-warning" type="submit">Make it a festival</button></div>
+      </form>
+    </div></div>
+  </div>
+  {% endif %}
+  {% if user|is_admin %}
+  <div class="modal fade" id="mergeModal" tabindex="-1" aria-labelledby="mergeModalTitle" aria-hidden="true">
+    <div class="modal-dialog"><div class="modal-content">
+      <form method="post" action="{% url 'events:event_merge_duplicate' event.pk %}">
+        {% csrf_token %}
+        <div class="modal-header"><h2 class="modal-title h5" id="mergeModalTitle">Merge a duplicate</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+        <div class="modal-body">
+          <p class="small text-body-secondary">The chosen event's lineup, logs and setlists move here, and it is deleted.</p>
+          {% if duplicate_candidates %}
+            <select class="form-select mb-2" name="other" aria-label="Duplicate event">
+              <option value="">Suggested duplicates…</option>
+              {% for d in duplicate_candidates %}<option value="{{ d.pk }}">{{ d.title }} — {% if d.venue %}{{ d.venue.name }} · {% endif %}{{ d.date|date:"j M Y"|default:"no date" }}</option>{% endfor %}
+            </select>
+          {% endif %}
+          <input class="form-control" name="other_id" placeholder="{% if duplicate_candidates %}…or paste{% else %}Paste{% endif %} its link / number" aria-label="Duplicate event link or number" />
+        </div>
+        <div class="modal-footer"><button class="btn btn-outline-secondary" type="button" data-bs-dismiss="modal">Cancel</button><button class="btn btn-warning" type="submit">Merge into this event</button></div>
+      </form>
+    </div></div>
+  </div>
+  {% endif %}
+
+  {# Shared confirmation for one-click actions: forms with data-confirm ask first. #}
+  <div class="modal fade" id="confirmModal" tabindex="-1" aria-labelledby="confirmModalText" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered"><div class="modal-content">
+      <div class="modal-body"><p class="mb-0" id="confirmModalText"></p></div>
+      <div class="modal-footer"><button class="btn btn-outline-secondary" type="button" data-bs-dismiss="modal">Cancel</button><button class="btn btn-primary" type="button" id="confirmModalOk">Confirm</button></div>
+    </div></div>
+  </div>
+  <script>
+    (function () {
+      var el = document.getElementById("confirmModal"), text = document.getElementById("confirmModalText"),
+          ok = document.getElementById("confirmModalOk"), pending = null;
+      document.querySelectorAll("form[data-confirm]").forEach(function (form) {
+        form.addEventListener("submit", function (e) {
+          if (form.dataset.confirmed) return;
+          e.preventDefault();
+          pending = form;
+          text.textContent = form.dataset.confirm;
+          ok.textContent = form.dataset.confirmButton || "Confirm";
+          ok.className = "btn " + (form.hasAttribute("data-confirm-danger") ? "btn-danger" : "btn-primary");
+          bootstrap.Modal.getOrCreateInstance(el).show();
+        });
+      });
+      ok.addEventListener("click", function () {
+        if (!pending) return;
+        pending.dataset.confirmed = "1";
+        pending.requestSubmit ? pending.requestSubmit() : pending.submit();
+      });
+    })();
+  </script>
 {% endblock %}
