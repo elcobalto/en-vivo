@@ -578,16 +578,24 @@ def event_form(request: HttpRequest, pk: int | None = None) -> HttpResponse:
 
 @login_required
 def festival_add_artists(request: HttpRequest, pk: int) -> HttpResponse:
-    """Festival days: add the acts setlist.fm has at this city (or venue) on this date."""
+    """Festival days: add the acts setlist.fm has on this date, searched by city (default), venue or tour name."""
     from .setlistfm import _match_artist
 
-    event = get_object_or_404(Event.objects.select_related("venue"), pk=pk)
+    event = get_object_or_404(Event.objects.select_related("venue", "production"), pk=pk)
     if event.event_type != EventType.FESTIVAL or not _can_edit(request.user, event):
         raise PermissionDenied
     on_bill = {normalize_name(n) for n in event.eventartist_set.values_list("artist__name", flat=True)}
     candidates, error = [], ""
-    if event.date and event.venue_id:
-        where = {"city": event.venue.city} if event.venue.city else {"venue": event.venue.name}
+    # How to search setlist.fm (it has no festival filter): the city, a venue name or a tour name, plus the date.
+    defaults = {
+        "city": event.venue.city if event.venue_id else "",
+        "venue": event.venue.name if event.venue_id else "",
+        "tour": event.production.title if event.production_id else event.title,
+    }
+    mode = request.GET.get("mode") if request.GET.get("mode") in defaults else ("city" if defaults["city"] else "venue")
+    term = (request.GET.get("q") or defaults[mode]).strip()[:200]
+    if event.date and term:
+        where = {mode: term}
         seen = set()
         try:
             for page_no in (1, 2, 3):  # 20 per page; big festivals need a few pages
@@ -601,7 +609,8 @@ def festival_add_artists(request: HttpRequest, pk: int) -> HttpResponse:
                     seen.add(key)
                     venue_name = ((item.get("venue") or {}).get("name") or "").strip()
                     candidates.append({"key": key, "sfm_artist": sfm_artist, "setlist": item, "name": name, "venue": venue_name,
-                                       "same_venue": normalize_name(venue_name) == normalize_name(event.venue.name)})
+                                       "same_venue": bool(event.venue_id) and
+                                       normalize_name(venue_name) == normalize_name(event.venue.name)})
                 if len(results) < 20:
                     break
         except SetlistFmError as e:
@@ -641,7 +650,7 @@ def festival_add_artists(request: HttpRequest, pk: int) -> HttpResponse:
                                                "count": 0, "same_venue": c["same_venue"]})
         v["count"] += 1
     return render(request, "events/festival_add_artists.html", {
-        "event": event, "candidates": candidates, "error": error,
+        "event": event, "candidates": candidates, "error": error, "mode": mode, "term": term, "defaults": defaults,
         "venues": sorted(venues.values(), key=lambda v: (not v["same_venue"], -v["count"], v["name"].casefold())),
     })
 

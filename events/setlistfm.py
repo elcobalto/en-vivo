@@ -89,6 +89,7 @@ def search_setlists(
     year: str = "",
     venue: str = "",
     country_code: str = "",
+    tour: str = "",
 ) -> list[dict]:
     query = {
         "artistName": artist_name,
@@ -97,6 +98,7 @@ def search_setlists(
         "year": year,
         "venueName": venue,
         "countryCode": country_code.upper(),
+        "tourName": tour,
     }
     if on_date:
         query["date"] = on_date.strftime("%d-%m-%Y")

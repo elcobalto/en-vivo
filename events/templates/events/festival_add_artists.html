@@ -6,11 +6,36 @@
   <div class="row justify-content-center"><div class="col-12 col-md-8 col-lg-6">
     <p class="small mb-1"><a href="{{ event.get_absolute_url }}">← {{ event.title }}</a></p>
     <h1 class="h4 mb-1">Add artists to the lineup</h1>
-    <p class="small text-body-secondary mb-3">
-      Acts setlist.fm has on {{ event.date|date:"j F Y"|default:"this date" }} in {{ event.venue.city|default:event.venue.name|default:"this place" }}.
-    </p>
-    {% if not event.date or not event.venue %}
-      <p class="text-body-secondary">Add a date and venue to this festival day to find artists. <a href="{% url 'events:event_edit' event.pk %}">Edit event</a></p>
+    <p class="small text-body-secondary mb-2">Acts setlist.fm has on {{ event.date|date:"j F Y"|default:"this date" }}. setlist.fm has no festival search, so pick how to look:</p>
+    {% if not event.date %}
+      <p class="text-body-secondary">Add a date to this festival day to find artists. <a href="{% url 'events:event_edit' event.pk %}">Edit event</a></p>
+    {% else %}
+      <form method="get" class="card mb-3"><div class="card-body">
+        <div class="form-check">
+          <input class="form-check-input" type="radio" name="mode" value="city" id="mode-city" data-default="{{ defaults.city }}" {% if mode == "city" %}checked{% endif %}>
+          <label class="form-check-label" for="mode-city"><strong>City + date</strong> <span class="small text-body-secondary">— everything in the city that day. Finds the whole festival, but also unrelated shows (use the venue boxes below to pick).</span></label>
+        </div>
+        <div class="form-check">
+          <input class="form-check-input" type="radio" name="mode" value="venue" id="mode-venue" data-default="{{ defaults.venue }}" {% if mode == "venue" %}checked{% endif %}>
+          <label class="form-check-label" for="mode-venue"><strong>Venue + date</strong> <span class="small text-body-secondary">— only that place, e.g. the park the festival is in. The most precise when the name matches setlist.fm's.</span></label>
+        </div>
+        <div class="form-check">
+          <input class="form-check-input" type="radio" name="mode" value="tour" id="mode-tour" data-default="{{ defaults.tour }}" {% if mode == "tour" %}checked{% endif %}>
+          <label class="form-check-label" for="mode-tour"><strong>Festival name as tour + date</strong> <span class="small text-body-secondary">— some sets list the festival as their tour. Precise, but usually catches only part of the lineup.</span></label>
+        </div>
+        <div class="d-flex gap-2 mt-2">
+          <input class="form-control form-control-sm" name="q" id="search-term" value="{{ term }}" aria-label="Search for" placeholder="City, venue or festival name">
+          <button class="btn btn-sm btn-primary" type="submit">Search</button>
+        </div>
+      </div></form>
+      <script>
+        // Switching option fills in this event's city, venue or festival name (still editable).
+        document.querySelectorAll('input[name="mode"]').forEach(function (r) {
+          r.addEventListener("change", function () { document.getElementById("search-term").value = r.dataset.default; });
+        });
+      </script>
+    {% endif %}
+    {% if not event.date %}
     {% elif error %}
       <div class="alert alert-warning">Couldn't search setlist.fm: {{ error }}</div>
     {% elif candidates %}
@@ -47,9 +72,9 @@
           <button class="btn btn-success" type="submit">Add to lineup</button>
         </div>
       </div></form>
-      <p class="small text-body-secondary mt-2">Acts setlist.fm lists at this venue are ticked; others in the city aren't. Headliners are billed above support acts, and each artist's setlist is added too when setlist.fm has one. Anyone else can be added from <a href="{% url 'events:event_edit' event.pk %}">Edit event</a>.</p>
+      <p class="small text-body-secondary mt-2">Acts setlist.fm lists at this festival's venue are ticked; others aren't. Headliners are billed above support acts, and each artist's setlist is added too when setlist.fm has one. Anyone else can be added from <a href="{% url 'events:event_edit' event.pk %}">Edit event</a>.</p>
     {% else %}
-      <p class="text-body-secondary">setlist.fm has no other artists for that date and place. You can add them from <a href="{% url 'events:event_edit' event.pk %}">Edit event</a>.</p>
+      <p class="text-body-secondary">setlist.fm has no other artists for that search. Try another option above. You can add them from <a href="{% url 'events:event_edit' event.pk %}">Edit event</a>.</p>
     {% endif %}
   </div></div>
   <script>

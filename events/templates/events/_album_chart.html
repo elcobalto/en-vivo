@@ -8,7 +8,7 @@ With unit="play" each row shows plays / different songs, and album_by ("n" or "s
   .album-year { min-width: 2.6rem; padding-bottom: 1px; }
   .album-bar-wrap { flex: 1; min-width: 0; }
   .album-track { height: 8px; background: rgba(255,255,255,.06); border-radius: 4px; }
-  .album-bar { height: 100%; background: #445566; border-radius: 4px; }
+  .album-bar { height: 100%; background: var(--ev-bar); border-radius: 4px; }
   .album-bar.has-songs { min-width: 4px; }
   .album-bar.is-top { background: #00c030; }
   .album-row.is-empty .album-name { color: var(--bs-secondary-color); }
@@ -17,7 +17,7 @@ With unit="play" each row shows plays / different songs, and album_by ("n" or "s
   .album-item[data-empty] > summary { cursor: default; }
   .album-tracks { margin-left: 3.2rem; padding: .25rem .6rem; background: rgba(255,255,255,.04); border-radius: .3rem; color: var(--bs-secondary-color); }
   .album-row.is-none .album-name { font-style: italic; color: var(--bs-secondary-color); }
-  .album-row.is-none .album-bar { background: repeating-linear-gradient(45deg, #445566 0 4px, #2c3440 4px 8px); }
+  .album-row.is-none .album-bar { background: repeating-linear-gradient(45deg, var(--ev-bar) 0 4px, var(--ev-line) 4px 8px); }
   .album-n { min-width: 1.5rem; text-align: right; color: var(--bs-secondary-color); }
 </style>
 <form method="get" class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2" aria-label="Album chart options">

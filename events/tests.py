@@ -2401,6 +2401,29 @@ class FestivalAddArtistsTests(BaseTestCase):
         self.assertContains(page, 'class="form-check-input venue-pick"', count=2)
         self.assertContains(page, 'data-venue="movistar arena"', count=3)  # the box + its two artists
 
+    def test_search_by_venue_or_festival_name_as_tour(self):
+        fest_prod = Production.objects.create(title="Lollapalooza Chile", event_type=EventType.FESTIVAL)
+        fest = Event.objects.create(title="Lollapalooza Chile", event_type=EventType.FESTIVAL, venue=self.venue,
+                                    production=fest_prod, date=date(2024, 3, 15), created_by=self.user)
+        url = reverse("events:festival_add_artists", args=[fest.pk])
+        self.client.force_login(self.user)
+        with mock.patch("events.views.search_setlists", return_value=[]) as search:
+            page = self.client.get(url + "?mode=venue")
+            self.assertEqual(search.call_args.kwargs, {"on_date": fest.date, "page": 1, "venue": "Teatro Caupolicán"})
+            self.client.get(url + "?mode=tour")
+            self.assertEqual(search.call_args.kwargs["tour"], "Lollapalooza Chile")
+            self.client.get(url + "?mode=venue&q=Parque+O%27Higgins")
+            self.assertEqual(search.call_args.kwargs["venue"], "Parque O'Higgins")
+        self.assertContains(page, "Venue + date")
+        self.assertContains(page, "Festival name as tour + date")
+        self.assertContains(page, 'id="mode-venue" data-default="Teatro Caupolicán" checked')
+
+    def test_tour_name_goes_to_setlistfm(self):
+        from events import setlistfm
+        with mock.patch.object(setlistfm, "_request_json", return_value={"setlist": []}) as req:
+            setlistfm.search_setlists(tour="Lollapalooza Chile", on_date=date(2024, 3, 15))
+        self.assertEqual(req.call_args.args[1]["tourName"], "Lollapalooza Chile")
+
     def test_setlistfm_error_is_shown(self):
         fest = Event.objects.create(title="Lolla", event_type=EventType.FESTIVAL, venue=self.venue, date=date(2024, 3, 15),
                                     created_by=self.user)

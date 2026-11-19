@@ -12,16 +12,23 @@
       crossorigin="anonymous"
     />
     <style>
-      :root { --ev-accent: #ff8000; }
-      body { background: #14181c; }
-      .navbar { background: #0d1014; }
+      /* Near-black, neutral palette with white text (orange accent, green stars). */
+      :root, [data-bs-theme="dark"] {
+        --ev-accent: #ff8000;
+        --ev-bg: #0a0a0a; --ev-surface: #141414; --ev-surface-2: #1c1c1c; --ev-line: #262626; --ev-bar: #3d3d3d;
+        --bs-body-bg: var(--ev-bg); --bs-body-color: #f5f5f5;
+        --bs-secondary-color: rgba(245, 245, 245, .6); --bs-tertiary-bg: var(--ev-surface-2);
+        --bs-border-color: var(--ev-line); --bs-secondary-bg: var(--ev-surface-2);
+      }
+      body { background: var(--ev-bg); color: #f5f5f5; }
+      .navbar { background: #000; border-bottom: 1px solid var(--ev-line); }
       .navbar-brand { font-weight: 800; letter-spacing: .02em; }
       .navbar-brand span { color: var(--ev-accent); }
       .stars { color: #00c030; letter-spacing: .05em; white-space: nowrap; }
       .liked { color: #ff6f61; }
       .poster {
         aspect-ratio: 2 / 3; border-radius: .4rem; overflow: hidden;
-        background: linear-gradient(160deg, #2c3440, #1b2028);
+        background: linear-gradient(160deg, #222, #111);
         display: flex; align-items: flex-end; padding: .6rem;
         border: 1px solid rgba(255,255,255,.08);
         transition: border-color .15s;
@@ -33,28 +40,29 @@
       .poster img.poster-backdrop { filter: blur(14px) brightness(.55); transform: scale(1.15); }
       .poster-placeholder {
         position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
-        font-size: .7rem; text-transform: uppercase; letter-spacing: .12em; color: #678;
+        font-size: .7rem; text-transform: uppercase; letter-spacing: .12em; color: #777;
       }
-      .rating-bars { display: flex; align-items: flex-end; gap: 2px; height: 44px; border-bottom: 1px solid #2c3440; }
+      .rating-bars { display: flex; align-items: flex-end; gap: 2px; height: 44px; border-bottom: 1px solid var(--ev-line); }
       .rating-bar { flex: 1; height: 100%; display: flex; align-items: flex-end; }
-      .rating-bar > div { width: 100%; background: #445566; border-radius: 2px 2px 0 0; }
+      .rating-bar > div { width: 100%; background: var(--ev-bar); border-radius: 2px 2px 0 0; }
       .rating-bar:hover > div { background: #00c030; }
       .event-photo {
         display: block; width: 100%; height: auto; max-height: 80vh; object-fit: contain;
-        border-radius: .4rem; border: 1px solid rgba(255,255,255,.08); background: #1b2028;
+        border-radius: .4rem; border: 1px solid rgba(255,255,255,.08); background: var(--ev-surface);
       }
       .event-date {
         font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
         font-size: .72rem; text-transform: uppercase; letter-spacing: .06em;
-        color: #8fb3c7; white-space: nowrap;
+        color: #c8c8c8; white-space: nowrap;
       }
       .clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
       .poster-title { position: relative; font-weight: 600; font-size: .9rem; line-height: 1.2; text-shadow: 0 1px 4px #000; }
       .type-badge { font-size: .7rem; text-transform: uppercase; letter-spacing: .06em; }
-      .section-title { font-size: .8rem; text-transform: uppercase; letter-spacing: .1em; color: #9ab; border-bottom: 1px solid #2c3440; padding-bottom: .4rem; }
-      .card { background: #1b2028; border-color: #2c3440; }
-      a { color: #cde; }
-      a:hover { color: #fff; }
+      .section-title { font-size: .8rem; text-transform: uppercase; letter-spacing: .1em; color: #a8a8a8; border-bottom: 1px solid var(--ev-line); padding-bottom: .4rem; }
+      .card, .modal-content, .list-group-item { background: var(--ev-surface); border-color: var(--ev-line); }
+      .dropdown-menu { background: var(--ev-surface-2); border-color: var(--ev-line); }
+      a { color: #fff; }
+      a:hover { color: var(--ev-accent); }
     </style>
   </head>
   <body>
