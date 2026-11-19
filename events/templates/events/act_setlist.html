@@ -66,14 +66,12 @@
         {% csrf_token %}
         <div class="modal-header"><h2 class="modal-title h5" id="albumModalTitle">Edit albums</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
         <div class="modal-body">
-          <p class="small text-body-secondary">Fixes each song everywhere it was played; fixed songs aren't looked up again. Leave the album empty for songs that aren't on one.</p>
-          <datalist id="known-albums">{% for a in known_albums %}<option value="{{ a }}"></option>{% endfor %}</datalist>
-          <div class="row g-2 small text-body-secondary mb-1 d-none d-md-flex"><div class="col-md-5">Song</div><div class="col-md-5">Album</div><div class="col-md-2">Year</div></div>
+          <p class="small text-body-secondary">Fixes each song everywhere it was played; fixed songs aren't looked up again. Pick “No album” for songs that aren't on one. Missing an album? Add it in <a href="{{ setlist.artist.get_absolute_url }}#manage-albums">Manage albums</a>.</p>
+          <div class="row g-2 small text-body-secondary mb-1 d-none d-md-flex"><div class="col-md-5">Song</div><div class="col-md-7">Album</div></div>
           {% for song in songs %}
             <div class="row g-2 align-items-center py-1 border-bottom border-secondary-subtle">
-              <div class="col-12 col-md-5"><label class="small" for="album-title-{{ song.pk }}">{{ song.title }}</label></div>
-              <div class="col-8 col-md-5"><input class="form-control form-control-sm" id="album-title-{{ song.pk }}" name="album_title_{{ song.pk }}" value="{{ song.album_title }}" maxlength="240" list="known-albums" placeholder="No album"></div>
-              <div class="col-4 col-md-2"><input class="form-control form-control-sm" name="album_year_{{ song.pk }}" value="{{ song.album_year|default_if_none:'' }}" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" placeholder="Year" aria-label="Year for {{ song.title }}"></div>
+              <div class="col-12 col-md-5"><label class="small" for="album-{{ song.pk }}">{{ song.title }}</label></div>
+              <div class="col-12 col-md-7">{% include "events/_album_select.html" %}</div>
             </div>
           {% endfor %}
         </div>

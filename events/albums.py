@@ -1,6 +1,8 @@
 """Album breakdowns for charts: songs played per album, including albums nobody heard live."""
 from __future__ import annotations
 
+from django.utils import timezone
+
 from .models import Album, Artist, Song, normalize_name
 
 
@@ -126,3 +128,68 @@ def played_by_album(songs: list[dict]) -> tuple[dict, dict]:
         row["songs"] += 1
         row["tracks"].append(track)
     return played, no_album
+
+
+# --------------------------------------------------------------------------- album dropdowns (admins)
+#
+# Songs are filed under albums picked from a list; new albums are added in "Manage albums" only.
+
+
+def album_groups(artist: Artist, songs=()) -> list[dict]:
+    """The albums a song of ``artist`` can be filed under, as [{"artist", "albums"}]: the artist's own, then
+    each band they were in, then the original artist of any of ``songs`` that are covers (if we know them)."""
+    owners = [artist, *artist.member_of.order_by("name")]
+    for song in songs:
+        if song.cover_of_name:
+            owner = album_owner(song)
+            if owner is not None and owner not in owners:
+                owners.append(owner)
+    groups = [{"artist": owner, "albums": list(owner.albums.all())} for owner in owners]
+    return [g for g in groups if g["albums"]]
+
+
+def mark_album_choices(songs, groups: list[dict]) -> dict[int, Album]:
+    """Sets ``song.album_choice`` (the pk of the listed album it's filed under, or None) and ``song.album_unlisted``
+    (it has an album that isn't in the lists) on each song. Returns every album that can be picked, by pk."""
+    allowed = {album.pk: album for g in groups for album in g["albums"]}
+    by_title: dict[str, list[Album]] = {}
+    for album in allowed.values():
+        by_title.setdefault(normalize_name(album.title), []).append(album)
+    names = {g["artist"].pk: normalize_name(g["artist"].name) for g in groups}
+    for song in songs:
+        matches = by_title.get(normalize_name(song.album_title), []) if song.album_title else []
+        # The same title can be the artist's and a band's: prefer the covered artist's, else the artist's own.
+        cover = normalize_name(song.cover_of_name) if song.cover_of_name else ""
+
+        def preferred(album: Album, song=song, cover=cover) -> bool:
+            return names.get(album.artist_id) == cover if cover else album.artist_id == song.artist_id
+
+        matches = sorted(matches, key=lambda album: not preferred(album))
+        song.album_choice = matches[0].pk if matches else None
+        song.album_unlisted = bool(song.album_title) and song.album_choice is None
+    return allowed
+
+
+KEEP_ALBUM = "keep"  # dropdown value: leave a song's album as it is (one that isn't in the lists)
+
+
+def choose_album(song: Song, value: str | None, allowed: dict[int, Album]) -> bool:
+    """Files ``song`` under a dropdown pick: "" for no album, an album pk, or ``KEEP_ALBUM``. Doesn't save.
+    Returns whether the song changed; unknown values (and picking what it already has) change nothing."""
+    value = (value or "").strip()
+    if value == KEEP_ALBUM or (value and value == str(getattr(song, "album_choice", None))):
+        return False
+    if not value:
+        if not song.album_title:
+            return False
+        title, year = "", None
+    else:
+        album = allowed.get(int(value)) if value.isdigit() else None
+        if album is None:
+            return False
+        title, year = album.title, album.year
+    if normalize_name(title) != normalize_name(song.album_title):
+        song.album_mbid = ""  # no longer the MusicBrainz match
+    song.album_title, song.album_year = title, year
+    song.album_checked_at = timezone.now()  # a manual answer is never looked up again
+    return True

@@ -1,0 +1,11 @@
+{# Album dropdown for one song (admins): the albums in "Manage albums", grouped by artist (own, bands, covered). #}
+{# Needs `song` (with album_choice / album_unlisted from albums.mark_album_choices) and `album_choices`. #}
+<select class="form-select form-select-sm" id="album-{{ song.pk }}" name="album_{{ song.pk }}" aria-label="Album for {{ song.title }}">
+  <option value="">No album</option>
+  {% if song.album_unlisted %}<option value="keep" selected>{{ song.album_title }}{% if song.album_year %} ({{ song.album_year }}){% endif %} · not in Manage albums</option>{% endif %}
+  {% for group in album_choices %}
+    <optgroup label="{{ group.artist.name }}">
+      {% for album in group.albums %}<option value="{{ album.pk }}"{% if album.pk == song.album_choice %} selected{% endif %}>{{ album.title }}{% if album.year %} ({{ album.year }}){% endif %}</option>{% endfor %}
+    </optgroup>
+  {% endfor %}
+</select>

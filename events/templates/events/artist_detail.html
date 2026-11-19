@@ -118,14 +118,14 @@
             <li class="d-flex justify-content-between align-items-center py-1 border-bottom border-secondary-subtle">
               <span>{{ album.title }}{% if album.year %} <span class="small text-body-secondary">{{ album.year }}</span>{% endif %}</span>
               <form method="post" action="{% url 'events:artist_albums_edit' artist.pk %}" data-confirm="Remove {{ album.title }} from {{ artist.name }}'s albums? Songs keep their album name.">
-                {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}"><input type="hidden" name="delete" value="{{ album.pk }}">
+                {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}#manage-albums"><input type="hidden" name="delete" value="{{ album.pk }}">
                 <button class="btn btn-link btn-sm text-danger p-0" type="submit">Remove</button>
               </form>
             </li>
           {% empty %}<li class="small text-body-secondary">No albums yet.</li>{% endfor %}
         </ul>
         <form method="post" action="{% url 'events:artist_albums_edit' artist.pk %}" class="row g-2 align-items-end">
-          {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
+          {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}#manage-albums">
           <div class="col-8"><label class="form-label small" for="new-album-title">Add an album</label><input class="form-control form-control-sm" id="new-album-title" name="title" maxlength="240" required placeholder="Album title"></div>
           <div class="col-4"><label class="form-label small" for="new-album-year">Year</label><input class="form-control form-control-sm" id="new-album-year" name="year" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" placeholder="e.g. 1994"></div>
           <div class="col-12 text-end"><button class="btn btn-sm btn-success" type="submit">Add album</button></div>
@@ -136,6 +136,13 @@
   <script>
     document.querySelectorAll("#artistAlbumsModal form[data-confirm]").forEach(function (f) {
       f.addEventListener("submit", function (e) { if (!confirm(f.dataset.confirm)) e.preventDefault(); });
+    });
+    // "Manage albums" links from Manage songs / Edit albums land here with #manage-albums.
+    document.addEventListener("DOMContentLoaded", function () {
+      if (location.hash !== "#manage-albums" || !window.bootstrap) return;
+      var modal = document.getElementById("artistAlbumsModal");
+      modal.addEventListener("hidden.bs.modal", function () { history.replaceState(null, "", location.pathname + location.search); });
+      bootstrap.Modal.getOrCreateInstance(modal).show();
     });
   </script>
   {% endif %}

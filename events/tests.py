@@ -2331,25 +2331,40 @@ class LineupSetlistTests(BaseTestCase):
         EventArtist.objects.create(event=self.event, artist=band)
         setlist = Setlist.objects.create(event=self.event, artist=band)
         wrong = Song.objects.create(artist=band, title="Tune", album_title="Wrong", album_mbid="abc")
-        fine = Song.objects.create(artist=band, title="Other", album_title="Fine", album_year=1999, album_mbid="def")
+        fine = Song.objects.create(artist=band, title="Other", album_title="fine", album_year=1999, album_mbid="def")
+        right = band.albums.create(title="Right Album", year=2001)
+        fine_album = band.albums.create(title="Fine", year=1999)
         for i, song in enumerate([wrong, fine], start=1):
             SetlistSong.objects.create(setlist=setlist, song=song, position=i)
         page_url = reverse("events:act_setlist", args=[self.event.pk, band.pk])
         edit = reverse("events:setlist_albums_edit", args=[self.event.pk, band.pk])
         self.client.force_login(self.user)
         self.assertNotContains(self.client.get(page_url), "Edit albums")
-        self.assertEqual(self.client.post(edit, {f"album_title_{wrong.pk}": "Right"}).status_code, 403)
+        self.assertEqual(self.client.post(edit, {f"album_{wrong.pk}": right.pk}).status_code, 403)
         self.user.is_superuser = True
         self.user.save()
         page = self.client.get(page_url).content.decode()
         self.assertEqual(page.count("Edit albums"), 2)  # one button + the modal title, not one per song
-        self.client.post(edit, {f"album_title_{wrong.pk}": " Right  Album ", f"album_year_{wrong.pk}": "2001",
-                                f"album_title_{fine.pk}": "Fine", f"album_year_{fine.pk}": "1999"})
+        self.assertIn(f'<select class="form-select form-select-sm" id="album-{wrong.pk}"', page)
+        self.assertIn("Wrong · not in Manage albums", page)  # an unlisted album stays until another is picked
+        self.assertIn(f'<option value="{fine_album.pk}" selected>Fine (1999)</option>', page)  # matched ignoring case
+        self.client.post(edit, {f"album_{wrong.pk}": str(right.pk), f"album_{fine.pk}": str(fine_album.pk)})
         wrong.refresh_from_db()
         fine.refresh_from_db()
         self.assertEqual((wrong.album_title, wrong.album_year, wrong.album_mbid), ("Right Album", 2001, ""))
         self.assertIsNotNone(wrong.album_checked_at)
-        self.assertEqual(fine.album_mbid, "def")  # unchanged rows are left alone
+        self.assertEqual((fine.album_title, fine.album_mbid), ("fine", "def"))  # unchanged rows are left alone
+
+        other = Artist.objects.create(name="Someone else").albums.create(title="Not theirs")
+        self.client.post(edit, {f"album_{wrong.pk}": str(other.pk)})  # only the act's (and its bands') albums
+        self.client.post(edit, {f"album_{fine.pk}": "keep"})
+        wrong.refresh_from_db()
+        fine.refresh_from_db()
+        self.assertEqual(wrong.album_title, "Right Album")
+        self.assertEqual(fine.album_title, "fine")
+        self.client.post(edit, {f"album_{wrong.pk}": ""})
+        wrong.refresh_from_db()
+        self.assertEqual((wrong.album_title, wrong.album_year), ("", None))
 
     def test_busy_musicbrainz_leaves_song_unchecked(self):
         from unittest import mock
@@ -2611,14 +2626,20 @@ class TapesAndAlbumsTests(BaseTestCase):
         self.client.force_login(self.user)
         self.assertContains(self.client.get(url), "+ Add album")
 
-    def test_fixing_a_song_album_adds_it_to_the_artist(self):
+    def test_songs_are_filed_under_listed_albums_only(self):
         self.user.is_superuser = True
         self.user.save()
         self.client.force_login(self.user)
         hit = self.band.songs.get(title="Hit")
+        before = self.band.albums.count()
         self.client.post(reverse("events:setlist_albums_edit", args=[self.event.pk, self.band.pk]),
-                         {f"album_title_{hit.pk}": "Second", f"album_year_{hit.pk}": "2005"})
-        self.assertTrue(self.band.albums.filter(title="Second", year=2005).exists())
+                         {f"album_{hit.pk}": "Second"})  # not an album pick: nothing is created
+        self.assertEqual(self.band.albums.count(), before)
+        second = self.band.albums.create(title="Second", year=2005)
+        self.client.post(reverse("events:setlist_albums_edit", args=[self.event.pk, self.band.pk]),
+                         {f"album_{hit.pk}": str(second.pk)})
+        hit.refresh_from_db()
+        self.assertEqual((hit.album_title, hit.album_year), ("Second", 2005))
 
 
 class PosterSortTests(BaseTestCase):
@@ -2762,6 +2783,10 @@ class ManageSongsTests(BaseTestCase):
         Song.objects.create(artist=band, title="Old one", album_title="Debut", album_year=1990)
         Song.objects.create(artist=band, title="New one", album_title="Latest", album_year=2020)
         loose = Song.objects.create(artist=band, title="Loose")
+        debut = band.albums.create(title="Debut", year=1990)
+        earlier = Artist.objects.create(name="Earlier Band")
+        band.member_of.add(earlier)
+        earlier_album = earlier.albums.create(title="Garage Tape", year=1985)
         url = reverse("events:artist_songs_manage", args=[band.pk])
         self.client.force_login(self.user)
         self.assertEqual(self.client.get(url).status_code, 403)
@@ -2770,11 +2795,17 @@ class ManageSongsTests(BaseTestCase):
         self.assertContains(self.client.get(band.get_absolute_url()), url)
         page = self.client.get(url)
         self.assertEqual([g["title"] for g in page.context["groups"]], ["Latest", "Debut", "No album"])
-        self.client.post(url, {f"album_title_{loose.pk}": "Debut", f"album_year_{loose.pk}": "1990"})
+        self.assertContains(page, '<optgroup label="Earlier Band">')  # a band they were in
+        self.assertContains(page, "#manage-albums")
+        self.assertNotContains(page, "album_year_")
+        self.client.post(url, {f"album_{loose.pk}": str(debut.pk)})
         loose.refresh_from_db()
-        self.assertEqual((loose.album_title, loose.album_year), ("Debut", 1990))
+        self.assertEqual((loose.album_title, loose.album_year), ("Debut", 1990))  # the year comes from the album
         self.assertIsNotNone(loose.album_checked_at)
         self.assertEqual([g["title"] for g in self.client.get(url).context["groups"]], ["Latest", "Debut"])
+        self.client.post(url, {f"album_{loose.pk}": str(earlier_album.pk), f"cover_of_{loose.pk}": "Earlier Band"})
+        loose.refresh_from_db()
+        self.assertEqual((loose.album_title, loose.cover_of_name), ("Garage Tape", "Earlier Band"))
 
     def test_artist_page_offers_find_albums_for_unchecked_played_songs(self):
         from events.models import SetlistSong, Song

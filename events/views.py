@@ -49,7 +49,8 @@ SORTS = {
 }
 WHEN = {"": "Any time", "upcoming": "Upcoming", "past": "Past"}
 from .roles import can_delete_event, can_edit_event, home_place, is_admin
-from .albums import album_rows, played_by_album, remember_album, split_plays, top_albums
+from .albums import (album_groups, album_rows, choose_album, mark_album_choices, played_by_album, remember_album,
+                     split_plays, top_albums)
 from .merge import merge_into_same_festival_day, share_photo_with_festival_days
 from .views_merge import (
     festival_admin_actions,
@@ -376,23 +377,19 @@ def artist_songs_manage(request: HttpRequest, pk: int) -> HttpResponse:
         raise PermissionDenied
     artist = get_object_or_404(Artist, pk=pk)
     songs = list(artist.songs.annotate(plays=Count("setlist_entries", filter=Q(setlist_entries__is_tape=False))))
+    album_choices = album_groups(artist, songs)
+    allowed = mark_album_choices(songs, album_choices)
     if request.method == "POST":
         changed = 0
         for song in songs:
-            if f"album_title_{song.pk}" not in request.POST:
-                continue
-            title = " ".join((request.POST.get(f"album_title_{song.pk}") or "").split())[:240]
-            raw_year = (request.POST.get(f"album_year_{song.pk}") or "").strip()
-            year = int(raw_year) if raw_year.isdigit() and 1000 < int(raw_year) < 3000 and title else None
+            album_changed = choose_album(song, request.POST.get(f"album_{song.pk}"), allowed) \
+                if f"album_{song.pk}" in request.POST else False
             cover = " ".join((request.POST.get(f"cover_of_{song.pk}", song.cover_of_name) or "").split())[:200]
-            if (title, year, cover) == (song.album_title, song.album_year, song.cover_of_name):
+            if not album_changed and cover == song.cover_of_name:
                 continue
-            if title != song.album_title:
-                song.album_mbid = ""
-            song.album_title, song.album_year, song.cover_of_name = title, year, cover
+            song.cover_of_name = cover
             song.album_checked_at = timezone.now()  # fixed by hand: never looked up again
             song.save(update_fields=["album_title", "album_year", "album_mbid", "album_checked_at", "cover_of_name"])
-            remember_album(song)
             changed += 1
         messages.success(request, f"Updated the album of {changed} song{'s' if changed != 1 else ''}.")
         return redirect("events:artist_songs_manage", pk=artist.pk)
@@ -407,9 +404,8 @@ def artist_songs_manage(request: HttpRequest, pk: int) -> HttpResponse:
     ordered = sorted(groups.values(), key=lambda g: (g["is_none"], -(g["year"] or 0), g["title"].casefold()))
     for group in ordered:
         group["songs"].sort(key=lambda s: s.title.casefold())
-    known = artist.albums.values_list("title", flat=True).order_by("title")
     return render(request, "events/artist_songs_manage.html", {
-        "artist": artist, "groups": ordered, "song_total": len(songs), "known_albums": known,
+        "artist": artist, "groups": ordered, "song_total": len(songs), "album_choices": album_choices,
     })
 
 
@@ -749,6 +745,11 @@ def act_setlist(request: HttpRequest, pk: int, artist_pk: int) -> HttpResponse:
                           released_by=released_by)
         top_albums(rows)  # the band's most played album(s) get the green bar too
         band_charts.append({"band": band, "rows": rows})
+    songs = list({e.song_id: e.song for e in played_entries}.values())
+    album_choices = []
+    if is_admin(request.user):  # the "Edit albums" dropdowns
+        album_choices = album_groups(setlist.artist, songs)
+        mark_album_choices(songs, album_choices)
     number = 0
     for entry in entries:  # songs are numbered 1, 2, 3… skipping tapes
         if not entry.is_tape:
@@ -758,10 +759,7 @@ def act_setlist(request: HttpRequest, pk: int, artist_pk: int) -> HttpResponse:
         "event": event, "setlist": setlist, "entries": entries, "song_count": len(played_entries),
         "top_albums": top_albums(timeline), "pending": pending, "timeline": timeline, "band_charts": band_charts,
         "album_sort": album_sort, "skip_empty": skip_empty, "can_fix_albums": is_admin(request.user),
-        "known_albums": (Song.objects.filter(artist=setlist.artist).exclude(album_title="")
-                         .values_list("album_title", flat=True).distinct().order_by("album_title")
-                         if is_admin(request.user) else []),
-        "songs": list({e.song_id: e.song for e in played_entries}.values()),
+        "songs": songs, "album_choices": album_choices,
     })
 
 
@@ -801,26 +799,19 @@ def song_album_lookup(request: HttpRequest, pk: int) -> JsonResponse:
 @login_required
 @require_POST
 def setlist_albums_edit(request: HttpRequest, pk: int, artist_pk: int) -> HttpResponse:
-    """Admins only: correct the albums of a setlist's songs in one go (an empty title means no album)."""
+    """Admins only: correct the albums of a setlist's songs in one go, picked from the artist's albums."""
     if not is_admin(request.user):
         raise PermissionDenied
-    setlist = get_object_or_404(Setlist, event_id=pk, artist_id=artist_pk)
+    setlist = get_object_or_404(Setlist.objects.select_related("artist"), event_id=pk, artist_id=artist_pk)
+    songs = list(Song.objects.filter(setlist_entries__setlist=setlist).distinct())
+    allowed = mark_album_choices(songs, album_groups(setlist.artist, songs))
     changed = 0
-    for song in Song.objects.filter(setlist_entries__setlist=setlist).distinct():
-        if f"album_title_{song.pk}" not in request.POST:
+    for song in songs:
+        if f"album_{song.pk}" not in request.POST:
             continue
-        title = " ".join((request.POST.get(f"album_title_{song.pk}") or "").split())[:240]
-        raw_year = (request.POST.get(f"album_year_{song.pk}") or "").strip()
-        year = int(raw_year) if raw_year.isdigit() and 1000 < int(raw_year) < 3000 and title else None
-        if (title, year) == (song.album_title, song.album_year):
-            continue
-        if title != song.album_title:
-            song.album_mbid = ""  # no longer the MusicBrainz match
-        song.album_title, song.album_year = title, year
-        song.album_checked_at = timezone.now()  # a manual answer is never looked up again
-        song.save(update_fields=["album_title", "album_year", "album_mbid", "album_checked_at"])
-        remember_album(song)
-        changed += 1
+        if choose_album(song, request.POST.get(f"album_{song.pk}"), allowed):
+            song.save(update_fields=["album_title", "album_year", "album_mbid", "album_checked_at"])
+            changed += 1
     messages.success(request, f"Updated the album of {changed} song{'s' if changed != 1 else ''}.")
     return redirect(reverse("events:act_setlist", args=[pk, artist_pk]))
 
