@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+
+{% block title %}{{ setlist.performer.name }} setlist · {{ event.title }} · En Vivo{% endblock %}
+
+{% block content %}
+  <p class="small mb-1"><a href="{{ event.get_absolute_url }}">← {{ event.title }}</a></p>
+  <h1 class="h3 fw-bold mb-1">{{ setlist.performer.name }}: setlist</h1>
+  <div class="text-body-secondary mb-4">
+    {% if event.venue %}{{ event.venue.name }}{% if event.venue.city %}, {{ event.venue.city }}{% endif %} · {% endif %}{{ event.date|date:"j F Y"|default:"Date not added" }}
+  </div>
+
+  <div class="row g-4">
+    <div class="col-12 col-md-7">
+      <ol class="mb-2">
+        {% for entry in entries %}
+          {% ifchanged entry.set_name %}{% if entry.set_name %}</ol><div class="section-title mt-3 mb-2">{{ entry.set_name }}</div><ol start="{{ entry.position }}" class="mb-2">{% endif %}{% endifchanged %}
+          <li class="py-1">
+            {{ entry.song.title }}{% if entry.note %} <span class="small text-body-secondary">({{ entry.note }})</span>{% endif %}
+            {% if entry.song.album_title %}<div class="small text-body-secondary">{{ entry.song.album_title }}{% if entry.song.album_year %} · {{ entry.song.album_year }}{% endif %}</div>{% endif %}
+          </li>
+        {% empty %}<li class="list-unstyled text-body-secondary">No songs in this setlist.</li>
+        {% endfor %}
+      </ol>
+      {% if setlist.notes %}<p class="small text-body-secondary">{{ setlist.notes }}</p>{% endif %}
+      {% if setlist.source_url %}<a class="small" href="{{ setlist.source_url }}" target="_blank" rel="noreferrer">Source: setlist.fm</a>{% endif %}
+    </div>
+
+    <div class="col-12 col-md-5">
+      <div class="card"><div class="card-body">
+        <h2 class="section-title mb-3">Albums</h2>
+        {% if top_album %}
+          <div class="small text-body-secondary">Most played album</div>
+          <div class="fs-5 fw-semibold">{{ top_album.title }}{% if top_album.year %} <span class="text-body-secondary fw-normal">({{ top_album.year }})</span>{% endif %}</div>
+          <div class="small text-body-secondary mb-3">{{ top_album.n }} of {{ entries|length }} songs</div>
+          <ul class="list-unstyled mb-0">
+            {% for a in albums %}
+              <li class="d-flex justify-content-between py-1 border-bottom border-secondary-subtle">
+                <span>{{ a.title }}{% if a.year %} <span class="small text-body-secondary">{{ a.year }}</span>{% endif %}</span><span class="small text-body-secondary">{{ a.n }} song{{ a.n|pluralize }}</span>
+              </li>
+            {% endfor %}
+          </ul>
+        {% elif not pending %}
+          <p class="small text-body-secondary mb-0">No studio albums found for these songs.</p>
+        {% endif %}
+        {% if pending %}
+          <p class="small text-body-secondary mt-3 mb-2" id="album-status" aria-live="polite">{% if auto_lookup %}Finding albums for {{ pending|length }} song{{ pending|length|pluralize }} on MusicBrainz…{% else %}MusicBrainz didn't answer for {{ pending|length }} song{{ pending|length|pluralize }}.{% endif %}</p>
+          <button class="btn btn-sm btn-outline-secondary{% if auto_lookup %} d-none{% endif %}" type="button" id="album-retry">Try again</button>
+        {% endif %}
+      </div></div>
+    </div>
+  </div>
+
+  {% if pending %}
+  {{ pending|json_script:"pending-songs" }}
+  <script>
+    // Look each song up once (MusicBrainz allows about one request a second), then show the result.
+    (function () {
+      var all = JSON.parse(document.getElementById("pending-songs").textContent), ids = all.slice(),
+          status = document.getElementById("album-status"), retry = document.getElementById("album-retry"),
+          total = ids.length, failed = 0,
+          csrf = (document.cookie.match(/csrftoken=([^;]+)/) || [])[1] || "";
+      function next() {
+        if (!ids.length) {
+          if (failed < total) { location.replace(location.pathname + "?albums=done"); return; }
+          status.textContent = "MusicBrainz is busy right now.";
+          retry.classList.remove("d-none");
+          return;
+        }
+        var id = ids.shift();
+        status.textContent = "Finding albums… " + (total - ids.length) + " of " + total;
+        fetch("{% url 'events:song_album_lookup' 0 %}".replace("/0/", "/" + id + "/"), {method: "POST", headers: {"X-CSRFToken": csrf}})
+          .then(function (r) { if (!r.ok) failed++; }).catch(function () { failed++; })
+          .then(function () { setTimeout(next, 1100); });
+      }
+      retry.addEventListener("click", function () { retry.classList.add("d-none"); ids = all.slice(); failed = 0; next(); });
+      {% if auto_lookup %}next();{% endif %}
+    })();
+  </script>
+  {% endif %}
+{% endblock %}

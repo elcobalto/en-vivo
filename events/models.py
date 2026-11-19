@@ -450,6 +450,11 @@ def add_all_acts(log: Log) -> None:
 class Song(TimestampedModel):
     performer = models.ForeignKey(Performer, on_delete=models.CASCADE, related_name="songs")
     title = models.CharField(max_length=240, db_index=True)
+    # The studio album it first appeared on, from MusicBrainz (looked up once, on demand).
+    album_title = models.CharField(max_length=240, blank=True, default="")
+    album_year = models.PositiveSmallIntegerField(null=True, blank=True)
+    album_mbid = models.CharField("MusicBrainz release group", max_length=36, blank=True, default="")
+    album_checked_at = models.DateTimeField(null=True, blank=True, editable=False)
 
     class Meta:
         constraints = [

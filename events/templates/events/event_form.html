@@ -6,7 +6,18 @@
 {% block scripts %}<script src="{% static 'events/venue-search.js' %}"></script><script src="{% static 'events/lineup-order.js' %}"></script>{% endblock %}
 
 {% block content %}
-  <div class="row justify-content-center">
+  <div class="row justify-content-center g-4">
+    {% if event and event.display_image %}
+      {# The poster stays in view while the lineup is reordered further down. #}
+      <div class="col-6 col-md-4 col-lg-3 order-lg-2">
+        <div class="sticky-lg-top" style="top:1rem">
+          <div class="small text-body-secondary mb-1">{% if event.image_url %}Event photo{% else %}Photo shown (borrowed: the event has none of its own){% endif %}</div>
+          <a href="{{ event.display_image }}" target="_blank" rel="noreferrer" title="Open full size">
+            <img class="event-photo" src="{{ event.display_image }}" alt="{{ event.title }}" referrerpolicy="no-referrer" />
+          </a>
+        </div>
+      </div>
+    {% endif %}
     <div class="col-12 col-lg-8">
       <h1 class="h4 mb-3">{% if event %}Edit event{% else %}New event{% endif %}</h1>
       <form method="post" class="card"><div class="card-body">

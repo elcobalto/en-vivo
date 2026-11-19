@@ -198,7 +198,8 @@ class SetlistViewTests(BaseTestCase):
             reverse("events:setlist_import", args=[self.event.pk]), {"setlist_id": "63de4613"}
         )
         self.assertRedirects(response, self.event.get_absolute_url())
-        page = self.client.get(self.event.get_absolute_url())
+        setlist = self.event.setlists.get()
+        page = self.client.get(reverse("events:act_setlist", args=[self.event.pk, setlist.performer_id]))
         self.assertContains(page, "Welcome to Paradise")
         self.assertContains(page, "Encore")
 
@@ -2361,20 +2362,91 @@ class EventActionModalTests(BaseTestCase):
 
 
 class LineupSetlistTests(BaseTestCase):
-    def test_setlist_sits_inside_its_act_closed_by_default(self):
+    def test_lineup_links_to_each_acts_setlist_page(self):
+        from unittest import mock
+        from events.models import SetlistSong, Song
         band = Performer.objects.create(name="Green Day")
         guest = Performer.objects.create(name="Not on the bill")
         EventPerformer.objects.create(event=self.event, performer=band)
-        Setlist.objects.create(event=self.event, performer=band)
+        setlist = Setlist.objects.create(event=self.event, performer=band)
         Setlist.objects.create(event=self.event, performer=guest)
-        page = self.client.get(self.event.get_absolute_url())
-        rows = page.context["act_rows"]
-        self.assertEqual([sl.performer for sl in rows[0]["setlists"]], [band])
-        self.assertEqual([sl.performer for sl in page.context["other_setlists"]], [guest])
-        html = page.content.decode()
-        self.assertIn('<details class="lineup-act', html)
-        self.assertNotIn('<details class="lineup-act border-bottom border-secondary-subtle" open', html)
-        self.assertIn("Other setlists", html)
+        dookie = [Song.objects.create(performer=band, title=t) for t in ["Basket Case", "Welcome to Paradise"]]
+        later = Song.objects.create(performer=band, title="Holiday")
+        for i, song in enumerate(dookie + [later], start=1):
+            SetlistSong.objects.create(setlist=setlist, song=song, position=i)
+        page = self.client.get(self.event.get_absolute_url()).content.decode()
+        url = reverse("events:act_setlist", args=[self.event.pk, band.pk])
+        self.assertIn(url, page)
+        self.assertIn(reverse("events:act_setlist", args=[self.event.pk, guest.pk]), page)
+        self.assertNotIn("Welcome to Paradise", page)  # songs live on the setlist page now
+
+        self.assertEqual(len(self.client.get(url).context["pending"]), 3)
+        albums = {"Basket Case": {"title": "Dookie", "year": 1994, "mbid": "x"},
+                  "Welcome to Paradise": {"title": "Dookie", "year": 1994, "mbid": "x"},
+                  "Holiday": {"title": "American Idiot", "year": 2004, "mbid": "y"}}
+        with mock.patch("events.musicbrainz.song_album", side_effect=lambda t, *a: albums[t]):
+            for song in dookie + [later]:
+                self.assertEqual(self.client.post(reverse("events:song_album_lookup", args=[song.pk])).status_code, 200)
+        resp = self.client.get(url)
+        self.assertEqual(resp.context["pending"], [])
+        self.assertEqual(resp.context["top_album"], {"title": "Dookie", "year": 1994, "n": 2})
+        self.assertContains(resp, "Most played album")
+
+    def test_busy_musicbrainz_leaves_song_unchecked(self):
+        from unittest import mock
+        from events.models import Song
+        song = Song.objects.create(performer=Performer.objects.create(name="X"), title="Y")
+        with mock.patch("events.musicbrainz.song_album", side_effect=OSError("busy")):
+            self.assertEqual(self.client.post(reverse("events:song_album_lookup", args=[song.pk])).status_code, 503)
+        song.refresh_from_db()
+        self.assertIsNone(song.album_checked_at)
+
+
+class MusicOnlySetlistTests(BaseTestCase):
+    def test_non_music_events_have_no_setlists(self):
+        play = Event.objects.create(title="Hamlet", event_type=EventType.THEATER, date=date(2020, 1, 1))
+        actor = Performer.objects.create(name="Actor")
+        EventPerformer.objects.create(event=play, performer=actor, role="cast")
+        Setlist.objects.create(event=play, performer=actor)
+        self.client.force_login(self.user)
+        page = self.client.get(play.get_absolute_url())
+        self.assertNotContains(page, "Setlist")
+        self.assertEqual(self.client.get(reverse("events:setlist_search", args=[play.pk])).status_code, 404)
+        self.assertEqual(self.client.get(reverse("events:act_setlist", args=[play.pk, actor.pk])).status_code, 404)
+
+
+class FestivalAddArtistsTests(BaseTestCase):
+    def test_suggests_acts_from_same_venue_or_city_that_day(self):
+        fest = Event.objects.create(title="Lolla", event_type=EventType.FESTIVAL, venue=self.venue, date=date(2024, 3, 15),
+                                    created_by=self.user)
+        other_venue = Venue.objects.create(name="Movistar Arena", city="Santiago")
+        far = Venue.objects.create(name="Somewhere", city="Valparaíso")
+        here = Performer.objects.create(name="Same venue band")
+        town = Performer.objects.create(name="Same city band")
+        away = Performer.objects.create(name="Other city band")
+        late = Performer.objects.create(name="Other day band")
+        for performer, venue, when in [(here, self.venue, fest.date), (town, other_venue, fest.date),
+                                       (away, far, fest.date), (late, self.venue, date(2024, 3, 16))]:
+            e = Event.objects.create(title=performer.name, venue=venue, date=when)
+            EventPerformer.objects.create(event=e, performer=performer)
+        self.client.force_login(self.user)
+        self.assertContains(self.client.get(fest.get_absolute_url()), reverse("events:festival_add_artists", args=[fest.pk]))
+        url = reverse("events:festival_add_artists", args=[fest.pk])
+        names = [c.performer.name for c in self.client.get(url).context["candidates"]]
+        self.assertEqual(names, ["Same city band", "Same venue band"])
+        self.client.post(url, {f"add_{here.pk}": "1"})
+        self.assertTrue(fest.eventperformer_set.filter(performer=here).exists())
+        self.assertFalse(fest.eventperformer_set.filter(performer=town).exists())
+
+
+class EditFormPhotoTests(BaseTestCase):
+    def test_edit_form_shows_the_photo(self):
+        self.event.image_url = "https://img.example/poster.jpg"
+        self.event.created_by = self.user
+        self.event.save()
+        self.client.force_login(self.user)
+        page = self.client.get(reverse("events:event_edit", args=[self.event.pk]))
+        self.assertContains(page, 'src="https://img.example/poster.jpg"')
 
 
 class TheaterCreditsTests(BaseTestCase):

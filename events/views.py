@@ -12,7 +12,7 @@ from django.core.paginator import Paginator
 from django.db import models, transaction
 from django.db.models import Avg, Count, F, Max, OuterRef, Prefetch, Q, Subquery
 from django.db.models.functions import ExtractYear
-from django.http import HttpRequest, HttpResponse
+from django.http import Http404, HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
@@ -31,7 +31,9 @@ from .models import (
     Performer,
     Play,
     Production,
+    Setlist,
     SetlistSong,
+    Song,
     Venue,
     WantToGo,
 )
@@ -203,7 +205,7 @@ def event_detail(request: HttpRequest, pk: int) -> HttpResponse:
         my_lists = EventList.objects.filter(user=request.user).exclude(items__event=event)
     in_lists = EventList.objects.filter(items__event=event).select_related("user").distinct()
     # Each act's setlists open under it in the lineup; setlists for anyone not on the bill go after.
-    setlists = list(setlists)
+    setlists = list(setlists) if event.is_music else []  # other kinds of shows don't have setlists
     act_rows = _act_rows(event, [l for l in lineup if l.role not in CREDIT_ROLES], my_log)
     for row in act_rows:
         row["setlists"] = [sl for sl in setlists if sl.performer_id == row["link"].performer_id]
@@ -470,6 +472,98 @@ def event_form(request: HttpRequest, pk: int | None = None) -> HttpResponse:
     return render(request, "events/event_form.html", {"form": form, "formset": formset, "event": event})
 
 
+@login_required
+def festival_add_artists(request: HttpRequest, pk: int) -> HttpResponse:
+    """Festival days: add acts that played the same venue (or city) that date, as separate events."""
+    event = get_object_or_404(Event.objects.select_related("venue"), pk=pk)
+    if event.event_type != EventType.FESTIVAL or not _can_edit(request.user, event):
+        raise PermissionDenied
+    on_bill = set(event.eventperformer_set.values_list("performer_id", flat=True))
+    place = Q()
+    if event.venue_id:
+        place = Q(event__venue=event.venue_id)
+        if event.venue.city:
+            place |= Q(event__venue__city__iexact=event.venue.city)
+    candidates = []
+    if event.date and place:
+        seen = set()
+        links = (EventPerformer.objects.filter(place, event__date=event.date).exclude(event=event)
+                 .exclude(performer_id__in=on_bill).exclude(role__in=CREDIT_ROLES)
+                 .select_related("performer", "event__venue").order_by("performer__name"))
+        for link in links:
+            if link.performer_id not in seen:
+                seen.add(link.performer_id)
+                candidates.append(link)
+    if request.method == "POST":
+        chosen = [c for c in candidates if request.POST.get(f"add_{c.performer_id}")]
+        last = event.eventperformer_set.aggregate(m=models.Max("billing_order"))["m"] or 0
+        for i, link in enumerate(chosen, start=1):
+            EventPerformer.objects.create(event=event, performer=link.performer,
+                                          role=EventPerformer.Role.SUPPORT, billing_order=last + i)
+        event.refresh_auto_title()
+        messages.success(request, f"Added {len(chosen)} artist{'s' if len(chosen) != 1 else ''} to the lineup.")
+        return redirect(event)
+    return render(request, "events/festival_add_artists.html", {"event": event, "candidates": candidates})
+
+
+def act_setlist(request: HttpRequest, pk: int, performer_pk: int) -> HttpResponse:
+    """One act's setlist at an event, with which albums the songs came from."""
+    event = get_object_or_404(Event.objects.select_related("venue"), pk=pk)
+    if not event.is_music:  # only music shows (and festivals) have setlists
+        raise Http404
+    setlist = get_object_or_404(
+        Setlist.objects.select_related("performer").prefetch_related(
+            Prefetch("entries", queryset=SetlistSong.objects.select_related("song").order_by("position"))
+        ),
+        event=event, performer_id=performer_pk,
+    )
+    entries = list(setlist.entries.all())
+    albums: dict[tuple, int] = {}
+    for entry in entries:
+        if entry.song.album_title:
+            key = (entry.song.album_title, entry.song.album_year)
+            albums[key] = albums.get(key, 0) + 1
+    album_rows = sorted(
+        ({"title": t, "year": y, "n": n} for (t, y), n in albums.items()),
+        key=lambda a: (-a["n"], a["year"] or 9999, a["title"]),
+    )
+    pending = sorted({e.song_id for e in entries if e.song.album_checked_at is None})
+    return render(request, "events/act_setlist.html", {
+        "event": event, "setlist": setlist, "entries": entries, "albums": album_rows,
+        "top_album": album_rows[0] if album_rows else None, "pending": pending,
+        # After one pass the page reloads with ?albums=done; songs still unchecked then wait for a click.
+        "auto_lookup": request.GET.get("albums") != "done",
+    })
+
+
+@require_POST
+def song_album_lookup(request: HttpRequest, pk: int) -> JsonResponse:
+    """Find (once) the album a song came from. The setlist page calls this one song at a time."""
+    import time
+
+    from django.core.cache import cache
+
+    from .musicbrainz import song_album
+
+    song = get_object_or_404(Song.objects.select_related("performer"), pk=pk)
+    if song.album_checked_at is None:
+        # MusicBrainz allows about one request per second from us, across all visitors.
+        wait = (cache.get("mb-last-call") or 0) + 1.1 - time.time()
+        if wait > 0:
+            time.sleep(min(wait, 2))
+        cache.set("mb-last-call", time.time(), 10)
+        try:
+            found = song_album(song.title, song.performer.name, song.performer.mbid or "")
+        except Exception as e:  # busy or unreachable: leave it unchecked so it's tried again later
+            logging.getLogger(__name__).warning("Album lookup for song %s failed: %r", song.pk, e)
+            return JsonResponse({"ok": False}, status=503)
+        if found:
+            song.album_title, song.album_year, song.album_mbid = found["title"][:240], found["year"], found["mbid"]
+        song.album_checked_at = timezone.now()
+        song.save(update_fields=["album_title", "album_year", "album_mbid", "album_checked_at"])
+    return JsonResponse({"ok": True, "album": song.album_title, "year": song.album_year})
+
+
 def _credit_play_authors(event: Event) -> None:
     """A staging credits its play's authors (“Written by”) unless they're already on it."""
     on_event = set(event.eventperformer_set.values_list("performer_id", flat=True))
@@ -713,6 +807,8 @@ def log_delete(request: HttpRequest, pk: int) -> HttpResponse:
 @login_required
 def setlist_search(request: HttpRequest, pk: int) -> HttpResponse:
     event = get_object_or_404(Event, pk=pk)
+    if not event.is_music:  # only music shows (and festivals) have setlists
+        raise Http404
     # Suggest the highest-billed act that doesn't have a setlist on this event yet.
     next_act = (
         EventPerformer.objects.filter(event=event).exclude(role__in=CREDIT_ROLES)
@@ -744,6 +840,8 @@ def setlist_search(request: HttpRequest, pk: int) -> HttpResponse:
 @require_POST
 def setlist_import(request: HttpRequest, pk: int) -> HttpResponse:
     event = get_object_or_404(Event, pk=pk)
+    if not event.is_music:  # only music shows (and festivals) have setlists
+        raise Http404
     setlist_id = (request.POST.get("setlist_id") or "").strip()
     if not setlist_id:
         messages.error(request, "Missing setlist id.")
