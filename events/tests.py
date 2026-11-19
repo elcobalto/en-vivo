@@ -2188,6 +2188,19 @@ class YearHistogramTests(BaseTestCase):
         self.assertContains(page, 'title="2021: 1 event · show in diary"')
 
 
+class FestivalCardTests(BaseTestCase):
+    def test_festival_cards_show_the_first_two_acts(self):
+        fest = Event.objects.create(title="Lollapalooza Chile", event_type=EventType.FESTIVAL, date=date(2013, 4, 7))
+        for order, name in enumerate(["Pearl Jam", "The Black Keys", "Deadmau5"], start=1):
+            EventArtist.objects.create(event=fest, artist=Artist.objects.create(name=name), billing_order=order)
+        EventArtist.objects.create(event=self.event, artist=Artist.objects.create(name="Green Day"))
+        self.assertEqual(fest.card_lineup, ["Pearl Jam", "The Black Keys"])
+        self.assertEqual(self.event.card_lineup, [])  # concerts already say who in the title
+        Log.objects.create(user=self.user, event=fest)
+        page = self.client.get(reverse("events:profile", args=["ana"]))
+        self.assertContains(page, "Pearl Jam · The Black Keys</div>")
+
+
 class ProfileChartLinkTests(BaseTestCase):
     def test_chart_bars_open_the_diary_filtered_by_that_rating_or_year(self):
         old = Log.objects.create(user=self.user, event=Event.objects.create(title="Old show", date=date(2019, 3, 1)),
