@@ -64,7 +64,7 @@
           {% for s in top_songs %}
             <li class="d-flex justify-content-between gap-2 py-1 border-bottom border-secondary-subtle">
               <span class="text-truncate">{{ s.song__title }}{% if s.song__album_title %} <span class="small text-body-secondary">{{ s.song__album_title }}</span>{% endif %}</span>
-              <span class="small text-body-secondary text-nowrap">{{ s.n }} of {{ setlist_shows }}</span>
+              <span class="small text-body-secondary text-nowrap"><span title="Played at {{ s.n }} of the {{ s.of }} show{{ s.of|pluralize }} since it came out">{{ s.n }} / {{ s.of }}</span></span>
             </li>
           {% empty %}<li class="small text-body-secondary">No setlists yet.</li>{% endfor %}
         </ol>

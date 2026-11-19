@@ -333,19 +333,34 @@ def _public_https_url(url: str) -> bool:
     return True
 
 
+def _image_type(data: bytes) -> str:
+    """The image type from the file's first bytes, or "" if it isn't a common image."""
+    if data.startswith(b"\xff\xd8\xff"):
+        return "image/jpeg"
+    if data.startswith(b"\x89PNG\r\n\x1a\n"):
+        return "image/png"
+    if data[:6] in (b"GIF87a", b"GIF89a"):
+        return "image/gif"
+    if data[:4] == b"RIFF" and data[8:12] == b"WEBP":
+        return "image/webp"
+    return ""
+
+
 @login_required
 def event_poster_image(request: HttpRequest, pk: int) -> HttpResponse:
     """The event's photo served from En Vivo, so the edit page can read it (browsers block reading
     images from most other sites). Editors only; https images from public hosts, up to 8 MB."""
-    from urllib.error import URLError
+    from urllib.error import HTTPError, URLError
     from urllib.request import HTTPRedirectHandler, Request, build_opener
 
     event = get_object_or_404(Event, pk=pk)
     if not can_edit_event(request.user, event):
         raise PermissionDenied
     url = event.display_image
-    if not url or not _public_https_url(url):
+    if not url:
         raise Http404
+    if not _public_https_url(url):
+        return HttpResponse("Only https photos from public sites can be read.", status=400, content_type="text/plain")
 
     class SafeRedirects(HTTPRedirectHandler):
         max_redirections = 3
@@ -355,16 +370,31 @@ def event_poster_image(request: HttpRequest, pk: int) -> HttpResponse:
                 return None
             return super().redirect_request(req, fp, code, msg, headers, newurl)
 
-    try:
+    def download(user_agent):
         with build_opener(SafeRedirects).open(
-            Request(url, headers={"User-Agent": "EnVivo/1.0 (poster reader)", "Accept": "image/*"}), timeout=8
+            Request(url, headers={"User-Agent": user_agent, "Accept": "image/*,*/*;q=0.8"}), timeout=8
         ) as resp:
-            content_type = (resp.headers.get("Content-Type") or "").split(";")[0].strip().lower()
-            data = resp.read(POSTER_MAX_BYTES + 1)
-    except (URLError, OSError, ValueError):
-        raise Http404
-    if not content_type.startswith("image/") or len(data) > POSTER_MAX_BYTES:
-        raise Http404
+            return (resp.headers.get("Content-Type") or "").split(";")[0].strip().lower(), resp.read(POSTER_MAX_BYTES + 1)
+
+    try:
+        try:
+            content_type, data = download("EnVivo/1.0 (poster reader)")
+        except HTTPError as e:
+            if e.code not in (401, 403, 406, 429):
+                raise
+            # Some hosts only answer browsers.
+            content_type, data = download("Mozilla/5.0 (compatible; EnVivo poster reader)")
+    except HTTPError as e:
+        return HttpResponse(f"The photo's site answered {e.code}.", status=502, content_type="text/plain")
+    except (URLError, OSError, ValueError) as e:
+        return HttpResponse(f"Couldn't download the photo ({e.__class__.__name__}).", status=502, content_type="text/plain")
+    if len(data) > POSTER_MAX_BYTES:
+        return HttpResponse("The photo is larger than 8 MB.", status=413, content_type="text/plain")
+    if not content_type.startswith("image/"):
+        sniffed = _image_type(data)  # e.g. served as application/octet-stream
+        if not sniffed:
+            return HttpResponse("That link isn't an image.", status=415, content_type="text/plain")
+        content_type = sniffed
     response = HttpResponse(data, content_type=content_type)
     response["Cache-Control"] = "private, max-age=300"
     return response

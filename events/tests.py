@@ -2606,7 +2606,68 @@ class PosterSortTests(BaseTestCase):
         self.event.image_url = "https://localhost/a.jpg"
         self.event.save()
         self.client.force_login(self.user)
-        self.assertEqual(self.client.get(self.url).status_code, 404)
+        resp = self.client.get(self.url)
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn(b"public sites", resp.content)
+
+    def test_download_problems_are_explained(self):
+        from urllib.error import HTTPError
+        opener = mock.Mock()
+        opener.open.side_effect = HTTPError(self.event.image_url, 403, "Forbidden", {}, None)
+        self.client.force_login(self.user)
+        with mock.patch("events.views_venues._public_https_url", return_value=True), \
+             mock.patch("urllib.request.build_opener", return_value=opener):
+            resp = self.client.get(self.url)
+        self.assertEqual(resp.status_code, 502)
+        self.assertEqual(resp.content, b"The photo's site answered 403.")
+        self.assertEqual(opener.open.call_count, 2)  # retried with a browser-like user agent
+
+    def test_images_served_as_octet_stream_are_recognised(self):
+        from events.views_venues import _image_type
+        self.assertEqual(_image_type(b"\xff\xd8\xff\xe0rest"), "image/jpeg")
+        self.assertEqual(_image_type(b"<html>"), "")
+
+
+class SongShowsSinceReleaseTests(BaseTestCase):
+    def test_song_totals_only_count_shows_since_release_and_albums_open_to_songs(self):
+        from events.models import SetlistSong, Song
+        band = Artist.objects.create(name="Band")
+        old = Song.objects.create(artist=band, title="Old hit", album_title="Debut", album_year=2000)
+        new = Song.objects.create(artist=band, title="New single", album_title="Comeback", album_year=2020)
+        for year, songs in [(2005, [old]), (2010, [old]), (2021, [old, new]), (2022, [new])]:
+            e = Event.objects.create(title=f"Show {year}", date=date(year, 1, 1))
+            EventArtist.objects.create(event=e, artist=band)
+            sl = Setlist.objects.create(event=e, artist=band)
+            for pos, song in enumerate(songs, start=1):
+                SetlistSong.objects.create(setlist=sl, song=song, position=pos)
+        page = self.client.get(band.get_absolute_url())
+        rows = {s["song__title"]: (s["n"], s["of"]) for s in page.context["top_songs"]}
+        self.assertEqual(rows, {"Old hit": (3, 4), "New single": (2, 2)})  # new song: only 2021 and 2022 count
+        self.assertEqual([s["song__title"] for s in page.context["top_songs"]], ["Old hit", "New single"])  # by plays
+        self.assertContains(page, "2 / 2")
+        comeback = next(r for r in page.context["album_chart"] if r["title"] == "Comeback")
+        self.assertEqual(comeback["tracks"], [{"title": "New single", "n": 2, "of": 2}])
+        self.assertContains(page, '<details class="album-item"')
+
+
+class NoAlbumRowTests(BaseTestCase):
+    def test_songs_without_album_get_a_last_no_album_row(self):
+        from events.models import SetlistSong, Song
+        band = Artist.objects.create(name="Band")
+        EventArtist.objects.create(event=self.event, artist=band)
+        sl = Setlist.objects.create(event=self.event, artist=band)
+        on_album = Song.objects.create(artist=band, title="Hit", album_title="First", album_year=1990)
+        loose = Song.objects.create(artist=band, title="Cover song")
+        for i, song in enumerate([on_album, loose], start=1):
+            SetlistSong.objects.create(setlist=sl, song=song, position=i)
+        url = reverse("events:act_setlist", args=[self.event.pk, band.pk])
+        rows = self.client.get(url).context["timeline"]
+        self.assertEqual([(r["title"], r["n"]) for r in rows], [("First", 1), ("No album", 1)])
+        self.assertEqual(self.client.get(url).context["top_album"]["title"], "First")
+        chart = self.client.get(band.get_absolute_url() + "?sort=count").context["album_chart"]
+        self.assertEqual(chart[-1]["title"], "No album")
+        page = self.client.get(url).content.decode()
+        self.assertIn("Find albums on MusicBrainz", page)  # lookups wait for the button
 
 
 class TheaterCreditsTests(BaseTestCase):

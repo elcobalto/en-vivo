@@ -125,6 +125,33 @@
     renumber();
   });
 
+  // Artist/tour pickers arrive with only their current choice; fill the full list (sent once) on first use.
+  var optionLists = {};
+  function fill(select) {
+    var source = select.dataset.options;
+    if (!source || select.dataset.filled) return;
+    if (!optionLists[source]) {
+      var holder = document.getElementById(source);
+      optionLists[source] = holder ? JSON.parse(holder.textContent) : [];
+    }
+    var current = select.value;
+    var empty = select.options.length ? select.options[0].cloneNode(true) : new Option("", "");
+    var fragment = document.createDocumentFragment();
+    fragment.appendChild(empty);
+    optionLists[source].forEach(function (pair) {
+      fragment.appendChild(new Option(pair[1], pair[0], false, String(pair[0]) === current));
+    });
+    select.innerHTML = "";
+    select.appendChild(fragment);
+    select.value = current;
+    select.dataset.filled = "1";
+  }
+  ["mousedown", "focusin", "touchstart"].forEach(function (type) {
+    list.addEventListener(type, function (e) {
+      if (e.target.matches && e.target.matches("select[data-options]")) fill(e.target);
+    });
+  });
+
   list.closest("form").addEventListener("submit", renumber);
   renumber();
   // Other scripts (the poster sorter) reorder rows and then call this.

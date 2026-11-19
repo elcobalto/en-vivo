@@ -6,7 +6,7 @@
   <p class="small mb-1"><a href="{{ artist.get_absolute_url }}{% if seen_q %}?{{ seen_q }}{% endif %}">← {{ artist.name }}</a></p>
   <h1 class="h4 mb-1">{{ artist.name }}: what they played</h1>
   <p class="small text-body-secondary mb-3">
-    Across {{ shows }} setlist{{ shows|pluralize }}{% if seen_by %} from shows <a href="{% url 'events:profile' seen_by.get_username %}">@{{ seen_by.get_username }}</a> saw · <a href="{{ request.path }}{% if tab == 'albums' %}?tab=albums{% endif %}">all shows</a>{% endif %}. Tapes aren't counted.
+    Across {{ shows }} setlist{{ shows|pluralize }}{% if seen_by %} from shows <a href="{% url 'events:profile' seen_by.get_username %}">@{{ seen_by.get_username }}</a> saw · <a href="{{ request.path }}{% if tab == 'albums' %}?tab=albums{% endif %}">all shows</a>{% endif %}. Songs show plays / shows since they came out (by album year). Tapes aren't counted.
   </p>
   <ul class="nav nav-tabs mb-3">
     <li class="nav-item"><a class="nav-link{% if tab == 'songs' %} active{% endif %}" href="?{{ seen_q }}">Songs</a></li>
@@ -22,7 +22,7 @@
       {% for s in songs %}
         <li class="py-1 border-bottom border-secondary-subtle"><div class="d-flex justify-content-between gap-2">
           <span>{{ s.song__title }}{% if s.song__album_title %} <span class="small text-body-secondary">{{ s.song__album_title }}{% if s.song__album_year %} · {{ s.song__album_year }}{% endif %}</span>{% endif %}</span>
-          <span class="small text-body-secondary text-nowrap">{{ s.n }} of {{ shows }}</span>
+          <span class="small text-body-secondary text-nowrap"><span title="Played at {{ s.n }} of the {{ s.of }} show{{ s.of|pluralize }} since it came out">{{ s.n }} / {{ s.of }}</span></span>
         </div></li>
       {% empty %}<li class="list-unstyled text-body-secondary">No setlists yet.</li>{% endfor %}
     </ol>

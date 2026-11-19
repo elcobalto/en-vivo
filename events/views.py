@@ -332,18 +332,35 @@ def artist_list(request: HttpRequest) -> HttpResponse:
 
 
 def _artist_plays(artist: Artist, events, *, skip_empty: bool = False, sort: str = "count"):
-    """How often each song and album was played by this act across these events' setlists (no tapes)."""
+    """How often each song and album was played by this act across these events' setlists (no tapes).
+
+    Each song's ``of`` counts only the shows since it came out (shows in or after its album's year,
+    plus undated shows), so a new song isn't measured against shows from before it existed.
+    """
     plays = SetlistSong.objects.filter(setlist__artist=artist, setlist__event__in=events, is_tape=False)
-    songs = (plays.values("song_id", "song__title", "song__album_title", "song__album_year")
-             .annotate(n=Count("setlist", distinct=True)).order_by("-n", "song__title"))
-    played = {
-        r["song__album_title"]: {"title": r["song__album_title"], "year": r["song__album_year"],
-                                 "n": r["n"], "songs": r["songs"]}
-        for r in plays.exclude(song__album_title="").values("song__album_title", "song__album_year")
-        .annotate(n=Count("id"), songs=Count("song", distinct=True))
-    }
-    shows = Setlist.objects.filter(artist=artist, event__in=events).count()
-    return songs, album_rows(artist, played, skip_empty=skip_empty, sort=sort), shows
+    show_years = list(
+        Setlist.objects.filter(artist=artist, event__in=events).values_list("event__date__year", flat=True)
+    )
+    songs = list(plays.values("song_id", "song__title", "song__album_title", "song__album_year")
+                 .annotate(n=Count("setlist", distinct=True)).order_by("-n", "song__title"))
+    for song in songs:
+        released = song["song__album_year"]
+        song["of"] = sum(1 for y in show_years if y is None or not released or y >= released)
+    played: dict[str, dict] = {}
+    no_album = {"n": 0, "songs": 0, "tracks": []}
+    for song in songs:  # albums: total plays, different songs, and the songs themselves for the drop-down
+        if not song["song__album_title"]:
+            no_album["n"] += song["n"]
+            no_album["songs"] += 1
+            no_album["tracks"].append({"title": song["song__title"], "n": song["n"], "of": song["of"]})
+            continue
+        row = played.setdefault(song["song__album_title"], {
+            "title": song["song__album_title"], "year": song["song__album_year"], "n": 0, "songs": 0, "tracks": [],
+        })
+        row["n"] += song["n"]
+        row["songs"] += 1
+        row["tracks"].append({"title": song["song__title"], "n": song["n"], "of": song["of"]})
+    return songs, album_rows(artist, played, skip_empty=skip_empty, sort=sort, no_album=no_album), len(show_years)
 
 
 @login_required
@@ -543,7 +560,16 @@ def event_form(request: HttpRequest, pk: int | None = None) -> HttpResponse:
         messages.success(request, "Event saved.")
         return redirect(saved)
 
-    return render(request, "events/event_form.html", {"form": form, "formset": formset, "event": event})
+    return render(request, "events/event_form.html", {
+        "form": form, "formset": formset, "event": event,
+        # Sent once for every lineup row's artist/tour picker (rows only render their current choice).
+        "artist_options": list(Artist.objects.order_by("name").values_list("pk", "name")),
+        "tour_options": [
+            (pk, f"{title} ({artist})" if artist else title)
+            for pk, title, artist in Production.objects.exclude(event_type=EventType.FESTIVAL)
+            .order_by("title").values_list("pk", "title", "artist__name")
+        ],
+    })
 
 
 @login_required
@@ -621,18 +647,25 @@ def act_setlist(request: HttpRequest, pk: int, artist_pk: int) -> HttpResponse:
     entries = list(setlist.entries.all())
     played_entries = [e for e in entries if not e.is_tape]  # tapes are listed but not counted
     played: dict[str, dict] = {}
+    no_album = {"n": 0, "songs": 0, "tracks": []}
     for entry in played_entries:
+        if not entry.song.album_title:
+            no_album["n"] += 1
+            no_album["songs"] += 1
+            no_album["tracks"].append({"title": entry.song.title})
         if entry.song.album_title:
             row = played.setdefault(entry.song.album_title, {"title": entry.song.album_title,
-                                                            "year": entry.song.album_year, "n": 0, "songs": 0})
+                                                            "year": entry.song.album_year, "n": 0, "songs": 0,
+                                                            "tracks": []})
             row["n"] += 1
             row["songs"] += 1
+            row["tracks"].append({"title": entry.song.title})
     pending = sorted({e.song_id for e in played_entries if e.song.album_checked_at is None})
     album_sort = "count" if request.GET.get("sort") == "count" else "newest"
     skip_empty = request.GET.get("empty") == "skip"
     # Only albums already out at this show (an album released later can't have been "skipped").
     timeline = album_rows(setlist.artist, played, skip_empty=skip_empty, sort=album_sort,
-                          released_by=event.date.year if event.date else None)
+                          released_by=event.date.year if event.date else None, no_album=no_album)
     number = 0
     for entry in entries:  # songs are numbered 1, 2, 3… skipping tapes
         if not entry.is_tape:
@@ -646,8 +679,6 @@ def act_setlist(request: HttpRequest, pk: int, artist_pk: int) -> HttpResponse:
                          .values_list("album_title", flat=True).distinct().order_by("album_title")
                          if is_admin(request.user) else []),
         "songs": list({e.song_id: e.song for e in played_entries}.values()),
-        # After one pass the page reloads with ?albums=done; songs still unchecked then wait for a click.
-        "auto_lookup": request.GET.get("albums") != "done",
     })
 
 

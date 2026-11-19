@@ -5,13 +5,14 @@ from .models import Album, Artist, Song, normalize_name
 
 
 def album_rows(artist: Artist, played: dict, *, skip_empty: bool = False, sort: str = "newest",
-               released_by: int | None = None) -> list[dict]:
+               released_by: int | None = None, no_album: dict | None = None) -> list[dict]:
     """Rows of {title, year, n, songs, pct} for a chart or list.
 
     ``played`` maps album title → {"title", "year", "n", "songs"} counted from setlists (tapes left out).
     The artist's saved albums are added with 0 songs unless ``skip_empty``. ``sort`` is "newest" (default)
     or "count"; ``pct`` is the bar width relative to the most played album. With ``released_by`` (a year),
-    saved albums released after it are left out: they didn't exist yet at that show.
+    saved albums released after it are left out: they didn't exist yet at that show. ``no_album``
+    ({"n", "songs", "tracks"} for played songs filed under no album) adds a last "No album" row.
     """
     rows = {normalize_name(a["title"]): dict(a) for a in played.values()}
     saved = Album.objects.filter(artist=artist)
@@ -20,7 +21,8 @@ def album_rows(artist: Artist, played: dict, *, skip_empty: bool = False, sort: 
     for album in saved:
         row = rows.get(normalize_name(album.title))
         if row is None:
-            rows[normalize_name(album.title)] = {"title": album.title, "year": album.year, "n": 0, "songs": 0}
+            rows[normalize_name(album.title)] = {"title": album.title, "year": album.year, "n": 0, "songs": 0,
+                                                 "tracks": []}
         elif row["year"] is None:
             row["year"] = album.year
     result = [r for r in rows.values() if r["n"] or not skip_empty]
@@ -28,6 +30,8 @@ def album_rows(artist: Artist, played: dict, *, skip_empty: bool = False, sort: 
         result.sort(key=lambda r: (-r["n"], r["year"] or 9999, r["title"].casefold()))
     else:
         result.sort(key=lambda r: (-(r["year"] or 0), r["title"].casefold()))
+    if no_album and no_album["n"]:
+        result.append({"title": "No album", "year": None, "is_none": True, **no_album})
     peak = max((r["n"] for r in result), default=0)
     for r in result:
         r["pct"] = round(r["n"] / peak * 100) if peak else 0
@@ -36,7 +40,7 @@ def album_rows(artist: Artist, played: dict, *, skip_empty: bool = False, sort: 
 
 def top_album(rows: list[dict]) -> dict | None:
     """The most played album (ties: the older one), or None when nothing was matched to an album."""
-    played = [r for r in rows if r["n"]]
+    played = [r for r in rows if r["n"] and not r.get("is_none")]
     return min(played, key=lambda r: (-r["n"], r["year"] or 9999, r["title"].casefold())) if played else None
 
 

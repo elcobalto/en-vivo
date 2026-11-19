@@ -49,8 +49,8 @@
           {% include "events/_album_chart.html" with rows=timeline top=top_album unit="song" keep=None %}
         {% endif %}
         {% if pending %}
-          <p class="small text-body-secondary mt-3 mb-2" id="album-status" aria-live="polite">{% if auto_lookup %}Finding albums for {{ pending|length }} song{{ pending|length|pluralize }} on MusicBrainz…{% else %}MusicBrainz didn't answer for {{ pending|length }} song{{ pending|length|pluralize }}.{% endif %}</p>
-          <button class="btn btn-sm btn-outline-secondary{% if auto_lookup %} d-none{% endif %}" type="button" id="album-retry">Try again</button>
+          <p class="small text-body-secondary mt-3 mb-2" id="album-status" aria-live="polite">{{ pending|length }} song{{ pending|length|pluralize }} {{ pending|length|pluralize:"hasn't,haven't" }} been looked up yet.</p>
+          <button class="btn btn-sm btn-outline-secondary" type="button" id="album-find">Find albums on MusicBrainz</button>
         {% endif %}
       </div></div>
     </div>
@@ -83,17 +83,18 @@
   {% if pending %}
   {{ pending|json_script:"pending-songs" }}
   <script>
-    // Look each song up once (MusicBrainz allows about one request a second), then show the result.
+    // On click, look each song up once (MusicBrainz allows about one request a second), then reload to show them.
     (function () {
       var all = JSON.parse(document.getElementById("pending-songs").textContent), ids = all.slice(),
-          status = document.getElementById("album-status"), retry = document.getElementById("album-retry"),
+          status = document.getElementById("album-status"), button = document.getElementById("album-find"),
           total = ids.length, failed = 0,
           csrf = (document.cookie.match(/csrftoken=([^;]+)/) || [])[1] || "";
       function next() {
         if (!ids.length) {
-          if (failed < total) { location.replace(location.pathname + "?albums=done" + location.search.replace(/^\?/, "&").replace(/&?albums=done/, "")); return; }
-          status.textContent = "MusicBrainz is busy right now.";
-          retry.classList.remove("d-none");
+          if (failed < total) { location.reload(); return; }
+          status.textContent = "MusicBrainz is busy right now. Try again in a while.";
+          button.disabled = false;
+          button.textContent = "Try again";
           return;
         }
         var id = ids.shift();
@@ -102,8 +103,7 @@
           .then(function (r) { if (!r.ok) failed++; }).catch(function () { failed++; })
           .then(function () { setTimeout(next, 1100); });
       }
-      retry.addEventListener("click", function () { retry.classList.add("d-none"); ids = all.slice(); failed = 0; next(); });
-      {% if auto_lookup %}next();{% endif %}
+      button.addEventListener("click", function () { button.disabled = true; ids = all.slice(); failed = 0; next(); });
     })();
   </script>
   {% endif %}

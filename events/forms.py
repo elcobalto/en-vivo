@@ -125,6 +125,32 @@ class EventForm(BootstrapMixin, forms.ModelForm):
         return venue
 
 
+class LazySelect(forms.Select):
+    """A select that renders only the empty choice and the current value.
+
+    Lineup rows would otherwise each repeat every artist (and tour) in the catalogue, which makes the
+    edit page huge and slow. The full list is sent once as JSON (``source`` is its element id) and the
+    page fills a row's options when it's opened. Validation still uses the field's whole queryset.
+    """
+
+    def __init__(self, source: str, attrs=None):
+        super().__init__(attrs)
+        self.source = source
+
+    def optgroups(self, name, value, attrs=None):
+        chosen = [v for v in value if v not in (None, "")]
+        field = self.choices.field
+        options = [self.create_option(name, "", field.empty_label or "", not chosen, 0, attrs=attrs)]
+        for i, obj in enumerate(self.choices.queryset.filter(pk__in=chosen), start=1):
+            options.append(self.create_option(name, str(obj.pk), field.label_from_instance(obj), True, i, attrs=attrs))
+        return [(None, options, 0)]
+
+    def get_context(self, name, value, attrs):
+        context = super().get_context(name, value, attrs)
+        context["widget"]["attrs"]["data-options"] = self.source
+        return context
+
+
 class EventArtistForm(BootstrapMixin, forms.ModelForm):
     new_artist = forms.CharField(
         label="New artist", max_length=200, required=False,
@@ -142,6 +168,10 @@ class EventArtistForm(BootstrapMixin, forms.ModelForm):
         self.fields["role"].required = False
         self.fields["billing_order"].required = False
         self.fields["artist"].required = False
+        for field_name, source in (("artist", "artist-options"), ("production", "tour-options")):
+            field = self.fields[field_name]
+            field.widget = LazySelect(source, attrs=field.widget.attrs)
+            field.widget.choices = field.choices
         tours = self.fields["production"]
         tours.queryset = Production.objects.exclude(event_type=EventType.FESTIVAL).select_related("artist")
         tours.label_from_instance = lambda p: f"{p.title} ({p.artist.name})" if p.artist_id else p.title

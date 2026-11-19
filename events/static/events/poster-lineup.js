@@ -1,6 +1,7 @@
 /* "Sort lineup from poster": reads the event's poster in the browser (Tesseract.js OCR, free) and
- * reorders the acts already in the lineup by how big their names are printed. Bigger = higher on the bill;
- * the biggest tier becomes headliners. Acts it can't find keep their place. Nothing is saved until Save. */
+ * reorders the acts already in the lineup in reading order: top to bottom, then left to right. Acts on the
+ * first line where any act appears become headliners, the rest support. Acts it can't find keep their place.
+ * Nothing is saved until Save. */
 (function () {
   "use strict";
   var button = document.getElementById("poster-sort");
@@ -52,24 +53,26 @@
     return del && del.checked;
   }
 
-  // Best place on the poster for a name: consecutive words on one line whose letters match closely.
-  // Returns {height, top} of the biggest match, or null.
+  // Where a name is on the poster: consecutive words on one line whose letters match closely.
+  // Returns {line, left, top} of the closest match (ties: the one higher up), or null.
   function findOnPoster(name, lines) {
     var wanted = norm(name);
     var size = name.split(/\s+/).filter(Boolean).length || 1;
     var best = null;
-    lines.forEach(function (line) {
+    lines.forEach(function (line, lineIndex) {
       var words = line.words.filter(function (w) { return norm(w.text); });
       for (var start = 0; start < words.length; start++) {
         for (var n = Math.max(1, size - 1); n <= size + 1 && start + n <= words.length; n++) {
           var chunk = words.slice(start, start + n);
-          var text = norm(chunk.map(function (w) { return w.text; }).join(""));
-          if (similar(text, wanted) < (wanted.length <= 4 ? 0.99 : 0.8)) continue;
-          var heights = chunk.map(function (w) { return w.bbox.y1 - w.bbox.y0; }).sort(function (a, b) { return a - b; });
-          var height = heights[Math.floor(heights.length / 2)];
-          var top = Math.min.apply(null, chunk.map(function (w) { return w.bbox.y0; }));
-          var left = Math.min.apply(null, chunk.map(function (w) { return w.bbox.x0; }));
-          if (!best || height > best.height) best = { height: height, top: top, left: left };
+          var score = similar(norm(chunk.map(function (w) { return w.text; }).join("")), wanted);
+          if (score < (wanted.length <= 4 ? 0.99 : 0.8)) continue;
+          var spot = {
+            score: score,
+            line: lineIndex,
+            top: Math.min.apply(null, chunk.map(function (w) { return w.bbox.y0; })),
+            left: Math.min.apply(null, chunk.map(function (w) { return w.bbox.x0; })),
+          };
+          if (!best || spot.score > best.score || (spot.score === best.score && spot.top < best.top)) best = spot;
         }
       }
     });
@@ -85,6 +88,47 @@
       script.onerror = function () { reject(new Error("Couldn't load the poster reader.")); };
       document.head.appendChild(script);
     });
+  }
+
+  // The poster as a canvas: first through En Vivo (most sites don't let pages read their images),
+  // then straight from the photo's site if that site allows it. Errors say which step failed.
+  function loadPoster() {
+    return fetch(button.dataset.image, { credentials: "same-origin" }).then(function (resp) {
+      if (resp.ok) return resp.blob().then(function (blob) { return blobToCanvas(blob); });
+      return resp.text().then(function (reason) {
+        var why = (reason || "").length < 200 ? reason : "error " + resp.status;
+        return direct().catch(function () {
+          throw new Error("Couldn't get the photo: " + (why || "error " + resp.status) +
+                          " Try saving a copy of the poster on another site and using that link.");
+        });
+      });
+    });
+  }
+
+  function direct() {
+    return new Promise(function (resolve, reject) {
+      var img = new Image();
+      img.crossOrigin = "anonymous";
+      img.onload = function () { try { resolve(toCanvas(img, img.naturalWidth, img.naturalHeight)); } catch (e) { reject(e); } };
+      img.onerror = reject;
+      img.src = button.dataset.direct;
+    });
+  }
+
+  function blobToCanvas(blob) {
+    return createImageBitmap(blob).then(function (bitmap) { return toCanvas(bitmap, bitmap.width, bitmap.height); },
+      function () { throw new Error("The photo couldn't be opened as an image."); });
+  }
+
+  function toCanvas(source, width, height) {
+    // Small posters read better a bit larger; huge ones are scaled down to keep it quick.
+    var scale = Math.min(3, Math.max(1, 1600 / Math.max(width, height)), 4000 / Math.max(width, height));
+    var canvas = document.createElement("canvas");
+    canvas.width = Math.round(width * scale);
+    canvas.height = Math.round(height * scale);
+    canvas.getContext("2d").drawImage(source, 0, 0, canvas.width, canvas.height);
+    canvas.getContext("2d").getImageData(0, 0, 1, 1); // throws now if the browser won't let us read it
+    return canvas;
   }
 
   function linesOf(data) {
@@ -103,33 +147,41 @@
     });
     if (acts.length < 2) { say("Add at least two acts to the lineup first."); return; }
     button.disabled = true;
-    say("Loading the poster reader… (the first time takes a few seconds)");
-    var worker;
-    loadTesseract()
-      .then(function (Tesseract) { return Tesseract.createWorker("eng"); })
+    var worker, poster;
+    say("Getting the photo…");
+    loadPoster()
+      .then(function (canvas) {
+        poster = canvas;
+        say("Loading the poster reader… (the first time takes a few seconds)");
+        return loadTesseract();
+      })
+      .then(function (Tesseract) {
+        return Tesseract.createWorker("eng").catch(function () { throw new Error("The poster reader couldn't start. Check your connection and try again."); });
+      })
       .then(function (w) {
         worker = w;
         say("Reading the poster…");
-        return worker.recognize(button.dataset.image, {}, { blocks: true });
+        return worker.recognize(poster, {}, { blocks: true });
       })
       .then(function (result) {
         var lines = linesOf(result.data);
         var found = [], missing = [];
         acts.forEach(function (row, index) {
           var spot = findOnPoster(rowName(row), lines);
-          if (spot) found.push({ row: row, index: index, height: spot.height, top: spot.top, left: spot.left });
+          if (spot) found.push({ row: row, index: index, line: spot.line, top: spot.top, left: spot.left });
           else missing.push(rowName(row));
         });
         if (!found.length) { say("Couldn't read any of these names on the poster. The lineup wasn't changed."); return; }
 
-        // Found acts fill the slots they held, biggest name first; acts not found stay where they are.
+        // Found acts fill the slots they held, in poster order; acts not found stay where they are.
         var slots = found.map(function (f) { return f.index; }).sort(function (a, b) { return a - b; });
-        // Bigger first; same size: higher on the poster, then left to right (small height wobble ignored).
+        // Reading order: top to bottom, then left to right on the same line.
         var ranked = found.slice().sort(function (a, b) {
-          if (Math.abs(b.height - a.height) > Math.max(a.height, b.height) * 0.1) return b.height - a.height;
-          return Math.abs(a.top - b.top) > Math.min(a.height, b.height) / 2 ? a.top - b.top : a.left - b.left;
+          return a.line === b.line ? a.left - b.left : a.top - b.top || a.left - b.left;
         });
-        var biggest = Math.max.apply(null, found.map(function (f) { return f.height; }));
+        // Lines from OCR are in reading order too; acts on the first line with any act are the headliners.
+        var firstLine = ranked[0].line;
+        var isHeadliner = function (f) { return f.line === firstLine; };
         var order = acts.slice();
         ranked.forEach(function (f, i) { order[slots[i]] = f.row; });
         // Rebuild the whole list: act rows take each other's places; credits and empty rows don't move.
@@ -141,17 +193,20 @@
         ranked.forEach(function (f) {
           var role = f.row.querySelector('select[name$="-role"]');
           if (!role || SORTABLE_ROLES.indexOf(role.value) === -1) return;
-          role.value = f.height >= biggest * 0.75 ? "headliner" : "support";
+          role.value = isHeadliner(f) ? "headliner" : "support";
         });
         if (window.enVivoLineup) window.enVivoLineup.renumber();
 
-        var heads = ranked.filter(function (f) { return f.height >= biggest * 0.75; }).length;
-        say("Sorted " + found.length + " act" + (found.length === 1 ? "" : "s") + " by name size (" + heads +
+        var heads = ranked.filter(isHeadliner).length;
+        say("Sorted " + found.length + " act" + (found.length === 1 ? "" : "s") + " top to bottom (" + heads +
             " headliner" + (heads === 1 ? "" : "s") + ")." +
             (missing.length ? " Not found on the poster, left in place: " + missing.join(", ") + "." : "") +
             " Check it, then Save.");
       })
-      .catch(function (err) { say((err && err.message) || "Couldn't read the poster."); })
+      .catch(function (err) {
+        if (window.console) console.error("Poster sort failed:", err);
+        say((err && err.message) || (typeof err === "string" ? err : "Couldn't read the poster."));
+      })
       .then(function () {
         button.disabled = false;
         if (worker) worker.terminate();

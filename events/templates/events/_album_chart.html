@@ -12,6 +12,12 @@ With unit="play" each row shows plays / different songs.
   .album-bar.has-songs { min-width: 4px; }
   .album-bar.is-top { background: #00c030; }
   .album-row.is-empty .album-name { color: var(--bs-secondary-color); }
+  .album-item > summary { list-style: none; cursor: pointer; }
+  .album-item > summary::-webkit-details-marker { display: none; }
+  .album-item[data-empty] > summary { cursor: default; }
+  .album-tracks { margin-left: 3.2rem; padding: .25rem .6rem; background: rgba(255,255,255,.04); border-radius: .3rem; color: var(--bs-secondary-color); }
+  .album-row.is-none .album-name { font-style: italic; color: var(--bs-secondary-color); }
+  .album-row.is-none .album-bar { background: repeating-linear-gradient(45deg, #445566 0 4px, #2c3440 4px 8px); }
   .album-n { min-width: 1.5rem; text-align: right; color: var(--bs-secondary-color); }
 </style>
 <form method="get" class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2" aria-label="Album chart options">
@@ -31,14 +37,26 @@ With unit="play" each row shows plays / different songs.
 {% if rows %}
   <div class="album-chart" role="img" aria-label="{{ unit|capfirst }}s per album: {% for a in rows %}{{ a.title }}{% if a.year %} ({{ a.year }}){% endif %} {{ a.n }}{% if not forloop.last %}, {% endif %}{% endfor %}">
     {% for a in rows %}
-      <div class="album-row{% if not a.n %} is-empty{% endif %}" title="{{ a.title }}{% if a.year %} ({{ a.year }}){% endif %}: {{ a.n }} {{ unit }}{{ a.n|pluralize }}{% if unit == 'play' %} of {{ a.songs }} song{{ a.songs|pluralize }}{% endif %}">
-        <span class="album-year event-date">{{ a.year|default:"—" }}</span>
-        <div class="album-bar-wrap">
-          <div class="album-name small text-truncate">{{ a.title }}</div>
-          <div class="album-track"><div class="album-bar{% if a.n %} has-songs{% endif %}{% if top and a.title == top.title and a.year == top.year %} is-top{% endif %}" style="width: {{ a.pct }}%"></div></div>
-        </div>
-        <span class="album-n small text-nowrap">{{ a.n }}{% if unit == "play" %} <span class="opacity-75">/ {{ a.songs }}</span>{% endif %}</span>
-      </div>
+      <details class="album-item"{% if not a.tracks %} data-empty{% endif %}>
+        <summary class="album-row{% if not a.n %} is-empty{% endif %}{% if a.is_none %} is-none{% endif %}"{% if not a.tracks %} onclick="return false"{% endif %} title="{{ a.title }}{% if a.year %} ({{ a.year }}){% endif %}: {{ a.n }} {{ unit }}{{ a.n|pluralize }}{% if unit == 'play' %} of {{ a.songs }} song{{ a.songs|pluralize }}{% endif %}">
+          <span class="album-year event-date">{{ a.year|default:"—" }}</span>
+          <div class="album-bar-wrap">
+            <div class="album-name small text-truncate">{{ a.title }}</div>
+            <div class="album-track"><div class="album-bar{% if a.n %} has-songs{% endif %}{% if top and a.title == top.title and a.year == top.year %} is-top{% endif %}" style="width: {{ a.pct }}%"></div></div>
+          </div>
+          <span class="album-n small text-nowrap">{{ a.n }}{% if unit == "play" %} <span class="opacity-75">/ {{ a.songs }}</span>{% endif %}</span>
+        </summary>
+        {% if a.tracks %}
+          <ul class="list-unstyled small album-tracks mb-2">
+            {% for t in a.tracks %}
+              <li class="d-flex justify-content-between gap-2">
+                <span>{{ t.title }}</span>
+                {% if t.of %}<span class="text-body-secondary text-nowrap" title="Played at {{ t.n }} of the {{ t.of }} show{{ t.of|pluralize }} since it came out">{{ t.n }} / {{ t.of }}</span>{% endif %}
+              </li>
+            {% endfor %}
+          </ul>
+        {% endif %}
+      </details>
     {% endfor %}
   </div>
   {% if unit == "play" %}<div class="small text-body-secondary mt-1">Numbers are plays / different songs.</div>{% endif %}
