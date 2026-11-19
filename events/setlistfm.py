@@ -163,9 +163,7 @@ def _set_name(set_payload: dict, encore_count: int) -> str:
 
 
 def _song_note(song_payload: dict) -> str:
-    bits = []
-    if song_payload.get("tape"):
-        bits.append("tape")
+    bits = []  # tapes are flagged on the entry (is_tape), not in the note
     cover = song_payload.get("cover") or {}
     if isinstance(cover, dict) and cover.get("name"):
         bits.append(f"{cover['name']} cover")
@@ -199,6 +197,7 @@ def import_setlist(event: Event, payload: dict[str, Any]) -> Setlist:
             role=EventArtist.Role.SUPPORT if current.exists() else EventArtist.Role.HEADLINER,
             billing_order=current.count() + 1,
         )
+        event.order_bill()
 
     setlist, _ = Setlist.objects.update_or_create(
         event=event,
@@ -234,6 +233,7 @@ def import_setlist(event: Event, payload: dict[str, Any]) -> Setlist:
                 position=position,
                 set_name=set_name,
                 note=_song_note(song_payload),
+                is_tape=bool(song_payload.get("tape")),
             )
 
     return setlist

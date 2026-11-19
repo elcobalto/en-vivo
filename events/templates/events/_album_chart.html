@@ -1,0 +1,45 @@
+{% comment %}
+Songs-per-album bars. Pass: rows (from albums.album_rows), top (albums.top_album), album_sort, skip_empty,
+keep (list of (name, value) query params to carry, e.g. tab/seen_by) and unit ("song" or "play").
+{% endcomment %}
+<style>
+  .album-row { display: flex; align-items: flex-end; gap: .6rem; padding: .3rem 0; }
+  .album-year { min-width: 2.6rem; padding-bottom: 1px; }
+  .album-bar-wrap { flex: 1; min-width: 0; }
+  .album-track { height: 8px; background: rgba(255,255,255,.06); border-radius: 4px; }
+  .album-bar { height: 100%; background: #445566; border-radius: 4px; }
+  .album-bar.has-songs { min-width: 4px; }
+  .album-bar.is-top { background: #00c030; }
+  .album-row.is-empty .album-name { color: var(--bs-secondary-color); }
+  .album-n { min-width: 1.5rem; text-align: right; color: var(--bs-secondary-color); }
+</style>
+<form method="get" class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2" aria-label="Album chart options">
+  {% for name, value in keep %}<input type="hidden" name="{{ name }}" value="{{ value }}">{% endfor %}
+  <div class="btn-group btn-group-sm" role="group" aria-label="Sort albums">
+    <input type="radio" class="btn-check" name="sort" value="newest" id="sort-newest-{{ unit }}" {% if album_sort == "newest" %}checked{% endif %} onchange="this.form.submit()">
+    <label class="btn btn-outline-secondary" for="sort-newest-{{ unit }}">Newest first</label>
+    <input type="radio" class="btn-check" name="sort" value="count" id="sort-count-{{ unit }}" {% if album_sort == "count" %}checked{% endif %} onchange="this.form.submit()">
+    <label class="btn btn-outline-secondary" for="sort-count-{{ unit }}">Most {{ unit }}s</label>
+  </div>
+  <div class="form-check form-switch m-0">
+    <input class="form-check-input" type="checkbox" role="switch" name="empty" value="skip" id="skip-empty-{{ unit }}" {% if skip_empty %}checked{% endif %} onchange="this.form.submit()">
+    <label class="form-check-label small" for="skip-empty-{{ unit }}">Skip empty albums</label>
+  </div>
+  <noscript><button class="btn btn-sm btn-outline-secondary">Apply</button></noscript>
+</form>
+{% if rows %}
+  <div class="album-chart" role="img" aria-label="{{ unit|capfirst }}s per album: {% for a in rows %}{{ a.title }}{% if a.year %} ({{ a.year }}){% endif %} {{ a.n }}{% if not forloop.last %}, {% endif %}{% endfor %}">
+    {% for a in rows %}
+      <div class="album-row{% if not a.n %} is-empty{% endif %}" title="{{ a.title }}{% if a.year %} ({{ a.year }}){% endif %}: {{ a.n }} {{ unit }}{{ a.n|pluralize }}">
+        <span class="album-year event-date">{{ a.year|default:"—" }}</span>
+        <div class="album-bar-wrap">
+          <div class="album-name small text-truncate">{{ a.title }}</div>
+          <div class="album-track"><div class="album-bar{% if a.n %} has-songs{% endif %}{% if top and a.title == top.title and a.year == top.year %} is-top{% endif %}" style="width: {{ a.pct }}%"></div></div>
+        </div>
+        <span class="album-n small">{{ a.n }}</span>
+      </div>
+    {% endfor %}
+  </div>
+{% else %}
+  <p class="small text-body-secondary mb-0">No albums to show.</p>
+{% endif %}

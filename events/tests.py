@@ -14,7 +14,7 @@ from events import musicbrainz as _musicbrainz  # noqa: E402
 REAL_ARTIST_COUNTRY = _musicbrainz.artist_country
 mock.patch("events.musicbrainz.artist_country", return_value="").start()
 
-from .models import Event, EventArtist, EventType, Log, Artist, Production, Setlist, Venue
+from .models import Album, Event, EventArtist, EventType, Log, Artist, Production, Setlist, Venue
 from .setlistfm import SetlistFmError, import_setlist
 from .templatetags.event_extras import avg_stars, stars
 
@@ -2296,27 +2296,39 @@ class LineupSetlistTests(BaseTestCase):
                 self.assertEqual(self.client.post(reverse("events:song_album_lookup", args=[song.pk])).status_code, 200)
         resp = self.client.get(url)
         self.assertEqual(resp.context["pending"], [])
-        self.assertEqual(resp.context["top_album"], {"title": "Dookie", "year": 1994, "n": 2})
+        self.assertEqual((resp.context["top_album"]["title"], resp.context["top_album"]["n"]), ("Dookie", 2))
         self.assertContains(resp, "Most played album")
         self.assertEqual([(a["title"], a["n"], a["pct"]) for a in resp.context["timeline"]],
                          [("American Idiot", 1, 50), ("Dookie", 2, 100)])  # newest first by default
         by_count = self.client.get(url + "?sort=count").context["timeline"]
         self.assertEqual([a["title"] for a in by_count], ["Dookie", "American Idiot"])
-        self.assertNotContains(resp, "Edit album")  # admins only
+        self.assertNotContains(resp, "Edit albums")  # admins only
 
-    def test_admin_can_fix_a_songs_album(self):
-        from events.models import Song
-        song = Song.objects.create(artist=Artist.objects.create(name="Band"), title="Tune",
-                                   album_title="Wrong", album_mbid="abc")
-        edit = reverse("events:song_album_edit", args=[song.pk])
+    def test_admin_fixes_albums_for_the_whole_setlist_at_once(self):
+        from events.models import SetlistSong, Song
+        band = Artist.objects.create(name="Band")
+        EventArtist.objects.create(event=self.event, artist=band)
+        setlist = Setlist.objects.create(event=self.event, artist=band)
+        wrong = Song.objects.create(artist=band, title="Tune", album_title="Wrong", album_mbid="abc")
+        fine = Song.objects.create(artist=band, title="Other", album_title="Fine", album_year=1999, album_mbid="def")
+        for i, song in enumerate([wrong, fine], start=1):
+            SetlistSong.objects.create(setlist=setlist, song=song, position=i)
+        page_url = reverse("events:act_setlist", args=[self.event.pk, band.pk])
+        edit = reverse("events:setlist_albums_edit", args=[self.event.pk, band.pk])
         self.client.force_login(self.user)
-        self.assertEqual(self.client.post(edit, {"album_title": "Right"}).status_code, 403)
+        self.assertNotContains(self.client.get(page_url), "Edit albums")
+        self.assertEqual(self.client.post(edit, {f"album_title_{wrong.pk}": "Right"}).status_code, 403)
         self.user.is_superuser = True
         self.user.save()
-        self.client.post(edit, {"album_title": " Right  Album ", "album_year": "2001"})
-        song.refresh_from_db()
-        self.assertEqual((song.album_title, song.album_year, song.album_mbid), ("Right Album", 2001, ""))
-        self.assertIsNotNone(song.album_checked_at)
+        page = self.client.get(page_url).content.decode()
+        self.assertEqual(page.count("Edit albums"), 2)  # one button + the modal title, not one per song
+        self.client.post(edit, {f"album_title_{wrong.pk}": " Right  Album ", f"album_year_{wrong.pk}": "2001",
+                                f"album_title_{fine.pk}": "Fine", f"album_year_{fine.pk}": "1999"})
+        wrong.refresh_from_db()
+        fine.refresh_from_db()
+        self.assertEqual((wrong.album_title, wrong.album_year, wrong.album_mbid), ("Right Album", 2001, ""))
+        self.assertIsNotNone(wrong.album_checked_at)
+        self.assertEqual(fine.album_mbid, "def")  # unchanged rows are left alone
 
     def test_busy_musicbrainz_leaves_song_unchecked(self):
         from unittest import mock
@@ -2347,7 +2359,8 @@ class FestivalAddArtistsTests(BaseTestCase):
                                     created_by=self.user)
         EventArtist.objects.create(event=fest, artist=Artist.objects.create(name="Already On"))
         results = [
-            {"artist": {"name": "Same Venue Band", "mbid": ""}, "venue": {"name": "Teatro Caupolicán"}},
+            {"id": "sfm1", "artist": {"name": "Same Venue Band", "mbid": ""}, "venue": {"name": "Teatro Caupolicán"},
+             "sets": {"set": [{"song": [{"name": "Opening song"}, {"name": "Closer"}]}]}},
             {"artist": {"name": "City Band", "mbid": ""}, "venue": {"name": "Movistar Arena"}},
             {"artist": {"name": "Already On", "mbid": ""}, "venue": {"name": "Teatro Caupolicán"}},
             {"artist": {"name": "same venue band", "mbid": ""}, "venue": {"name": "Teatro Caupolicán"}},
@@ -2363,7 +2376,14 @@ class FestivalAddArtistsTests(BaseTestCase):
             key = page.context["candidates"][0]["key"]
             self.client.post(url, {f"add_{key}": "1"})
         self.assertTrue(fest.eventartist_set.filter(artist__name="Same Venue Band", role="support").exists())
+        imported = fest.setlists.get(artist__name="Same Venue Band")
+        self.assertEqual(list(imported.entries.values_list("song__title", flat=True)), ["Opening song", "Closer"])
         self.assertFalse(fest.eventartist_set.filter(artist__name="City Band").exists())
+        with mock.patch("events.views.search_setlists", return_value=results):
+            key = self.client.get(url).context["candidates"][0]["key"]  # City Band now
+            self.client.post(url, {f"add_{key}": "1", f"role_{key}": "headliner"})
+        self.assertEqual(list(fest.eventartist_set.order_by("billing_order").values_list("artist__name", "role")),
+                         [("Already On", "headliner"), ("City Band", "headliner"), ("Same Venue Band", "support")])
 
     def test_setlistfm_error_is_shown(self):
         fest = Event.objects.create(title="Lolla", event_type=EventType.FESTIVAL, venue=self.venue, date=date(2024, 3, 15),
@@ -2401,13 +2421,13 @@ class ArtistSongStatsTests(BaseTestCase):
         ActLog.objects.get_or_create(log=log, artist=band)
         page = self.client.get(band.get_absolute_url())
         self.assertEqual([(s["song__title"], s["n"]) for s in page.context["top_songs"]], [("Hit", 3), ("Deep cut", 1)])
-        self.assertEqual(page.context["top_albums"][0]["song__album_title"], "First")
+        self.assertEqual(page.context["top_album"]["title"], "First")
         self.assertContains(page, reverse("events:artist_songs", args=[band.pk]))
         mine = self.client.get(band.get_absolute_url() + "?seen_by=ana")
         self.assertEqual([(s["song__title"], s["n"]) for s in mine.context["top_songs"]], [("Deep cut", 1), ("Hit", 1)])
         full = self.client.get(reverse("events:artist_songs", args=[band.pk]) + "?tab=albums&seen_by=ana")
         self.assertEqual(full.context["shows"], 1)
-        self.assertEqual([a["song__album_title"] for a in full.context["albums"]], ["Second", "First"])
+        self.assertEqual([a["title"] for a in full.context["albums"]], ["First", "Second"])  # 1 play each: older first
 
 
 class FestivalPhotoPickerTests(BaseTestCase):
@@ -2448,6 +2468,73 @@ class ProductionThumbnailTests(BaseTestCase):
         page = self.client.get(fest.get_absolute_url())
         self.assertContains(page, 'src="https://img.example/day1.jpg"')
         self.assertContains(page, "No photo", count=1)
+
+
+class BillOrderTests(BaseTestCase):
+    def test_headliners_go_above_support_and_credits_last(self):
+        names = ["Opener", "Director", "Late headliner", "Second opener"]
+        roles = ["support", "director", "headliner", "support"]
+        for i, (n, r) in enumerate(zip(names, roles), start=1):
+            EventArtist.objects.create(event=self.event, artist=Artist.objects.create(name=n), role=r, billing_order=i)
+        self.event.order_bill()
+        self.assertEqual(list(self.event.eventartist_set.order_by("billing_order").values_list("artist__name", flat=True)),
+                         ["Late headliner", "Opener", "Second opener", "Director"])
+
+
+class TapesAndAlbumsTests(BaseTestCase):
+    def setUp(self):
+        super().setUp()
+        from events.models import SetlistSong, Song
+        self.band = Artist.objects.create(name="Band")
+        EventArtist.objects.create(event=self.event, artist=self.band)
+        setlist = Setlist.objects.create(event=self.event, artist=self.band)
+        intro = Song.objects.create(artist=self.band, title="Intro tape", album_title="First", album_year=2000)
+        hit = Song.objects.create(artist=self.band, title="Hit", album_title="First", album_year=2000)
+        SetlistSong.objects.create(setlist=setlist, song=intro, position=1, is_tape=True)
+        SetlistSong.objects.create(setlist=setlist, song=hit, position=2)
+        Album.objects.create(artist=self.band, title="Unplayed", year=2010)
+        self.url = reverse("events:act_setlist", args=[self.event.pk, self.band.pk])
+
+    def test_tapes_are_listed_but_not_counted(self):
+        page = self.client.get(self.url)
+        self.assertEqual(page.context["song_count"], 1)
+        self.assertEqual(page.context["top_album"]["n"], 1)
+        self.assertContains(page, ">tape<")
+        self.assertContains(self.client.get(self.event.get_absolute_url()), "Setlist · 1 song →")
+        songs = self.client.get(reverse("events:artist_songs", args=[self.band.pk])).context["songs"]
+        self.assertEqual([s["song__title"] for s in songs], ["Hit"])
+
+    def test_empty_albums_show_unless_skipped(self):
+        rows = self.client.get(self.url).context["timeline"]
+        self.assertEqual([(r["title"], r["n"]) for r in rows], [("Unplayed", 0), ("First", 1)])
+        skipped = self.client.get(self.url + "?empty=skip").context["timeline"]
+        self.assertEqual([r["title"] for r in skipped], ["First"])
+        artist_page = self.client.get(self.band.get_absolute_url())
+        self.assertEqual([r["title"] for r in artist_page.context["album_chart"]], ["Unplayed", "First"])
+        self.assertContains(artist_page, "Skip empty albums")
+
+    def test_admins_add_and_remove_albums(self):
+        edit = reverse("events:artist_albums_edit", args=[self.band.pk])
+        self.client.force_login(self.user)
+        self.assertEqual(self.client.post(edit, {"title": "New"}).status_code, 403)
+        self.user.is_superuser = True
+        self.user.save()
+        self.assertContains(self.client.get(self.band.get_absolute_url()), "Manage albums")
+        self.client.post(edit, {"title": "  Third  Album ", "year": "2015"})
+        self.client.post(edit, {"title": "third album"})  # same title: ignored
+        self.assertEqual(list(self.band.albums.filter(title__icontains="third").values_list("title", "year")),
+                         [("Third Album", 2015)])
+        self.client.post(edit, {"delete": self.band.albums.get(title="Unplayed").pk})
+        self.assertFalse(self.band.albums.filter(title="Unplayed").exists())
+
+    def test_fixing_a_song_album_adds_it_to_the_artist(self):
+        self.user.is_superuser = True
+        self.user.save()
+        self.client.force_login(self.user)
+        hit = self.band.songs.get(title="Hit")
+        self.client.post(reverse("events:setlist_albums_edit", args=[self.event.pk, self.band.pk]),
+                         {f"album_title_{hit.pk}": "Second", f"album_year_{hit.pk}": "2005"})
+        self.assertTrue(self.band.albums.filter(title="Second", year=2005).exists())
 
 
 class TheaterCreditsTests(BaseTestCase):

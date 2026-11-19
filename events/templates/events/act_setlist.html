@@ -3,15 +3,6 @@
 {% block title %}{{ setlist.artist.name }} setlist · {{ event.title }} · En Vivo{% endblock %}
 
 {% block content %}
-  <style>
-    .album-row { display: flex; align-items: flex-end; gap: .6rem; padding: .3rem 0; }
-    .album-year { min-width: 2.6rem; padding-bottom: 1px; }
-    .album-bar-wrap { flex: 1; min-width: 0; }
-    .album-track { height: 8px; background: rgba(255,255,255,.06); border-radius: 4px; }
-    .album-bar { height: 100%; min-width: 4px; background: #445566; border-radius: 4px; }
-    .album-bar.is-top { background: #00c030; }
-    .album-n { min-width: 1.5rem; text-align: right; color: var(--bs-secondary-color); }
-  </style>
   <p class="small mb-1"><a href="{{ event.get_absolute_url }}">← {{ event.title }}</a></p>
   <h1 class="h3 fw-bold mb-1">{{ setlist.artist.name }}: setlist</h1>
   <div class="text-body-secondary mb-4">
@@ -24,12 +15,9 @@
         {% for entry in entries %}
           {% ifchanged entry.set_name %}{% if entry.set_name %}</ol><div class="section-title mt-3 mb-2">{{ entry.set_name }}</div><ol start="{{ entry.position }}" class="mb-2">{% endif %}{% endifchanged %}
           <li class="py-1">
-            {{ entry.song.title }}{% if entry.note %} <span class="small text-body-secondary">({{ entry.note }})</span>{% endif %}
+            {{ entry.song.title }}{% if entry.is_tape %} <span class="badge text-bg-secondary" title="Played from a recording; not counted">tape</span>{% endif %}{% if entry.note %} <span class="small text-body-secondary">({{ entry.note }})</span>{% endif %}
             <div class="small text-body-secondary">
               {% if entry.song.album_title %}{{ entry.song.album_title }}{% if entry.song.album_year %} · {{ entry.song.album_year }}{% endif %}{% elif can_fix_albums and entry.song.album_checked_at %}No album{% endif %}
-              {% if can_fix_albums %}<button class="btn btn-link btn-sm p-0 ms-1 align-baseline small" type="button" data-bs-toggle="modal" data-bs-target="#albumModal"
-                data-song="{{ entry.song.title }}" data-action="{% url 'events:song_album_edit' entry.song_id %}"
-                data-album="{{ entry.song.album_title }}" data-year="{{ entry.song.album_year|default_if_none:'' }}">Edit album</button>{% endif %}
             </div>
           </li>
         {% empty %}<li class="list-unstyled text-body-secondary">No songs in this setlist.</li>
@@ -37,6 +25,7 @@
       </ol>
       {% if setlist.notes %}<p class="small text-body-secondary">{{ setlist.notes }}</p>{% endif %}
       {% if setlist.source_url %}<a class="small" href="{{ setlist.source_url }}" target="_blank" rel="noreferrer">Source: setlist.fm</a>{% endif %}
+      {% if can_fix_albums and entries %}<div class="mt-3"><button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="modal" data-bs-target="#albumModal">Edit albums</button></div>{% endif %}
     </div>
 
     <div class="col-12 col-md-5">
@@ -45,28 +34,12 @@
         {% if top_album %}
           <div class="small text-body-secondary">Most played album</div>
           <div class="fs-5 fw-semibold">{{ top_album.title }}{% if top_album.year %} <span class="text-body-secondary fw-normal">({{ top_album.year }})</span>{% endif %}</div>
-          <div class="small text-body-secondary mb-3">{{ top_album.n }} of {{ entries|length }} songs</div>
-          <div class="d-flex justify-content-between align-items-center mb-2">
-            <span class="small text-body-secondary">Songs per album</span>
-            <div class="btn-group btn-group-sm" role="group" aria-label="Sort albums">
-              <a class="btn btn-outline-secondary{% if album_sort == 'newest' %} active{% endif %}" href="?"{% if album_sort == 'newest' %} aria-current="true"{% endif %}>Newest first</a>
-              <a class="btn btn-outline-secondary{% if album_sort == 'count' %} active{% endif %}" href="?sort=count"{% if album_sort == 'count' %} aria-current="true"{% endif %}>Most songs</a>
-            </div>
-          </div>
-          <div class="album-chart" role="img" aria-label="Songs per album: {% for a in timeline %}{{ a.title }}{% if a.year %} ({{ a.year }}){% endif %} {{ a.n }}{% if not forloop.last %}, {% endif %}{% endfor %}">
-            {% for a in timeline %}
-              <div class="album-row" title="{{ a.title }}{% if a.year %} ({{ a.year }}){% endif %}: {{ a.n }} song{{ a.n|pluralize }}">
-                <span class="album-year event-date">{{ a.year|default:"—" }}</span>
-                <div class="album-bar-wrap">
-                  <div class="album-name small text-truncate">{{ a.title }}</div>
-                  <div class="album-track"><div class="album-bar{% if a.title == top_album.title and a.year == top_album.year %} is-top{% endif %}" style="width: {{ a.pct }}%"></div></div>
-                </div>
-                <span class="album-n small">{{ a.n }}</span>
-              </div>
-            {% endfor %}
-          </div>
-        {% elif not pending %}
+          <div class="small text-body-secondary mb-3">{{ top_album.n }} of {{ song_count }} song{{ song_count|pluralize }}</div>
+        {% elif not pending and not timeline %}
           <p class="small text-body-secondary mb-0">No studio albums found for these songs.</p>
+        {% endif %}
+        {% if timeline or skip_empty %}
+          {% include "events/_album_chart.html" with rows=timeline top=top_album unit="song" keep=None %}
         {% endif %}
         {% if pending %}
           <p class="small text-body-secondary mt-3 mb-2" id="album-status" aria-live="polite">{% if auto_lookup %}Finding albums for {{ pending|length }} song{{ pending|length|pluralize }} on MusicBrainz…{% else %}MusicBrainz didn't answer for {{ pending|length }} song{{ pending|length|pluralize }}.{% endif %}</p>
@@ -78,31 +51,26 @@
 
   {% if can_fix_albums %}
   <div class="modal fade" id="albumModal" tabindex="-1" aria-labelledby="albumModalTitle" aria-hidden="true">
-    <div class="modal-dialog"><div class="modal-content">
-      <form method="post" id="albumForm">
-        {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
-        <div class="modal-header"><h2 class="modal-title h5" id="albumModalTitle">Edit album</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+    <div class="modal-dialog modal-lg modal-dialog-scrollable"><div class="modal-content">
+      <form method="post" action="{% url 'events:setlist_albums_edit' event.pk setlist.artist_id %}" class="d-flex flex-column overflow-hidden">
+        {% csrf_token %}
+        <div class="modal-header"><h2 class="modal-title h5" id="albumModalTitle">Edit albums</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
         <div class="modal-body">
-          <p class="small text-body-secondary" id="albumSong"></p>
-          <label class="form-label" for="album-title">Album</label>
-          <input class="form-control mb-2" id="album-title" name="album_title" maxlength="240" placeholder="Leave empty if it isn't on an album">
-          <label class="form-label" for="album-year">Year</label>
-          <input class="form-control" id="album-year" name="album_year" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" placeholder="e.g. 1994">
-          <div class="form-text">Fixes this song everywhere it was played. It won't be looked up again.</div>
+          <p class="small text-body-secondary">Fixes each song everywhere it was played; fixed songs aren't looked up again. Leave the album empty for songs that aren't on one.</p>
+          <datalist id="known-albums">{% for a in known_albums %}<option value="{{ a }}"></option>{% endfor %}</datalist>
+          <div class="row g-2 small text-body-secondary mb-1 d-none d-md-flex"><div class="col-md-5">Song</div><div class="col-md-5">Album</div><div class="col-md-2">Year</div></div>
+          {% for song in songs %}
+            <div class="row g-2 align-items-center py-1 border-bottom border-secondary-subtle">
+              <div class="col-12 col-md-5"><label class="small" for="album-title-{{ song.pk }}">{{ song.title }}</label></div>
+              <div class="col-8 col-md-5"><input class="form-control form-control-sm" id="album-title-{{ song.pk }}" name="album_title_{{ song.pk }}" value="{{ song.album_title }}" maxlength="240" list="known-albums" placeholder="No album"></div>
+              <div class="col-4 col-md-2"><input class="form-control form-control-sm" name="album_year_{{ song.pk }}" value="{{ song.album_year|default_if_none:'' }}" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" placeholder="Year" aria-label="Year for {{ song.title }}"></div>
+            </div>
+          {% endfor %}
         </div>
-        <div class="modal-footer"><button class="btn btn-outline-secondary" type="button" data-bs-dismiss="modal">Cancel</button><button class="btn btn-success" type="submit">Save album</button></div>
+        <div class="modal-footer"><button class="btn btn-outline-secondary" type="button" data-bs-dismiss="modal">Cancel</button><button class="btn btn-success" type="submit">Save albums</button></div>
       </form>
     </div></div>
   </div>
-  <script>
-    document.getElementById("albumModal").addEventListener("show.bs.modal", function (e) {
-      var b = e.relatedTarget;
-      document.getElementById("albumForm").action = b.dataset.action;
-      document.getElementById("albumSong").textContent = b.dataset.song;
-      document.getElementById("album-title").value = b.dataset.album;
-      document.getElementById("album-year").value = b.dataset.year;
-    });
-  </script>
   {% endif %}
 
   {% if pending %}
@@ -116,7 +84,7 @@
           csrf = (document.cookie.match(/csrftoken=([^;]+)/) || [])[1] || "";
       function next() {
         if (!ids.length) {
-          if (failed < total) { location.replace(location.pathname + "?albums=done" + (location.search.indexOf("sort=count") > -1 ? "&sort=count" : "")); return; }
+          if (failed < total) { location.replace(location.pathname + "?albums=done" + location.search.replace(/^\?/, "&").replace(/&?albums=done/, "")); return; }
           status.textContent = "MusicBrainz is busy right now.";
           retry.classList.remove("d-none");
           return;

@@ -45,6 +45,7 @@ def _move_lineup(keep: Event, remove: Event, role: str | None) -> None:
             start_time=link.start_time, production_id=link.production_id,
         )
         next_order += 1
+    keep.order_bill()
 
 
 def _move_logs(keep: Event, remove: Event) -> None:

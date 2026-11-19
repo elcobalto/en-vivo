@@ -22,6 +22,7 @@ from django.views.decorators.http import require_POST
 from .forms import RATING_CHOICES, EventForm, EventArtistFormSet, LogForm, ArtistForm, PlayForm, ProductionForm, VenueForm
 from .models import (
     CREDIT_ROLES,
+    Album,
     normalize_name,
     ActLog,
     Event,
@@ -48,6 +49,7 @@ SORTS = {
 }
 WHEN = {"": "Any time", "upcoming": "Upcoming", "past": "Past"}
 from .roles import can_delete_event, can_edit_event, home_place, is_admin
+from .albums import album_rows, remember_album, top_album
 from .merge import merge_into_same_festival_day, share_photo_with_festival_days
 from .views_merge import (
     festival_admin_actions,
@@ -329,16 +331,43 @@ def artist_list(request: HttpRequest) -> HttpResponse:
     )
 
 
-def _artist_plays(artist: Artist, events):
-    """How often each song and album was played by this act across these events' setlists."""
-    plays = SetlistSong.objects.filter(setlist__artist=artist, setlist__event__in=events)
+def _artist_plays(artist: Artist, events, *, skip_empty: bool = False, sort: str = "count"):
+    """How often each song and album was played by this act across these events' setlists (no tapes)."""
+    plays = SetlistSong.objects.filter(setlist__artist=artist, setlist__event__in=events, is_tape=False)
     songs = (plays.values("song_id", "song__title", "song__album_title", "song__album_year")
              .annotate(n=Count("setlist", distinct=True)).order_by("-n", "song__title"))
-    albums = (plays.exclude(song__album_title="").values("song__album_title", "song__album_year")
-              .annotate(n=Count("id"), songs=Count("song", distinct=True))
-              .order_by("-n", F("song__album_year").desc(nulls_last=True), "song__album_title"))
+    played = {
+        r["song__album_title"]: {"title": r["song__album_title"], "year": r["song__album_year"],
+                                 "n": r["n"], "songs": r["songs"]}
+        for r in plays.exclude(song__album_title="").values("song__album_title", "song__album_year")
+        .annotate(n=Count("id"), songs=Count("song", distinct=True))
+    }
     shows = Setlist.objects.filter(artist=artist, event__in=events).count()
-    return songs, albums, shows
+    return songs, album_rows(artist, played, skip_empty=skip_empty, sort=sort), shows
+
+
+@login_required
+@require_POST
+def artist_albums_edit(request: HttpRequest, pk: int) -> HttpResponse:
+    """Admins only: add an album to an artist (so unplayed albums show), or remove one."""
+    if not is_admin(request.user):
+        raise PermissionDenied
+    artist = get_object_or_404(Artist, pk=pk)
+    if request.POST.get("delete"):
+        Album.objects.filter(artist=artist, pk=request.POST["delete"]).delete()
+        messages.success(request, "Album removed.")
+    else:
+        title = " ".join((request.POST.get("title") or "").split())[:240]
+        raw_year = (request.POST.get("year") or "").strip()
+        year = int(raw_year) if raw_year.isdigit() and 1000 < int(raw_year) < 3000 else None
+        if not title:
+            messages.error(request, "Give the album a title.")
+        elif any(normalize_name(a.title) == normalize_name(title) for a in artist.albums.all()):
+            messages.info(request, f"“{title}” is already in {artist.name}'s albums.")
+        else:
+            Album.objects.create(artist=artist, title=title, year=year)
+            messages.success(request, f"Added “{title}”.")
+    return redirect(_safe_next(request, artist.get_absolute_url()))
 
 
 def artist_songs(request: HttpRequest, pk: int) -> HttpResponse:
@@ -348,11 +377,14 @@ def artist_songs(request: HttpRequest, pk: int) -> HttpResponse:
     events = artist.events.all()
     if seen_by:
         events = events.filter(logs__user=seen_by, logs__acts__artist=artist)
-    songs, albums, shows = _artist_plays(artist, events.distinct())
+    skip_empty = request.GET.get("empty") == "skip"
+    sort = "newest" if request.GET.get("sort") == "newest" else "count"
+    songs, albums, shows = _artist_plays(artist, events.distinct(), skip_empty=skip_empty, sort=sort)
     tab = "albums" if request.GET.get("tab") == "albums" else "songs"
     return render(request, "events/artist_songs.html", {
         "artist": artist, "seen_by": seen_by, "tab": tab, "shows": shows,
-        "songs": songs, "albums": albums,
+        "songs": songs, "albums": albums, "skip_empty": skip_empty, "album_sort": sort,
+        "album_keep": [("tab", "albums")] + ([("seen_by", seen_by.get_username())] if seen_by else []),
         "seen_q": f"seen_by={quote(seen_by.get_username())}" if seen_by else "",
     })
 
@@ -366,7 +398,9 @@ def artist_detail(request: HttpRequest, pk: int) -> HttpResponse:
     seen_by = _seen_by(request)
     if seen_by:  # only the shows where this person saw the act
         events = events.filter(logs__user=seen_by, logs__acts__artist=artist)
-    songs, albums, setlist_shows = _artist_plays(artist, events.distinct())
+    skip_empty = request.GET.get("empty") == "skip"
+    album_sort = "count" if request.GET.get("sort") == "count" else "newest"
+    songs, albums, setlist_shows = _artist_plays(artist, events.distinct(), skip_empty=skip_empty, sort=album_sort)
     return render(
         request,
         "events/artist_detail.html",
@@ -379,7 +413,13 @@ def artist_detail(request: HttpRequest, pk: int) -> HttpResponse:
             "events": events.with_stats().select_related("venue").distinct().order_by(*LATEST_FIRST),
             "seen_by": seen_by,
             "top_songs": songs[:10],
-            "top_albums": albums[:5],
+            "album_chart": albums,
+            "top_album": top_album(albums),
+            "skip_empty": skip_empty,
+            "album_sort": album_sort,
+            "album_keep": [("seen_by", seen_by.get_username())] if seen_by else [],
+            "can_fix_albums": is_admin(request.user),
+            "artist_albums": artist.albums.all() if is_admin(request.user) else [],
             "setlist_shows": setlist_shows,
             **stats,
         },
@@ -485,7 +525,8 @@ def event_form(request: HttpRequest, pk: int | None = None) -> HttpResponse:
             formset.save()
             if saved.play_id:
                 _credit_play_authors(saved)
-            # Whoever is first on the bill is the headliner (credits like authors excepted).
+            # Headliners go above support acts; with no headliner, whoever is first on the bill is one.
+            saved.order_bill()
             first = saved.acts_on_stage().order_by("billing_order", "pk").first()
             if first and first.role != EventArtist.Role.HEADLINER:
                 first.role = EventArtist.Role.HEADLINER
@@ -528,7 +569,7 @@ def festival_add_artists(request: HttpRequest, pk: int) -> HttpResponse:
                         continue
                     seen.add(key)
                     venue_name = ((item.get("venue") or {}).get("name") or "").strip()
-                    candidates.append({"key": key, "sfm_artist": sfm_artist, "name": name, "venue": venue_name,
+                    candidates.append({"key": key, "sfm_artist": sfm_artist, "setlist": item, "name": name, "venue": venue_name,
                                        "same_venue": normalize_name(venue_name) == normalize_name(event.venue.name)})
                 if len(results) < 20:
                     break
@@ -538,15 +579,28 @@ def festival_add_artists(request: HttpRequest, pk: int) -> HttpResponse:
     if request.method == "POST" and not error:
         chosen = [c for c in candidates if request.POST.get(f"add_{c['key']}")]
         last = event.eventartist_set.aggregate(m=models.Max("billing_order"))["m"] or 0
+        setlists, skipped = 0, []
         with transaction.atomic():
             for i, c in enumerate(chosen, start=1):
                 artist = _match_artist(c["sfm_artist"])
+                role = (EventArtist.Role.HEADLINER if request.POST.get(f"role_{c['key']}") == "headliner"
+                        else EventArtist.Role.SUPPORT)
                 EventArtist.objects.get_or_create(
-                    event=event, artist=artist,
-                    defaults={"role": EventArtist.Role.SUPPORT, "billing_order": last + i},
+                    event=event, artist=artist, defaults={"role": role, "billing_order": last + i},
                 )
+                if (c["setlist"].get("sets") or {}).get("set"):  # bring their setlist along when it has songs
+                    try:
+                        with transaction.atomic():
+                            import_setlist(event, c["setlist"])
+                            setlists += 1
+                    except SetlistFmError as e:  # e.g. already attached to another event: keep the artist
+                        skipped.append(f"{c['name']}: {e}")
+            event.order_bill()  # new headliners move above the support acts
         event.refresh_auto_title()
-        messages.success(request, f"Added {len(chosen)} artist{'s' if len(chosen) != 1 else ''} to the lineup.")
+        messages.success(request, f"Added {len(chosen)} artist{'s' if len(chosen) != 1 else ''} to the lineup"
+                                  f" and {setlists} setlist{'s' if setlists != 1 else ''}.")
+        for note in skipped:
+            messages.warning(request, f"Setlist not added for {note}")
         return redirect(event)
     return render(request, "events/festival_add_artists.html",
                   {"event": event, "candidates": candidates, "error": error})
@@ -564,27 +618,26 @@ def act_setlist(request: HttpRequest, pk: int, artist_pk: int) -> HttpResponse:
         event=event, artist_id=artist_pk,
     )
     entries = list(setlist.entries.all())
-    albums: dict[tuple, int] = {}
-    for entry in entries:
+    played_entries = [e for e in entries if not e.is_tape]  # tapes are listed but not counted
+    played: dict[str, dict] = {}
+    for entry in played_entries:
         if entry.song.album_title:
-            key = (entry.song.album_title, entry.song.album_year)
-            albums[key] = albums.get(key, 0) + 1
-    album_rows = sorted(
-        ({"title": t, "year": y, "n": n} for (t, y), n in albums.items()),
-        key=lambda a: (-a["n"], a["year"] or 9999, a["title"]),
-    )
-    pending = sorted({e.song_id for e in entries if e.song.album_checked_at is None})
-    # Chart: newest album first by default, or most songs first (bar width relative to the most played).
-    peak = max((a["n"] for a in album_rows), default=0)
+            row = played.setdefault(entry.song.album_title, {"title": entry.song.album_title,
+                                                            "year": entry.song.album_year, "n": 0, "songs": 0})
+            row["n"] += 1
+            row["songs"] += 1
+    pending = sorted({e.song_id for e in played_entries if e.song.album_checked_at is None})
     album_sort = "count" if request.GET.get("sort") == "count" else "newest"
-    ordered = album_rows if album_sort == "count" else sorted(
-        album_rows, key=lambda a: (-(a["year"] or 0), a["title"])
-    )
-    timeline = [{**a, "pct": round(a["n"] / peak * 100)} for a in ordered]
+    skip_empty = request.GET.get("empty") == "skip"
+    timeline = album_rows(setlist.artist, played, skip_empty=skip_empty, sort=album_sort)
     return render(request, "events/act_setlist.html", {
-        "event": event, "setlist": setlist, "entries": entries, "albums": album_rows,
-        "top_album": album_rows[0] if album_rows else None, "pending": pending, "timeline": timeline,
-        "album_sort": album_sort, "can_fix_albums": is_admin(request.user),
+        "event": event, "setlist": setlist, "entries": entries, "song_count": len(played_entries),
+        "top_album": top_album(timeline), "pending": pending, "timeline": timeline,
+        "album_sort": album_sort, "skip_empty": skip_empty, "can_fix_albums": is_admin(request.user),
+        "known_albums": (Song.objects.filter(artist=setlist.artist).exclude(album_title="")
+                         .values_list("album_title", flat=True).distinct().order_by("album_title")
+                         if is_admin(request.user) else []),
+        "songs": list({e.song_id: e.song for e in played_entries}.values()),
         # After one pass the page reloads with ?albums=done; songs still unchecked then wait for a click.
         "auto_lookup": request.GET.get("albums") != "done",
     })
@@ -615,26 +668,35 @@ def song_album_lookup(request: HttpRequest, pk: int) -> JsonResponse:
             song.album_title, song.album_year, song.album_mbid = found["title"][:240], found["year"], found["mbid"]
         song.album_checked_at = timezone.now()
         song.save(update_fields=["album_title", "album_year", "album_mbid", "album_checked_at"])
+        remember_album(song)
     return JsonResponse({"ok": True, "album": song.album_title, "year": song.album_year})
 
 
 @login_required
 @require_POST
-def song_album_edit(request: HttpRequest, pk: int) -> HttpResponse:
-    """Admins only: correct the album a song is filed under (an empty title means no album)."""
+def setlist_albums_edit(request: HttpRequest, pk: int, artist_pk: int) -> HttpResponse:
+    """Admins only: correct the albums of a setlist's songs in one go (an empty title means no album)."""
     if not is_admin(request.user):
         raise PermissionDenied
-    song = get_object_or_404(Song, pk=pk)
-    title = " ".join((request.POST.get("album_title") or "").split())[:240]
-    year = (request.POST.get("album_year") or "").strip()
-    if title != song.album_title:
-        song.album_mbid = ""  # no longer the MusicBrainz match
-    song.album_title = title
-    song.album_year = int(year) if year.isdigit() and 1000 < int(year) < 3000 and title else None
-    song.album_checked_at = timezone.now()  # a manual answer is never looked up again
-    song.save(update_fields=["album_title", "album_year", "album_mbid", "album_checked_at"])
-    messages.success(request, f"Album for “{song.title}” saved.")
-    return redirect(_safe_next(request, "/"))
+    setlist = get_object_or_404(Setlist, event_id=pk, artist_id=artist_pk)
+    changed = 0
+    for song in Song.objects.filter(setlist_entries__setlist=setlist).distinct():
+        if f"album_title_{song.pk}" not in request.POST:
+            continue
+        title = " ".join((request.POST.get(f"album_title_{song.pk}") or "").split())[:240]
+        raw_year = (request.POST.get(f"album_year_{song.pk}") or "").strip()
+        year = int(raw_year) if raw_year.isdigit() and 1000 < int(raw_year) < 3000 and title else None
+        if (title, year) == (song.album_title, song.album_year):
+            continue
+        if title != song.album_title:
+            song.album_mbid = ""  # no longer the MusicBrainz match
+        song.album_title, song.album_year = title, year
+        song.album_checked_at = timezone.now()  # a manual answer is never looked up again
+        song.save(update_fields=["album_title", "album_year", "album_mbid", "album_checked_at"])
+        remember_album(song)
+        changed += 1
+    messages.success(request, f"Updated the album of {changed} song{'s' if changed != 1 else ''}.")
+    return redirect(reverse("events:act_setlist", args=[pk, artist_pk]))
 
 
 def _credit_play_authors(event: Event) -> None:

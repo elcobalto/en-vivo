@@ -143,6 +143,7 @@ def bulk_review(request: HttpRequest) -> HttpResponse:
                         )
                         order += created
                         changed |= created
+                    event.order_bill()
                 updated += changed
         messages.success(request, f"Updated {updated} event{'s' if updated != 1 else ''}.")
         return redirect(f"{reverse('events:bulk_review')}?ids={','.join(str(e.pk) for e in events)}")

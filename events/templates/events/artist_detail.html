@@ -52,13 +52,13 @@
       <a class="small" href="{{ request.path }}">Show all events</a>
     </div>
   {% endif %}
-  {% if top_songs %}
+  {% if top_songs or album_chart or can_fix_albums %}
     {% with seen_q=seen_by.get_username|urlencode %}
     <div class="row g-4 mb-4">
       <div class="col-12 col-md-6">
         <div class="d-flex justify-content-between align-items-end mb-2">
           <h2 class="section-title flex-grow-1 m-0">Most played songs{% if seen_by %} they heard{% endif %}</h2>
-          <a class="small ms-2 text-nowrap" href="{% url 'events:artist_songs' artist.pk %}{% if seen_by %}?seen_by={{ seen_q }}{% endif %}">All songs →</a>
+          {% if top_songs %}<a class="small ms-2 text-nowrap" href="{% url 'events:artist_songs' artist.pk %}{% if seen_by %}?seen_by={{ seen_q }}{% endif %}">All songs →</a>{% endif %}
         </div>
         <ol class="list-unstyled mb-0">
           {% for s in top_songs %}
@@ -66,25 +66,57 @@
               <span class="text-truncate">{{ s.song__title }}{% if s.song__album_title %} <span class="small text-body-secondary">{{ s.song__album_title }}</span>{% endif %}</span>
               <span class="small text-body-secondary text-nowrap">{{ s.n }} of {{ setlist_shows }}</span>
             </li>
-          {% endfor %}
+          {% empty %}<li class="small text-body-secondary">No setlists yet.</li>{% endfor %}
         </ol>
       </div>
       <div class="col-12 col-md-6">
         <div class="d-flex justify-content-between align-items-end mb-2">
-          <h2 class="section-title flex-grow-1 m-0">Most played albums</h2>
-          {% if top_albums %}<a class="small ms-2 text-nowrap" href="{% url 'events:artist_songs' artist.pk %}?tab=albums{% if seen_by %}&seen_by={{ seen_q }}{% endif %}">All albums →</a>{% endif %}
+          <h2 class="section-title flex-grow-1 m-0">Albums{% if seen_by %} they heard{% endif %}</h2>
+          {% if album_chart %}<a class="small ms-2 text-nowrap" href="{% url 'events:artist_songs' artist.pk %}?tab=albums{% if seen_by %}&seen_by={{ seen_q }}{% endif %}">All albums →</a>{% endif %}
         </div>
-        <ol class="list-unstyled mb-0">
-          {% for a in top_albums %}
-            <li class="d-flex justify-content-between gap-2 py-1 border-bottom border-secondary-subtle">
-              <span class="text-truncate">{{ a.song__album_title }}{% if a.song__album_year %} <span class="small text-body-secondary">{{ a.song__album_year }}</span>{% endif %}</span>
-              <span class="small text-body-secondary text-nowrap">{{ a.n }} play{{ a.n|pluralize }}</span>
-            </li>
-          {% empty %}<li class="small text-body-secondary">Albums appear once setlist pages have looked them up.</li>{% endfor %}
-        </ol>
+        {% if top_album %}<div class="small text-body-secondary mb-2">Most played: <strong class="text-body">{{ top_album.title }}</strong>{% if top_album.year %} ({{ top_album.year }}){% endif %} · {{ top_album.n }} play{{ top_album.n|pluralize }}</div>{% endif %}
+        {% if album_chart or skip_empty %}
+          {% include "events/_album_chart.html" with rows=album_chart top=top_album unit="play" keep=album_keep %}
+        {% else %}
+          <p class="small text-body-secondary mb-0">No albums yet. They're found when setlist pages are opened{% if can_fix_albums %}, or add them below{% endif %}.</p>
+        {% endif %}
+        {% if can_fix_albums %}<button class="btn btn-sm btn-outline-secondary mt-2" type="button" data-bs-toggle="modal" data-bs-target="#artistAlbumsModal">Manage albums</button>{% endif %}
       </div>
     </div>
     {% endwith %}
+  {% endif %}
+
+  {% if can_fix_albums %}
+  <div class="modal fade" id="artistAlbumsModal" tabindex="-1" aria-labelledby="artistAlbumsTitle" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-scrollable"><div class="modal-content">
+      <div class="modal-header"><h2 class="modal-title h5" id="artistAlbumsTitle">{{ artist.name }}'s albums</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+      <div class="modal-body">
+        <p class="small text-body-secondary">Albums listed here show in the charts even when no song from them was played.</p>
+        <ul class="list-unstyled mb-3">
+          {% for album in artist_albums %}
+            <li class="d-flex justify-content-between align-items-center py-1 border-bottom border-secondary-subtle">
+              <span>{{ album.title }}{% if album.year %} <span class="small text-body-secondary">{{ album.year }}</span>{% endif %}</span>
+              <form method="post" action="{% url 'events:artist_albums_edit' artist.pk %}" data-confirm="Remove {{ album.title }} from {{ artist.name }}'s albums? Songs keep their album name.">
+                {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}"><input type="hidden" name="delete" value="{{ album.pk }}">
+                <button class="btn btn-link btn-sm text-danger p-0" type="submit">Remove</button>
+              </form>
+            </li>
+          {% empty %}<li class="small text-body-secondary">No albums yet.</li>{% endfor %}
+        </ul>
+        <form method="post" action="{% url 'events:artist_albums_edit' artist.pk %}" class="row g-2 align-items-end">
+          {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
+          <div class="col-8"><label class="form-label small" for="new-album-title">Add an album</label><input class="form-control form-control-sm" id="new-album-title" name="title" maxlength="240" required placeholder="Album title"></div>
+          <div class="col-4"><label class="form-label small" for="new-album-year">Year</label><input class="form-control form-control-sm" id="new-album-year" name="year" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" placeholder="e.g. 1994"></div>
+          <div class="col-12 text-end"><button class="btn btn-sm btn-success" type="submit">Add album</button></div>
+        </form>
+      </div>
+    </div></div>
+  </div>
+  <script>
+    document.querySelectorAll("#artistAlbumsModal form[data-confirm]").forEach(function (f) {
+      f.addEventListener("submit", function (e) { if (!confirm(f.dataset.confirm)) e.preventDefault(); });
+    });
+  </script>
   {% endif %}
 
   <h2 class="section-title mb-3">Events{% if seen_by %} they saw{% endif %}</h2>

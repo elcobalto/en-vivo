@@ -13,7 +13,7 @@ from __future__ import annotations
 from django.conf import settings
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
-from django.db.models import Avg, Count
+from django.db.models import Avg, Count, F
 from django.db.models.functions import Lower
 from django.urls import reverse
 from django_countries.fields import CountryField
@@ -348,6 +348,20 @@ class Event(TimestampedModel):
     def acts_on_stage(self):
         return self.eventartist_set.exclude(role__in=CREDIT_ROLES)
 
+    def order_bill(self) -> None:
+        """Headliners are always billed above everyone else on stage; credits (authors, directors) go last.
+
+        The order within each group is kept. Only billing numbers that change are saved.
+        """
+        links = list(self.eventartist_set.order_by("billing_order", "pk"))
+        headliners = [l for l in links if l.role == EventArtist.Role.HEADLINER]
+        credits = [l for l in links if l.role in CREDIT_ROLES]
+        others = [l for l in links if l not in headliners and l not in credits]
+        for position, link in enumerate(headliners + others + credits, start=1):
+            if link.billing_order != position:
+                link.billing_order = position
+                link.save(update_fields=["billing_order"])
+
     def credits(self):
         return self.eventartist_set.filter(role__in=CREDIT_ROLES).select_related("artist")
 
@@ -466,6 +480,21 @@ class Song(TimestampedModel):
         return f"{self.title} — {self.artist}"
 
 
+class Album(TimestampedModel):
+    """An artist's album, added by admins so albums nobody heard live still show (with 0 songs)."""
+
+    artist = models.ForeignKey(Artist, on_delete=models.CASCADE, related_name="albums")
+    title = models.CharField(max_length=240)
+    year = models.PositiveSmallIntegerField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["artist__name", F("year").desc(nulls_last=True), "title"]
+        constraints = [models.UniqueConstraint(Lower("title"), "artist", name="uq_album_artist_title_ci")]
+
+    def __str__(self) -> str:
+        return f"{self.title} — {self.artist}"
+
+
 class Setlist(TimestampedModel):
     """What one artist played at one event. Imported from setlist.fm or entered by hand."""
 
@@ -485,6 +514,11 @@ class Setlist(TimestampedModel):
     def __str__(self) -> str:
         return f"{self.artist} — {self.event}"
 
+    @property
+    def song_count(self) -> int:
+        """Songs actually played (tapes and intros played from a recording don't count)."""
+        return sum(1 for entry in self.entries.all() if not entry.is_tape)
+
 
 class SetlistSong(models.Model):
     setlist = models.ForeignKey(Setlist, on_delete=models.CASCADE, related_name="entries")
@@ -492,6 +526,8 @@ class SetlistSong(models.Model):
     position = models.PositiveIntegerField()
     set_name = models.CharField(max_length=60, blank=True, default="", help_text='e.g. "Encore"')
     note = models.CharField(max_length=200, blank=True, default="", help_text='e.g. "acoustic"')
+    # Played from a recording (intro/outro tapes): listed, but not counted as a song played.
+    is_tape = models.BooleanField("Tape", default=False)
 
     class Meta:
         constraints = [
