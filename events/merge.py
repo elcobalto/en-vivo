@@ -251,14 +251,61 @@ def festival_days_for_photo(event: Event):
     return Event.objects.filter(production=event.production, date__year=event.date.year).exclude(pk=event.pk)
 
 
-def share_photo_with_festival_days(user, event: Event) -> int:
-    """Copy this day's photo to the other days of its festival edition the user may edit; returns how many."""
+def headliner_shows_for_photo(event: Event):
+    """The headliner's other shows in the same city (the same venue if it has no city) in the same year, where
+    they headline too (several nights of one tour stop); None for festivals or events without those details."""
+    if event.event_type == EventType.FESTIVAL or not event.date or not event.venue_id:
+        return None
+    headliner = event.headliner
+    if headliner is None:
+        return None
+    shows = Event.objects.filter(
+        date__year=event.date.year, eventartist__artist=headliner, eventartist__role=EventArtist.Role.HEADLINER,
+    ).exclude(pk=event.pk).exclude(event_type=EventType.FESTIVAL)
+    venue = event.venue
+    if venue.city:
+        shows = shows.filter(venue__city__iexact=venue.city, venue__country=venue.country)
+    else:
+        shows = shows.filter(venue=venue)
+    return shows.distinct()
+
+
+def photo_siblings(event: Event) -> dict | None:
+    """Other events that should usually get the same photo, for the "use it for…" option (on by default):
+    {"events", "count", "unit" ("day"/"show"), "label"}; None when there are none."""
+    if not event.pk:
+        return None
+    days = festival_days_for_photo(event)
+    if days is not None:
+        count = days.count()
+        label = f"every day of {event.production.title} in {event.date.year}"
+        unit = "day"
+        events = days
+    else:
+        events = headliner_shows_for_photo(event)
+        if events is None:
+            return None
+        count = events.count()
+        place = event.venue.city or event.venue.name
+        label = f"{event.headliner.name}'s other show{'s' if count != 1 else ''} in {place} in {event.date.year}"
+        unit = "show"
+    if not count:
+        return None
+    return {"events": events, "count": count, "unit": unit, "label": label}
+
+
+def share_photo(user, event: Event) -> tuple[int, str]:
+    """Copy this event's photo to its ``photo_siblings`` the user may edit. Returns (how many, "day"/"show")."""
     from .roles import can_edit_event
 
-    days = festival_days_for_photo(event)
-    if days is None or not event.image_url:
-        return 0
-    updated = [d.pk for d in days if can_edit_event(user, d)]
+    siblings = photo_siblings(event)
+    if siblings is None or not event.image_url:
+        return 0, "day"
+    updated = [e.pk for e in siblings["events"] if can_edit_event(user, e)]
     Event.objects.filter(pk__in=updated).update(image_url=event.image_url, image_display=event.image_display)
-    return len(updated)
+    return len(updated), siblings["unit"]
+
+
+def shared_photo_message(count: int, unit: str) -> str:
+    return f"Photo also used for {count} other {unit}{'s' if count != 1 else ''}."
 

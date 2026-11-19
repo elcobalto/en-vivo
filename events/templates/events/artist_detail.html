@@ -58,7 +58,21 @@
     @media (min-width: 768px) { .artist-tours { width: 16rem; max-height: 24rem; overflow-y: auto; } }
   </style>
 
-  {% if seen_by %}
+  {% if user.is_authenticated %}
+    {# Only the shows the signed-in user logged (and saw this act at): songs, albums and events all follow. #}
+    <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+      <div class="btn-group btn-group-sm" role="group" aria-label="Which shows">
+        <a class="btn btn-outline-secondary{% if not seen_by %} active{% endif %}" href="{{ all_shows_url }}"{% if not seen_by %} aria-current="page"{% endif %}>All shows</a>
+        {% if my_show_count %}
+          <a class="btn btn-outline-secondary{% if seen_by == user %} active{% endif %}" href="{{ my_shows_url }}"{% if seen_by == user %} aria-current="page"{% endif %}>Shows I saw ({{ my_show_count }})</a>
+        {% else %}
+          <span class="btn btn-outline-secondary disabled" aria-disabled="true">Shows I saw (0)</span>
+        {% endif %}
+      </div>
+      {% if not my_show_count %}<span class="small text-body-secondary">Log a show of theirs to see only what you heard.</span>{% endif %}
+    </div>
+  {% endif %}
+  {% if seen_by and seen_by != user %}
     <div class="alert alert-secondary d-flex flex-wrap justify-content-between align-items-center gap-2 py-2">
       <span><a href="{% url 'events:profile' seen_by.get_username %}">@{{ seen_by.get_username }}</a> has seen {{ artist.name }}
         <strong>{{ events|length }} time{{ events|length|pluralize }}</strong></span>
@@ -70,7 +84,7 @@
     <div class="row g-4 mb-4">
       <div class="col-12 col-md-6">
         <div class="d-flex justify-content-between align-items-end mb-2">
-          <h2 class="section-title flex-grow-1 m-0">Most played songs{% if seen_by %} they heard{% endif %}</h2>
+          <h2 class="section-title flex-grow-1 m-0">Most played songs{% if seen_by == user %} you heard{% elif seen_by %} they heard{% endif %}</h2>
           {% if top_songs %}<a class="small ms-2 text-nowrap" href="{% url 'events:artist_songs' artist.pk %}{% if seen_by %}?seen_by={{ seen_q }}{% endif %}">All songs →</a>{% endif %}
         </div>
         <ol class="list-unstyled mb-0">
@@ -84,7 +98,7 @@
       </div>
       <div class="col-12 col-md-6">
         <div class="d-flex justify-content-between align-items-end mb-2">
-          <h2 class="section-title flex-grow-1 m-0">Albums{% if seen_by %} they heard{% endif %}</h2>
+          <h2 class="section-title flex-grow-1 m-0">Albums{% if seen_by == user %} you heard{% elif seen_by %} they heard{% endif %}</h2>
           {% if album_chart %}<a class="small ms-2 text-nowrap" href="{% url 'events:artist_songs' artist.pk %}?tab=albums{% if seen_by %}&seen_by={{ seen_q }}{% endif %}">All albums →</a>{% endif %}
         </div>
         {% if top_albums %}<div class="small text-body-secondary mb-2">{% if album_by == "songs" %}Most songs played{% else %}Most played{% endif %}{% if top_albums|length > 1 %} (tied){% endif %}: {% for a in top_albums %}<strong class="text-body">{{ a.title }}</strong>{% if a.year %} ({{ a.year }}){% endif %}{% if not forloop.last %}, {% endif %}{% endfor %} · {% with t=top_albums.0 %}{% if album_by == "songs" %}{{ t.songs }} song{{ t.songs|pluralize }}{% else %}{{ t.n }} play{{ t.n|pluralize }}{% endif %}{% endwith %}{% if top_albums|length > 1 %} each{% endif %}</div>{% endif %}
@@ -147,7 +161,7 @@
   </script>
   {% endif %}
 
-  <h2 class="section-title mb-3">Events{% if seen_by %} they saw{% endif %}</h2>
+  <h2 class="section-title mb-3">Events{% if seen_by == user %} you saw{% elif seen_by %} they saw{% endif %}</h2>
   {% if events %}
     <div class="row row-cols-2 row-cols-sm-3 row-cols-lg-6 g-3">
       {% for event in events %}<div class="col">

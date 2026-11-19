@@ -71,11 +71,15 @@ class EventForm(BootstrapMixin, forms.ModelForm):
         self.fields["production"].queryset = Production.objects.filter(event_type=EventType.FESTIVAL)
         self.fields["production"].label = "Festival"
         self.fields["image_display"].required = False
-        event = self.instance
-        if event.pk and event.event_type == EventType.FESTIVAL and event.production_id and event.date:
+        from .merge import photo_siblings
+
+        siblings = photo_siblings(self.instance)
+        if siblings:  # on by default; only applied when the photo changes
             self.fields["photo_for_all_days"].label = (
-                f"Use this photo for every day of {event.production.title} in {event.date.year}"
+                f"Use this photo for {siblings['label']} ({siblings['count']} other {siblings['unit']}"
+                f"{'s' if siblings['count'] != 1 else ''})"
             )
+            self.fields["photo_for_all_days"].initial = True
         else:
             del self.fields["photo_for_all_days"]
         order = [n for n in self.fields if n != "photo_for_all_days"]

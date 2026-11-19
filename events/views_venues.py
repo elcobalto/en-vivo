@@ -194,11 +194,11 @@ def _photo_picker(request, *, obj, default_query: str, artist: str, context: dic
         obj.save(update_fields=["image_url", "updated_at"])
         messages.success(request, "Photo updated.")
         if isinstance(obj, Event) and request.POST.get("all_days"):
-            from .merge import share_photo_with_festival_days
+            from .merge import share_photo, shared_photo_message
 
-            n = share_photo_with_festival_days(request.user, obj)
-            messages.info(request, f"Photo also used for {n} other day{'s' if n != 1 else ''}"
-                                   f" of {obj.production.title} {obj.date.year}.")
+            n, unit = share_photo(request.user, obj)
+            if n:
+                messages.info(request, shared_photo_message(n, unit))
         return redirect(obj)
 
     query = (request.GET.get("q") or default_query).strip()[:200]
@@ -225,7 +225,7 @@ def _photo_picker(request, *, obj, default_query: str, artist: str, context: dic
 @login_required
 def event_photo(request: HttpRequest, pk: int) -> HttpResponse:
     """Show image matches for an event and save the one the person picks."""
-    from .merge import festival_days_for_photo
+    from .merge import photo_siblings
 
     event = get_object_or_404(Event.objects.select_related("venue"), pk=pk)
     if not can_edit_event(request.user, event):
@@ -235,7 +235,7 @@ def event_photo(request: HttpRequest, pk: int) -> HttpResponse:
         request, obj=event, default_query=image_search.default_query(event),
         artist=headliner.name if headliner else "",
         context={"subject_title": event.title, "back_url": event.get_absolute_url(),
-                 "festival_days": festival_days_for_photo(event),
+                 "photo_share": photo_siblings(event),
                  "edit_url": reverse("events:event_edit", args=[event.pk]),
                  "hint": "Pick the image that fits best: a poster, the artist, or the show itself."},
     )

@@ -1716,6 +1716,35 @@ class ArtistVenueEventsTests(BaseTestCase):
         self.assertEqual(len(venue_page.context["events"]), 3)  # venue visits count every logged event
         self.assertContains(venue_page, "3 times")
 
+    def test_artist_page_toggles_to_only_the_shows_i_saw(self):
+        url = self.artist.get_absolute_url()
+        self.assertNotContains(self.client.get(url), "Shows I saw")  # signed out: no toggle
+
+        self.client.force_login(self.user)
+        page = self.client.get(url)
+        self.assertContains(page, "Shows I saw (0)")  # nothing logged yet: shown, but disabled
+        self.assertContains(page, "Log a show of theirs")
+
+        Log.objects.create(user=self.user, event=self.e2019)
+        missed = Log.objects.create(user=self.user, event=self.event)
+        missed.acts.filter(artist=self.artist).delete()  # at the event, but didn't see this act
+        page = self.client.get(url, {"sort": "count"})
+        self.assertEqual(page.context["my_show_count"], 1)
+        self.assertContains(page, 'href="/artists/%d/?sort=count&amp;seen_by=ana">Shows I saw (1)</a>' % self.artist.pk)
+        self.assertEqual(len(page.context["events"]), 4)
+
+        mine = self.client.get(url, {"sort": "count", "seen_by": "ana"})
+        self.assertEqual([e.title for e in mine.context["events"]], ["2019"])
+        self.assertContains(mine, "Events you saw")
+        self.assertNotContains(mine, "has seen Paul McCartney")  # the banner is for other people's lists
+        self.assertContains(mine, 'href="/artists/%d/?sort=count">All shows</a>' % self.artist.pk)
+
+        other = get_user_model().objects.create_user("bea", password="pw-test-789")
+        Log.objects.create(user=other, event=self.e2010)
+        theirs = self.client.get(url, {"seen_by": "bea"})
+        self.assertContains(theirs, "@bea</a> has seen Paul McCartney")
+        self.assertContains(theirs, "Events they saw")
+
 
 class LineupFormUiTests(BaseTestCase):
     def test_artist_search_replaces_the_new_artist_box_and_add_act_button(self):
@@ -2515,7 +2544,9 @@ class FestivalPhotoPickerTests(BaseTestCase):
         self.client.force_login(self.user)
         url = reverse("events:event_photo", args=[days[0].pk])
         with mock.patch("events.image_search.find_candidates", return_value=([], [])):
-            self.assertContains(self.client.get(url), "Use this photo for every day of Lolla in 2024 (2 other days)")
+            page = self.client.get(url)
+        self.assertContains(page, "Use this photo for every day of Lolla in 2024 (2 other days)")
+        self.assertContains(page, 'id="photo-all-days" checked')  # on by default
         self.client.post(url, {"url": "https://img.example/one.jpg"})
         days[1].refresh_from_db()
         self.assertEqual(days[1].image_url, "")  # toggle off: only this day
@@ -2526,12 +2557,62 @@ class FestivalPhotoPickerTests(BaseTestCase):
         next_year.refresh_from_db()
         self.assertEqual(next_year.image_url, "")
 
-    def test_no_toggle_for_regular_events(self):
+    def test_no_toggle_for_a_one_off_show(self):
         self.event.created_by = self.user
         self.event.save()
+        EventArtist.objects.create(event=self.event, artist=Artist.objects.create(name="Green Day"))
         self.client.force_login(self.user)
         with mock.patch("events.image_search.find_candidates", return_value=([], [])):
             self.assertNotContains(self.client.get(reverse("events:event_photo", args=[self.event.pk])), "photo-all-days")
+
+    def test_headliners_other_shows_in_the_same_city_and_year_share_the_photo(self):
+        mc = Artist.objects.create(name="Paul McCartney")
+        other_venue = Venue.objects.create(name="Estadio Nacional", city="santiago", country="CL")
+        elsewhere = Venue.objects.create(name="Estadio Monumental", city="Lima", country="PE")
+
+        def show(day, venue, year=2019, role=EventArtist.Role.HEADLINER, **extra):
+            e = Event.objects.create(title=f"Show {day}", date=date(year, 4, day), venue=venue, created_by=self.user,
+                                     **extra)
+            EventArtist.objects.create(event=e, artist=mc, role=role)
+            return e
+
+        first, second = show(1, self.venue), show(2, other_venue)  # Santiago, both headlined by him
+        lima = show(3, elsewhere)
+        next_year = show(4, self.venue, year=2020)
+        as_support = show(5, self.venue, role=EventArtist.Role.SUPPORT)
+        fest = show(6, self.venue, event_type=EventType.FESTIVAL)
+
+        self.client.force_login(self.user)
+        url = reverse("events:event_photo", args=[first.pk])
+        with mock.patch("events.image_search.find_candidates", return_value=([], [])):
+            page = self.client.get(url)
+        self.assertContains(page, "Use this photo for Paul McCartney&#x27;s other show in Santiago in 2019 (1 other show)")
+        self.assertContains(page, 'id="photo-all-days" checked')
+        self.client.post(url, {"url": "https://img.example/mc.jpg", "all_days": "1"}, follow=True)
+        second.refresh_from_db()
+        self.assertEqual(second.image_url, "https://img.example/mc.jpg")
+        for e in (lima, next_year, as_support, fest):
+            e.refresh_from_db()
+            self.assertEqual(e.image_url, "", e.title)
+
+        # The edit form offers it too, checked, but only shares when the photo changes.
+        edit = reverse("events:event_edit", args=[second.pk])
+        self.assertContains(self.client.get(edit), "Use this photo for Paul McCartney&#x27;s other show in santiago")
+        form = {"title": "", "event_type": "music", "date": "2019-04-02", "venue": str(other_venue.pk),
+                "image_url": "https://img.example/mc.jpg", "image_display": second.image_display, "photo_for_all_days": "on",
+                "eventartist_set-TOTAL_FORMS": "1", "eventartist_set-INITIAL_FORMS": "1",
+                "eventartist_set-MIN_NUM_FORMS": "0", "eventartist_set-MAX_NUM_FORMS": "1000",
+                "eventartist_set-0-id": str(second.eventartist_set.get().pk),
+                "eventartist_set-0-artist": str(mc.pk), "eventartist_set-0-role": "headliner",
+                "eventartist_set-0-billing_order": "1"}
+        first.image_url = "https://img.example/its-own.jpg"
+        first.save()
+        self.client.post(edit, form)  # photo unchanged: the first show keeps its own
+        first.refresh_from_db()
+        self.assertEqual(first.image_url, "https://img.example/its-own.jpg")
+        self.client.post(edit, {**form, "image_url": "https://img.example/new.jpg"})
+        first.refresh_from_db()
+        self.assertEqual(first.image_url, "https://img.example/new.jpg")
 
 
 class ProductionThumbnailTests(BaseTestCase):
@@ -3015,7 +3096,8 @@ class FestivalPhotoForAllDaysTests(BaseTestCase):
                                          created_by=self.user)
         self.client.force_login(self.user)
         page = self.client.get(reverse("events:event_edit", args=[days[0].pk]))
-        self.assertContains(page, "Use this photo for every day of Lollapalooza Chile in 2024")
+        self.assertContains(page, "Use this photo for every day of Lollapalooza Chile in 2024 (2 other days)")
+        self.assertTrue(page.context["form"].fields["photo_for_all_days"].initial)  # on by default
         html = page.content.decode()
         self.assertLess(html.index('name="image_url"'), html.index('name="photo_for_all_days"'))
 
@@ -3031,7 +3113,7 @@ class FestivalPhotoForAllDaysTests(BaseTestCase):
         next_year.refresh_from_db()
         self.assertEqual(next_year.image_url, "")
 
-    def test_option_hidden_for_non_festival_events(self):
+    def test_option_hidden_for_a_one_off_show(self):
         self.client.force_login(self.user)
         self.event.created_by = self.user
         self.event.save()

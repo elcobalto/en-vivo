@@ -6,7 +6,7 @@
 {% block scripts %}
   <script src="{% static 'events/photo-drop.js' %}" defer></script>
   <script src="{% static 'events/photo-openverse.js' %}" defer></script>
-  {% if festival_days %}
+  {% if photo_share %}
   <script>
     // Every photo form sends the toggle, including the Openverse ones added after the page loads.
     document.addEventListener("submit", function (event) {
@@ -30,11 +30,11 @@
     {{ hint }}
   </p>
 
-  {% if festival_days %}
-    {# Applies to whichever photo is picked below (every form on the page sends it). #}
+  {% if photo_share %}
+    {# Applies to whichever photo is picked below (every form on the page sends it). On unless unticked. #}
     <div class="form-check form-switch mb-3">
-      <input class="form-check-input" type="checkbox" role="switch" id="photo-all-days">
-      <label class="form-check-label" for="photo-all-days">Use this photo for every day of {{ festival_days.first.production.title }} in {{ festival_days.first.date.year }} ({{ festival_days.count }} other day{{ festival_days.count|pluralize }})</label>
+      <input class="form-check-input" type="checkbox" role="switch" id="photo-all-days" checked>
+      <label class="form-check-label" for="photo-all-days">Use this photo for {{ photo_share.label }} ({{ photo_share.count }} other {{ photo_share.unit }}{{ photo_share.count|pluralize }})</label>
     </div>
   {% endif %}
 

@@ -51,7 +51,7 @@ WHEN = {"": "Any time", "upcoming": "Upcoming", "past": "Past"}
 from .roles import can_delete_event, can_edit_event, home_place, is_admin
 from .albums import (album_groups, album_rows, choose_album, mark_album_choices, played_by_album, remember_album,
                      split_plays, top_albums)
-from .merge import merge_into_same_festival_day, share_photo_with_festival_days
+from .merge import merge_into_same_festival_day, share_photo, shared_photo_message
 from .views_merge import (
     festival_admin_actions,
     festival_suggestion,
@@ -456,6 +456,21 @@ def artist_songs(request: HttpRequest, pk: int) -> HttpResponse:
     })
 
 
+def _my_shows_toggle(request: HttpRequest, artist: Artist) -> dict:
+    """The "All shows | Shows I saw" links for a signed-in user (other query params, like album sorting, kept)."""
+    if not request.user.is_authenticated:
+        return {}
+    params = request.GET.copy()
+    params.pop("seen_by", None)
+    all_url = request.path + (f"?{params.urlencode()}" if params else "")
+    params["seen_by"] = request.user.get_username()
+    return {
+        "my_show_count": artist.events.filter(logs__user=request.user, logs__acts__artist=artist).distinct().count(),
+        "all_shows_url": all_url,
+        "my_shows_url": f"{request.path}?{params.urlencode()}",
+    }
+
+
 def artist_detail(request: HttpRequest, pk: int) -> HttpResponse:
     artist = get_object_or_404(Artist, pk=pk)
     # Ratings for the artist come from people who saw this act, not from the whole event.
@@ -475,6 +490,7 @@ def artist_detail(request: HttpRequest, pk: int) -> HttpResponse:
         "events/artist_detail.html",
         {
             "artist": artist,
+            **_my_shows_toggle(request, artist),
             "tours": artist.tours.order_by("title"),
             **(dict(zip(("merge_similar", "merge_rest"), artist_duplicate_candidates(artist)))
                if is_admin(request.user) else {}),
@@ -612,10 +628,12 @@ def event_form(request: HttpRequest, pk: int | None = None) -> HttpResponse:
                 first.role = EventArtist.Role.HEADLINER
                 first.save(update_fields=["role"])
             merged = merge_into_same_festival_day(saved)
-            if not merged and form.cleaned_data.get("photo_for_all_days") and saved.image_url:
-                updated = share_photo_with_festival_days(request.user, saved)
-                messages.info(request, f"Photo also used for {updated} other day{'s' if updated != 1 else ''}"
-                                       f" of {saved.production.title} {saved.date.year}.")
+            # Only when the photo changed, so saving other edits doesn't overwrite the other events' photos.
+            photo_changed = {"image_url", "image_display"} & set(form.changed_data)
+            if not merged and photo_changed and form.cleaned_data.get("photo_for_all_days") and saved.image_url:
+                updated, unit = share_photo(request.user, saved)
+                if updated:
+                    messages.info(request, shared_photo_message(updated, unit))
         if merged:
             messages.info(request, f"“{merged.title}” already existed on that day, so this was added to it.")
             return redirect(merged)
