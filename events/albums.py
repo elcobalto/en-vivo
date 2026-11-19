@@ -43,10 +43,23 @@ def album_rows(artist: Artist, played: dict, *, skip_empty: bool = False, sort: 
     return result
 
 
-def top_album(rows: list[dict]) -> dict | None:
-    """The most played album (ties: the older one), or None when nothing was matched to an album."""
+def top_albums(rows: list[dict], by: str = "n") -> list[dict]:
+    """Every album tied for the most plays (``by="n"``) or the most different songs (``by="songs"``), oldest
+    first, and marks them ``is_top`` (the green bar). "No album" and "Covers" never count."""
     played = [r for r in rows if r["n"] and not r.get("is_none")]
-    return min(played, key=lambda r: (-r["n"], r["year"] or 9999, r["title"].casefold())) if played else None
+    if not played:
+        return []
+    best = max(r[by] for r in played)
+    tops = sorted((r for r in played if r[by] == best), key=lambda r: (r["year"] or 9999, r["title"].casefold()))
+    for r in tops:
+        r["is_top"] = True
+    return tops
+
+
+def top_album(rows: list[dict], by: str = "n") -> dict | None:
+    """The first of ``top_albums`` (marks all of them), or None."""
+    tops = top_albums(rows, by)
+    return tops[0] if tops else None
 
 
 def album_owner(song: Song):

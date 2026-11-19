@@ -2301,7 +2301,7 @@ class LineupSetlistTests(BaseTestCase):
                 self.assertEqual(self.client.post(reverse("events:song_album_lookup", args=[song.pk])).status_code, 200)
         resp = self.client.get(url)
         self.assertEqual(resp.context["pending"], [])
-        self.assertEqual((resp.context["top_album"]["title"], resp.context["top_album"]["n"]), ("Dookie", 2))
+        self.assertEqual((resp.context["top_albums"][0]["title"], resp.context["top_albums"][0]["n"]), ("Dookie", 2))
         self.assertContains(resp, "Most played album")
         self.assertContains(resp, f'<a class="link-light" href="{band.get_absolute_url()}">Green Day</a>: setlist')
         self.assertEqual([(a["title"], a["n"], a["pct"]) for a in resp.context["timeline"]],
@@ -2466,7 +2466,7 @@ class ArtistSongStatsTests(BaseTestCase):
         ActLog.objects.get_or_create(log=log, artist=band)
         page = self.client.get(band.get_absolute_url())
         self.assertEqual([(s["song__title"], s["n"]) for s in page.context["top_songs"]], [("Hit", 3), ("Deep cut", 1)])
-        self.assertEqual(page.context["top_album"]["title"], "First")
+        self.assertEqual(page.context["top_albums"][0]["title"], "First")
         self.assertContains(page, reverse("events:artist_songs", args=[band.pk]))
         mine = self.client.get(band.get_absolute_url() + "?seen_by=ana")
         self.assertEqual([(s["song__title"], s["n"]) for s in mine.context["top_songs"]], [("Deep cut", 1), ("Hit", 1)])
@@ -2543,7 +2543,7 @@ class TapesAndAlbumsTests(BaseTestCase):
     def test_tapes_are_listed_but_not_counted(self):
         page = self.client.get(self.url)
         self.assertEqual(page.context["song_count"], 1)
-        self.assertEqual(page.context["top_album"]["n"], 1)
+        self.assertEqual(page.context["top_albums"][0]["n"], 1)
         self.assertContains(page, ">tape<")
         html = page.content.decode()
         self.assertIn("is-tape", html)
@@ -2708,7 +2708,7 @@ class NoAlbumRowTests(BaseTestCase):
         url = reverse("events:act_setlist", args=[self.event.pk, band.pk])
         rows = self.client.get(url).context["timeline"]
         self.assertEqual([(r["title"], r["n"]) for r in rows], [("First", 1), ("No album", 1)])
-        self.assertEqual(self.client.get(url).context["top_album"]["title"], "First")
+        self.assertEqual(self.client.get(url).context["top_albums"][0]["title"], "First")
         chart = self.client.get(band.get_absolute_url() + "?sort=count").context["album_chart"]
         self.assertEqual(chart[-1]["title"], "No album")
         page = self.client.get(url).content.decode()
@@ -2735,6 +2735,9 @@ class AlbumMeasureToggleTests(BaseTestCase):
         self.assertEqual([(r["title"], r["pct"]) for r in by_songs.context["album_chart"]],
                          [("Deep album", 100), ("One-hit album", 50)])
         self.assertContains(by_songs, 'id="by-songs" checked')
+        self.assertEqual(self.client.get(url).context["top_albums"][0]["title"], "One-hit album")
+        self.assertEqual(by_songs.context["top_albums"][0]["title"], "Deep album")  # green bar follows the toggle
+        self.assertContains(by_songs, "Most songs played")
 
 
 class ManageSongsTests(BaseTestCase):
@@ -2824,7 +2827,7 @@ class CoversAndBandsTests(BaseTestCase):
 
     def test_setlist_page_has_the_band_chart_too(self):
         page = self.client.get(reverse("events:act_setlist", args=[self.event.pk, self.paul.pk]))
-        self.assertEqual(page.context["top_album"]["title"], "Band on the Run")
+        self.assertEqual(page.context["top_albums"][0]["title"], "Band on the Run")
         self.assertEqual(page.context["band_charts"][0]["band"], self.beatles)
         self.assertEqual(page.context["timeline"][-1]["title"], "Covers")
 
@@ -2852,6 +2855,22 @@ class CoversAndBandsTests(BaseTestCase):
                    "sets": {"set": [{"song": [{"name": "Let It Be", "cover": {"name": "The Beatles"}}]}]}}
         import_setlist(Event.objects.create(title="y"), payload)
         self.assertEqual(self.paul.songs.get(title="Let It Be").cover_of_name, "The Beatles")
+
+
+class TiedTopAlbumsTests(BaseTestCase):
+    def test_albums_tied_for_most_played_are_all_highlighted(self):
+        from events.models import SetlistSong, Song
+        band = Artist.objects.create(name="Band")
+        EventArtist.objects.create(event=self.event, artist=band)
+        sl = Setlist.objects.create(event=self.event, artist=band)
+        for i, (title, album, year) in enumerate([("A", "First", 1980), ("B", "Second", 1985), ("C", "Third", 1990),
+                                                  ("D", "Third", 1990), ("E", "First", 1980)], start=1):
+            SetlistSong.objects.create(setlist=sl, position=i,
+                                       song=Song.objects.create(artist=band, title=title, album_title=album, album_year=year))
+        page = self.client.get(reverse("events:act_setlist", args=[self.event.pk, band.pk]))
+        self.assertEqual([a["title"] for a in page.context["top_albums"]], ["First", "Third"])
+        self.assertContains(page, "(tied)")
+        self.assertEqual(page.content.decode().count("album-bar has-songs is-top"), 2)
 
 
 class TheaterCreditsTests(BaseTestCase):

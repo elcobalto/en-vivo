@@ -49,7 +49,7 @@ SORTS = {
 }
 WHEN = {"": "Any time", "upcoming": "Upcoming", "past": "Past"}
 from .roles import can_delete_event, can_edit_event, home_place, is_admin
-from .albums import album_rows, played_by_album, remember_album, split_plays, top_album
+from .albums import album_rows, played_by_album, remember_album, split_plays, top_albums
 from .merge import merge_into_same_festival_day, share_photo_with_festival_days
 from .views_merge import (
     festival_admin_actions,
@@ -444,7 +444,7 @@ def artist_songs(request: HttpRequest, pk: int) -> HttpResponse:
     tab = "albums" if request.GET.get("tab") == "albums" else "songs"
     return render(request, "events/artist_songs.html", {
         "artist": artist, "seen_by": seen_by, "tab": tab, "shows": shows,
-        "songs": songs, "albums": albums, "band_charts": band_charts,
+        "songs": songs, "albums": albums, "band_charts": band_charts, "top_albums": top_albums(albums, album_by),
         "skip_empty": skip_empty, "album_sort": sort, "album_by": album_by,
         "album_keep": [("tab", "albums")] + ([("seen_by", seen_by.get_username())] if seen_by else []),
         "can_fix_albums": is_admin(request.user),
@@ -488,7 +488,7 @@ def artist_detail(request: HttpRequest, pk: int) -> HttpResponse:
             "band_charts": band_charts,
             "member_of": artist.member_of.all(),
             "members": artist.members.all(),
-            "top_album": top_album(albums),
+            "top_albums": top_albums(albums, album_by),  # ties all count; the green bars follow the toggle
             "skip_empty": skip_empty,
             "album_sort": album_sort,
             "album_by": album_by,
@@ -745,7 +745,7 @@ def act_setlist(request: HttpRequest, pk: int, artist_pk: int) -> HttpResponse:
         entry.number = None if entry.is_tape else number
     return render(request, "events/act_setlist.html", {
         "event": event, "setlist": setlist, "entries": entries, "song_count": len(played_entries),
-        "top_album": top_album(timeline), "pending": pending, "timeline": timeline, "band_charts": band_charts,
+        "top_albums": top_albums(timeline), "pending": pending, "timeline": timeline, "band_charts": band_charts,
         "album_sort": album_sort, "skip_empty": skip_empty, "can_fix_albums": is_admin(request.user),
         "known_albums": (Song.objects.filter(artist=setlist.artist).exclude(album_title="")
                          .values_list("album_title", flat=True).distinct().order_by("album_title")

@@ -223,9 +223,9 @@ class ArtistForm(BootstrapMixin, forms.ModelForm):
     class Meta:
         model = Artist
         fields = ["name", "kind", "country", "member_of", "bio", "image_url", "mbid"]
-        widgets = {"bio": forms.Textarea(attrs={"rows": 4}), "member_of": forms.SelectMultiple(attrs={"size": 8})}
+        widgets = {"bio": forms.Textarea(attrs={"rows": 4}), "member_of": forms.SelectMultiple(attrs={"data-search-multi": "", "data-placeholder": "Search bands…"})}
         help_texts = {"mbid": "Optional. Helps match setlist.fm imports to this artist.",
-                      "member_of": "Bands this artist was in (hold Ctrl/Cmd for more than one). Their songs played as "
+                      "member_of": "Bands this artist was in. Their songs played as "
                                    "covers get the band's own album chart."}
 
     def __init__(self, *args, **kwargs):

@@ -38,15 +38,15 @@
     <div class="col-12 col-md-5">
       <div class="card"><div class="card-body">
         <h2 class="section-title mb-3">Albums</h2>
-        {% if top_album %}
-          <div class="small text-body-secondary">Most played album</div>
-          <div class="fs-5 fw-semibold">{{ top_album.title }}{% if top_album.year %} <span class="text-body-secondary fw-normal">({{ top_album.year }})</span>{% endif %}</div>
-          <div class="small text-body-secondary mb-3">{{ top_album.n }} of {{ song_count }} song{{ song_count|pluralize }}</div>
+        {% if top_albums %}
+          <div class="small text-body-secondary">Most played album{{ top_albums|length|pluralize }}{% if top_albums|length > 1 %} (tied){% endif %}</div>
+          <div class="fs-5 fw-semibold">{% for a in top_albums %}{{ a.title }}{% if a.year %} <span class="text-body-secondary fw-normal">({{ a.year }})</span>{% endif %}{% if not forloop.last %}<span class="text-body-secondary fw-normal"> · </span>{% endif %}{% endfor %}</div>
+          <div class="small text-body-secondary mb-3">{{ top_albums.0.n }} of {{ song_count }} song{{ song_count|pluralize }}{% if top_albums|length > 1 %} each{% endif %}</div>
         {% elif not pending and not timeline %}
           <p class="small text-body-secondary mb-0">No studio albums found for these songs.</p>
         {% endif %}
         {% if timeline or skip_empty %}
-          {% include "events/_album_chart.html" with rows=timeline top=top_album unit="song" keep=None %}
+          {% include "events/_album_chart.html" with rows=timeline unit="song" keep=None %}
         {% endif %}
         {% for chart in band_charts %}
           <div class="mt-3">
