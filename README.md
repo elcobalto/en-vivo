@@ -53,12 +53,15 @@ Key setup (Google Cloud Console, same project as the OAuth client):
 ### Event photos ("Find photo")
 
 People who can edit an event get a **Find photo** button: it shows image matches and saves the link
-of the one they pick. Sources: Google Images (optional, Custom Search JSON API), Deezer artist
-pictures and Wikimedia Commons (both free, no key). Searches are cached for a day and limited to
-30 per user per hour.
+of the one they pick. Sources: Deezer artist pictures and Wikimedia Commons (searched by the server,
+cached for a day, limited to 30 searches per user per hour) and Openverse (openly licensed photos,
+mostly Flickr), which the page searches from the browser because a new search there can take
+10–20 seconds (200 a day per visitor without an account). All free, no keys.
 
-To enable Google Images: create a Programmable Search Engine with image search on, enable the
-**Custom Search API** in Google Cloud, and set `GOOGLE_SEARCH_API_KEY` and `GOOGLE_SEARCH_ENGINE_ID`.
+Google Images has no free API (the Custom Search JSON API closed to new customers and ends on
+January 1, 2027), so the page links to a normal Google Images search: people drag the photo they
+like back onto the page, or paste its address. Copied Google/Bing result links (`imgres?imgurl=…`)
+are unwrapped to the photo itself.
 
 ### Roles
 

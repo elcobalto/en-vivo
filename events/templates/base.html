@@ -42,6 +42,12 @@
         position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
         font-size: .7rem; text-transform: uppercase; letter-spacing: .12em; color: #777;
       }
+      .photo-drop-zone {
+        display: flex; align-items: center; justify-content: center; gap: 1rem; min-height: 5.5rem; padding: .75rem;
+        border: 2px dashed var(--ev-bar); color: var(--bs-secondary-color); transition: border-color .15s, background .15s;
+      }
+      .photo-drop-zone.is-dragging { border-color: var(--ev-accent); background: rgba(255, 128, 0, .08); color: var(--ev-accent); }
+      .photo-drop-preview { max-height: 9rem; max-width: 60%; border-radius: .3rem; object-fit: contain; }
       .rating-bars { display: flex; align-items: flex-end; gap: 2px; height: 44px; border-bottom: 1px solid var(--ev-line); }
       .rating-bar { flex: 1; height: 100%; display: flex; align-items: flex-end; }
       .rating-bar > div { width: 100%; background: var(--ev-bar); border-radius: 2px 2px 0 0; }

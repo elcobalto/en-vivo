@@ -1067,11 +1067,6 @@ from django.core.cache import cache  # noqa: E402
 
 from . import image_search  # noqa: E402
 
-GOOGLE_IMAGES = {"items": [
-    {"link": "https://img.example/mccartney-2019.jpg", "title": "McCartney en el Nacional", "displayLink": "example.cl",
-     "image": {"thumbnailLink": "https://encrypted-tbn0.gstatic.com/x", "contextLink": "https://example.cl/nota"}},
-    {"link": "http://insecure.example/x.jpg", "image": {}},
-]}
 DEEZER_ARTISTS = {"data": [
     {"name": "Paul McCartney", "picture_xl": "https://cdn.deezer.example/xl.jpg",
      "picture_medium": "https://cdn.deezer.example/m.jpg", "link": "https://www.deezer.com/artist/1"},
@@ -1082,15 +1077,12 @@ COMMONS = {"query": {"pages": {"1": {"index": 1, "title": "File:Paul McCartney 2
     "extmetadata": {"Artist": {"value": "<a href='x'>Jane Doe</a>"}, "LicenseShortName": {"value": "CC BY-SA 4.0"}}}]}}}}
 
 
-def _fake_get_json(url, params):
-    if "googleapis" in url:
-        return GOOGLE_IMAGES
+def _fake_get_json(url, params, **kwargs):
     if "deezer" in url:
         return DEEZER_ARTISTS
     return COMMONS
 
 
-@override_settings(GOOGLE_SEARCH_API_KEY="", GOOGLE_SEARCH_ENGINE_ID="")
 class FindPhotoTests(BaseTestCase):
     def setUp(self):
         super().setUp()
@@ -1102,32 +1094,57 @@ class FindPhotoTests(BaseTestCase):
 
     def test_parsers(self):
         with mock.patch("events.image_search._get_json", side_effect=_fake_get_json):
-            google = image_search.google_images("x")
             deezer = image_search.deezer_artist_pictures("paul mccartney")
             commons = image_search.commons_images("x")
-        self.assertEqual([c.url for c in google], ["https://img.example/mccartney-2019.jpg"])  # http dropped
         self.assertEqual([c.url for c in deezer], ["https://cdn.deezer.example/xl.jpg"])  # exact name only
         self.assertEqual(commons[0].credit, "Jane Doe · CC BY-SA 4.0")
         self.assertEqual(commons[0].title, "Paul McCartney 2019.jpg")
 
     @mock.patch("events.image_search._get_json", side_effect=_fake_get_json)
-    def test_picker_without_google_uses_free_sources(self, get_json):
+    def test_picker_lists_free_sources_and_asks_openverse_from_the_browser(self, get_json):
         page = self.client.get(reverse("events:event_photo", args=[self.event.pk]))
-        self.assertContains(page, "Google Images isn't set up yet")
-        self.assertContains(page, "Deezer")
+        self.assertEqual([c["source"] for c in page.context["candidates"]][:2], ["Deezer", "Wikimedia Commons"])
+        self.assertFalse(any("openverse" in c.args[0] for c in get_json.call_args_list))
+        self.assertContains(page, 'data-openverse data-query="Green Day in Chile Chile 1992" data-artist="Paul McCartney"')
+        self.assertContains(page, "events/photo-openverse.js")
+        self.assertContains(page, "data-candidate-template")
         self.assertContains(page, "Wikimedia Commons")
-        self.assertNotContains(page, "img.example")
-        called = [c.args[0] for c in get_json.call_args_list]
-        self.assertFalse(any("googleapis" in u for u in called))
+        self.assertNotContains(page, "isn't set up yet")
         self.assertEqual(page.context["query"], "Green Day in Chile Chile 1992")  # name, venue country, year
         self.assertContains(page, "https://www.google.com/search?tbm=isch&amp;q=Green+Day+in+Chile+Chile+1992")
         self.assertContains(page, "Use this link")
+        self.assertContains(page, "Drop a photo here")
+        self.assertContains(page, "events/photo-drop.js")
 
-    @override_settings(GOOGLE_SEARCH_API_KEY="k", GOOGLE_SEARCH_ENGINE_ID="cx")
-    @mock.patch("events.image_search._get_json", side_effect=_fake_get_json)
-    def test_picker_with_google_lists_google_first(self, _):
-        page = self.client.get(reverse("events:event_photo", args=[self.event.pk]), {"q": "mccartney nacional"})
-        self.assertEqual(page.context["candidates"][0]["source"], "Google")
+    def test_clean_image_link(self):
+        clean = image_search.clean_image_link
+        self.assertEqual(clean("https://www.google.com/imgres?q=x&imgurl=https%3A%2F%2Fimg.example%2Fa.jpg&imgrefurl=https%3A%2F%2Fex.cl"),
+                         "https://img.example/a.jpg")
+        self.assertEqual(clean("https://www.google.cl/imgres?imgurl=https://img.example/b.jpg"), "https://img.example/b.jpg")
+        self.assertEqual(clean("https://www.bing.com/images/search?q=x&mediaurl=https%3A%2F%2Fimg.example%2Fc.jpg"),
+                         "https://img.example/c.jpg")
+        self.assertEqual(clean("  https://img.example/d.jpg "), "https://img.example/d.jpg")
+        self.assertTrue(image_search.is_search_page("https://www.google.com/search?q=x&udm=2"))
+        self.assertFalse(image_search.is_search_page("https://lh3.googleusercontent.com/photo.jpg"))
+        self.assertFalse(image_search.is_search_page("https://img.example/d.jpg"))
+
+    def test_pick_unwraps_google_links_and_rejects_results_pages(self):
+        url = reverse("events:event_photo", args=[self.event.pk])
+        self.client.post(url, {"url": "https://www.google.com/imgres?imgurl=https%3A%2F%2Fimg.example%2Fgd.jpg"})
+        self.event.refresh_from_db()
+        self.assertEqual(self.event.image_url, "https://img.example/gd.jpg")
+
+        response = self.client.post(url + "?q=green+day", {"url": "https://www.google.com/search?q=green+day&udm=2"}, follow=True)
+        self.assertRedirects(response, url + "?q=green+day")
+        self.assertContains(response, "link to the search results")
+        self.event.refresh_from_db()
+        self.assertEqual(self.event.image_url, "https://img.example/gd.jpg")
+
+    def test_festival_toggle_script_is_on_the_page_not_in_the_title(self):
+        with mock.patch("events.image_search.find_candidates", return_value=([], [])):
+            page = self.client.get(reverse("events:event_photo", args=[self.event.pk]))
+        title = page.content.decode().split("<title>")[1].split("</title>")[0]
+        self.assertNotIn("<script", title)
 
     def test_pick_saves_photo(self):
         url = "https://img.example/" + "a" * 400 + ".jpg"  # long Google links fit
@@ -1300,7 +1317,6 @@ class ProfileStatsAndArtistPhotoTests(BaseTestCase):
         self.assertEqual(bare.display_image, "")
 
 
-@override_settings(GOOGLE_SEARCH_API_KEY="", GOOGLE_SEARCH_ENGINE_ID="")
 class ArtistPhotoTests(BaseTestCase):
     def setUp(self):
         super().setUp()
@@ -2011,7 +2027,6 @@ class MostSeenTieBreakTests(BaseTestCase):
         self.assertEqual([v.name for v in page.context["top_venues"]][:2], ["Zzz Arena", "Aaa Hall"])
 
 
-@override_settings(GOOGLE_SEARCH_API_KEY="", GOOGLE_SEARCH_ENGINE_ID="")
 class ProductionPhotoTests(BaseTestCase):
     def test_event_photo_fallback_order(self):
         artist = Artist.objects.create(name="Paul McCartney", image_url="https://img.example/artist.jpg")
@@ -2030,7 +2045,7 @@ class ProductionPhotoTests(BaseTestCase):
         self.event.image_url = "https://img.example/own.jpg"
         self.assertEqual(self.event.display_image, "https://img.example/own.jpg")
 
-    @mock.patch("events.image_search._get_json", side_effect=lambda url, params: {})
+    @mock.patch("events.image_search._get_json", side_effect=lambda url, params, **kwargs: {})
     def test_find_photo_for_production(self, _):
         cache.clear()
         fest = Production.objects.create(title="Lolla", event_type=EventType.FESTIVAL)

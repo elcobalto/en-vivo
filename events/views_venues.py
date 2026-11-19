@@ -177,15 +177,19 @@ def setlistfm_shows(request: HttpRequest) -> HttpResponse:
 
 # --------------------------------------------------------------------------- "Find photo" for events
 
-PHOTO_SEARCHES_PER_HOUR = 30  # Google's free tier is ~100 searches/day for the whole site
+PHOTO_SEARCHES_PER_HOUR = 30  # each search calls Deezer and Wikimedia Commons from our server
 
 
 def _photo_picker(request, *, obj, default_query: str, artist: str, context: dict) -> HttpResponse:
     if request.method == "POST":
-        url = (request.POST.get("url") or "").strip()
+        url = image_search.clean_image_link(request.POST.get("url") or "")
+        if image_search.is_search_page(url):
+            messages.error(request, "That's a link to the search results, not to the photo. Drag the photo "
+                                    "itself here, or right-click it → “Copy image address”.")
+            return redirect(request.get_full_path())
         if not url.startswith("https://") or len(url) > 1000:
             messages.error(request, "That photo can't be used (it needs a secure https link).")
-            return redirect(request.path)
+            return redirect(request.get_full_path())
         obj.image_url = url
         obj.save(update_fields=["image_url", "updated_at"])
         messages.success(request, "Photo updated.")
@@ -213,8 +217,7 @@ def _photo_picker(request, *, obj, default_query: str, artist: str, context: dic
     return render(
         request,
         "events/event_photo.html",
-        {"query": query, "candidates": candidates, "errors": errors,
-         "google_enabled": image_search.google_enabled(),
+        {"query": query, "artist": artist, "candidates": candidates, "errors": errors,
          "google_url": image_search.google_images_url(query), **context},
     )
 

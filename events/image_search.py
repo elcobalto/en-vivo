@@ -1,11 +1,14 @@
 """
 Photo candidates for an event, picked by a person on the "Find photo" page.
 
-Sources (each optional, results merged in this order):
-  * Google Images via the Custom Search JSON API — needs GOOGLE_SEARCH_API_KEY and
-    GOOGLE_SEARCH_ENGINE_ID (a Programmable Search Engine with image search on).
-  * Deezer artist pictures — no key, music events only.
-  * Wikimedia Commons — no key, openly licensed photos with author/licence credit.
+Sources (all free, no key):
+  * Deezer artist pictures — music events only.
+  * Wikimedia Commons — openly licensed photos with author/licence credit.
+  * Openverse (openly licensed photos, mostly Flickr) — searched from the browser by
+    static/events/photo-openverse.js, because a new search there can take ~15 seconds.
+
+Google Images has no free API any more, so the page links to a normal Google Images search and
+people drag (or paste) the photo they like back in; `clean_image_link` unwraps Google's result links.
 
 Nothing is downloaded or stored except the URL of the photo someone chooses.
 """
@@ -14,10 +17,11 @@ from __future__ import annotations
 import hashlib
 import json
 import ssl
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict, dataclass
 from typing import Any
 from urllib.error import HTTPError, URLError
-from urllib.parse import urlencode
+from urllib.parse import parse_qs, quote_plus, urlencode, urlsplit
 from urllib.request import Request, urlopen
 
 from django.conf import settings
@@ -26,13 +30,14 @@ from django.utils.html import strip_tags
 
 USER_AGENT = "EnVivo/1.0 (event photo picker)"
 CACHE_SECONDS = 60 * 60 * 24  # the same search within a day costs nothing
+PARTIAL_CACHE_SECONDS = 60 * 10  # a source failed: keep what we got briefly, then try it again
 
 
 @dataclass
 class Candidate:
     url: str  # full-size image, saved on the event when picked
     thumb: str  # small preview for the picker grid
-    source: str  # "Google", "Deezer", "Wikimedia Commons"
+    source: str  # "Deezer", "Wikimedia Commons" (and "Openverse", added in the browser)
     title: str = ""
     credit: str = ""  # author / licence or site, shown under the photo
     page: str = ""  # where the image comes from
@@ -51,55 +56,25 @@ def _ssl_context() -> ssl.SSLContext:
         return ssl.create_default_context()
 
 
-def _get_json(url: str, params: dict[str, Any]) -> dict[str, Any]:
+def _get_json(url: str, params: dict[str, Any], timeout: float = 8) -> dict[str, Any]:
     request = Request(f"{url}?{urlencode(params)}", headers={"User-Agent": USER_AGENT, "Accept": "application/json"})
     try:
-        with urlopen(request, timeout=8, context=_ssl_context()) as resp:
+        with urlopen(request, timeout=timeout, context=_ssl_context()) as resp:
             return json.loads(resp.read().decode("utf-8") or "{}")
     except HTTPError as e:
         try:
             message = json.loads(e.read().decode("utf-8")).get("error", {}).get("message", "")
         except Exception:
             message = ""
+        if e.code == 429:
+            raise ImageSearchError("has reached its free limit for now; try again later") from e
+        if e.code in (502, 503, 504):
+            raise ImageSearchError("is busy right now; try again in a moment") from e
         raise ImageSearchError(f"error {e.code}: {message or e.reason}") from e
     except (URLError, TimeoutError, ValueError) as e:
+        if isinstance(getattr(e, "reason", e), TimeoutError):
+            raise ImageSearchError("is taking too long to answer; try again in a moment") from e
         raise ImageSearchError(f"request failed: {getattr(e, 'reason', e)}") from e
-
-
-def google_enabled() -> bool:
-    return bool(getattr(settings, "GOOGLE_SEARCH_API_KEY", "") and getattr(settings, "GOOGLE_SEARCH_ENGINE_ID", ""))
-
-
-def google_images(query: str) -> list[Candidate]:
-    data = _get_json(
-        "https://www.googleapis.com/customsearch/v1",
-        {
-            "key": settings.GOOGLE_SEARCH_API_KEY,
-            "cx": settings.GOOGLE_SEARCH_ENGINE_ID,
-            "q": query,
-            "searchType": "image",
-            "num": 10,
-            "safe": "active",
-            "imgSize": "large",
-        },
-    )
-    results = []
-    for item in data.get("items") or []:
-        link = item.get("link") or ""
-        if not link.startswith("https://"):
-            continue  # http images would be blocked on our https pages
-        image = item.get("image") or {}
-        results.append(
-            Candidate(
-                url=link,
-                thumb=image.get("thumbnailLink") or link,
-                source="Google",
-                title=item.get("title", ""),
-                credit=item.get("displayLink", ""),
-                page=image.get("contextLink", ""),
-            )
-        )
-    return results
 
 
 def deezer_artist_pictures(artist: str) -> list[Candidate]:
@@ -177,14 +152,48 @@ def default_query(event) -> str:
 
 def google_images_url(query: str) -> str:
     """A normal Google Images search, opened in the browser (no API key needed)."""
-    from urllib.parse import quote_plus
-
     return f"https://www.google.com/search?tbm=isch&q={quote_plus(query)}"
+
+
+# Image search result links that carry the real photo address in a query parameter.
+WRAPPED_IMAGE_PARAMS = {"google.": "imgurl", "bing.com": "mediaurl"}
+
+
+def clean_image_link(url: str) -> str:
+    """The photo's own address from a pasted or dropped link.
+
+    A copied Google Images result (google.com/imgres?imgurl=…) or Bing result (…&mediaurl=…) becomes
+    the image it points to; any other link is returned unchanged.
+    """
+    url = (url or "").strip()
+    try:
+        parts = urlsplit(url)
+    except ValueError:
+        return url
+    host = (parts.hostname or "").lower()
+    for marker, param in WRAPPED_IMAGE_PARAMS.items():
+        if marker in host:
+            inner = (parse_qs(parts.query).get(param) or [""])[0].strip()
+            if inner.startswith(("https://", "http://")):
+                return inner
+    return url
+
+
+def is_search_page(url: str) -> bool:
+    """A link to a Google/Bing results page rather than to a photo (e.g. copied from the address bar)."""
+    try:
+        parts = urlsplit(url)
+        host = (parts.hostname or "").lower()
+    except ValueError:
+        return False
+    return any(marker in host for marker in WRAPPED_IMAGE_PARAMS) and (
+        parts.path.rstrip("/") in ("", "/search", "/imgres", "/images/search")
+    )
 
 
 def find_candidates(query: str, artist: str = "") -> tuple[list[dict], list[str]]:
     """Merged candidates (as dicts, for templates/caching) and per-source error messages."""
-    key = "imgsearch:" + hashlib.sha256(f"{query}|{artist}|{google_enabled()}".encode()).hexdigest()
+    key = "imgsearch:v2:" + hashlib.sha256(f"{query}|{artist}".encode()).hexdigest()
     cached = cache.get(key)
     if cached is not None:
         return cached
@@ -192,17 +201,23 @@ def find_candidates(query: str, artist: str = "") -> tuple[list[dict], list[str]
     candidates: list[Candidate] = []
     errors: list[str] = []
     sources = []
-    if google_enabled():
-        sources.append(("Google Images", lambda: google_images(query)))
     if artist:
         sources.append(("Deezer", lambda: deezer_artist_pictures(artist)))
     sources.append(("Wikimedia Commons", lambda: commons_images(artist or query)))
 
-    for name, search in sources:
+    def run(search):
         try:
-            candidates.extend(search())
+            return search(), ""
         except ImageSearchError as e:
-            errors.append(f"{name} {e}")
+            return [], str(e)
+
+    # In parallel, so a slow source doesn't hold up the others; results keep the order above.
+    with ThreadPoolExecutor(max_workers=len(sources)) as pool:
+        outcomes = list(pool.map(run, [search for _, search in sources]))
+    for (name, _), (found, error) in zip(sources, outcomes):
+        candidates.extend(found)
+        if error:
+            errors.append(f"{name} {error}")
 
     seen, unique = set(), []
     for c in candidates:
@@ -211,5 +226,5 @@ def find_candidates(query: str, artist: str = "") -> tuple[list[dict], list[str]
             unique.append(asdict(c))
     result = (unique, errors)
     if unique:
-        cache.set(key, result, CACHE_SECONDS)
+        cache.set(key, result, PARTIAL_CACHE_SECONDS if errors else CACHE_SECONDS)
     return result

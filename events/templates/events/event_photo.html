@@ -1,14 +1,21 @@
 {% extends "base.html" %}
+{% load static %}
 
-{% block title %}Find a photo · {{ subject_title }} · En Vivo  {% if festival_days %}
+{% block title %}Find a photo · {{ subject_title }} · En Vivo{% endblock %}
+
+{% block scripts %}
+  <script src="{% static 'events/photo-drop.js' %}" defer></script>
+  <script src="{% static 'events/photo-openverse.js' %}" defer></script>
+  {% if festival_days %}
   <script>
-    document.querySelectorAll('form[method="post"]').forEach(function (form) {
-      form.addEventListener("submit", function () {
-        if (!document.getElementById("photo-all-days").checked) return;
-        var input = document.createElement("input");
-        input.type = "hidden"; input.name = "all_days"; input.value = "1";
-        form.appendChild(input);
-      });
+    // Every photo form sends the toggle, including the Openverse ones added after the page loads.
+    document.addEventListener("submit", function (event) {
+      var form = event.target;
+      if (form.method !== "post" || !document.getElementById("photo-all-days").checked) return;
+      if (form.querySelector('input[name="all_days"]')) return;
+      var input = document.createElement("input");
+      input.type = "hidden"; input.name = "all_days"; input.value = "1";
+      form.appendChild(input);
     });
   </script>
   {% endif %}
@@ -21,7 +28,6 @@
   </div>
   <p class="small text-body-secondary mb-3">
     {{ hint }}
-    {% if not google_enabled %}Google Images isn't set up yet, so results come from Deezer and Wikimedia Commons.{% endif %}
   </p>
 
   {% if festival_days %}
@@ -37,15 +43,20 @@
     <button class="btn btn-primary" type="submit">Search</button>
   </form>
 
-  <div class="card mb-4"><div class="card-body">
+  <div class="card mb-4" data-photo-drop><div class="card-body">
     <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
       <a class="btn btn-light btn-sm" href="{{ google_url }}" target="_blank" rel="noreferrer">Search “{{ query }}” on Google Images ↗</a>
-      <span class="small text-body-secondary">Right-click the image you like → “Copy image address”, then paste it here:</span>
+      <span class="small text-body-secondary">Click a photo there to open it large, then drag it onto this page. Or right-click it → “Copy image address” and paste it below.</span>
     </div>
+    <div class="photo-drop-zone rounded-3 mb-2" data-drop-zone>
+      <img class="photo-drop-preview" alt="Photo to use" referrerpolicy="no-referrer" hidden />
+      <span class="photo-drop-label">Drop a photo here</span>
+    </div>
+    <div class="small mb-2" data-drop-message role="status" hidden></div>
     <form method="post" class="d-flex gap-2">
       {% csrf_token %}
-      <input class="form-control" type="url" name="url" placeholder="https://…" required aria-label="Image link" />
-      <button class="btn btn-success" type="submit">Use this link</button>
+      <input class="form-control" type="url" name="url" placeholder="https://…" required aria-label="Image link" data-drop-input />
+      <button class="btn btn-success text-nowrap" type="submit" data-drop-submit>Use this link</button>
     </form>
   </div></div>
 
@@ -53,26 +64,20 @@
 
   {% if candidates %}
     <div class="row row-cols-2 row-cols-sm-3 row-cols-lg-5 g-3">
-      {% for c in candidates %}
-        <div class="col">
-          <form method="post" class="h-100 d-flex flex-column">
-            {% csrf_token %}
-            <input type="hidden" name="url" value="{{ c.url }}" />
-            <button class="btn p-0 border-0 text-start" type="submit" title="Use this photo">
-              <div class="poster position-relative"><img src="{{ c.thumb }}" alt="{{ c.title }}" loading="lazy" referrerpolicy="no-referrer" /></div>
-            </button>
-            <div class="small mt-1 d-flex align-items-center gap-1">
-              <span class="badge text-bg-secondary">{{ c.source }}</span>
-              {% if c.page %}<a class="text-body-secondary text-truncate" href="{{ c.page }}" target="_blank" rel="noreferrer">{{ c.credit|default:"source" }}</a>
-              {% else %}<span class="text-body-secondary text-truncate">{{ c.credit }}</span>{% endif %}
-            </div>
-            <button class="btn btn-sm btn-outline-success mt-1" type="submit">Use this photo</button>
-          </form>
-        </div>
-      {% endfor %}
+      {% for c in candidates %}{% include "events/_photo_candidate.html" %}{% endfor %}
     </div>
   {% elif query and not errors %}
-    <p class="text-body-secondary">No photos found. Try a shorter search, like just the artist's name.</p>
+    <p class="text-body-secondary">Nothing on Deezer or Wikimedia Commons. Try a shorter search, like just the artist's name.</p>
+  {% endif %}
+
+  {% if query %}
+    {# Filled from the browser: Openverse is free and allows it, but a new search can take ~15 seconds. #}
+    <section class="mt-4" data-openverse data-query="{{ query }}" data-artist="{{ artist }}">
+      <h2 class="h6 mb-1">Openverse <span class="small fw-normal text-body-secondary">· openly licensed photos, mostly from Flickr</span></h2>
+      <p class="small text-body-secondary mb-2" data-openverse-status role="status">Looking for photos…</p>
+      <div class="row row-cols-2 row-cols-sm-3 row-cols-lg-5 g-3" data-openverse-grid></div>
+      <template data-candidate-template>{% include "events/_photo_candidate.html" with c=None %}</template>
+    </section>
   {% endif %}
 
   <p class="small text-body-secondary mt-4">
