@@ -331,6 +331,12 @@ def artist_list(request: HttpRequest) -> HttpResponse:
     )
 
 
+def _songs_to_show(albums: list, band_charts: list) -> int:
+    """How many "most played songs" to list so the column is about as tall as the album charts next to it."""
+    rows = len(albums) + sum(len(chart["rows"]) + 2 for chart in band_charts)  # +2: each band chart's heading
+    return max(10, min(50, round(rows * 1.5) + 3))  # +3: the controls above the chart
+
+
 def _artist_plays(artist: Artist, events, *, skip_empty: bool = False, sort: str = "count", by: str = "n"):
     """How often each song and album was played by this act across these events' setlists (no tapes).
 
@@ -357,7 +363,9 @@ def _artist_plays(artist: Artist, events, *, skip_empty: bool = False, sort: str
     band_charts = []
     for band, band_songs in sorted(by_band.items(), key=lambda kv: kv[0].name.casefold()):
         band_played, band_none = played_by_album(band_songs)
-        band_charts.append({"band": band, "rows": album_rows(band, band_played, no_album=band_none, **options)})
+        rows = album_rows(band, band_played, no_album=band_none, **options)
+        top_albums(rows, by)  # the band's most played album(s) get the green bar too
+        band_charts.append({"band": band, "rows": rows})
     return songs, albums, band_charts, len(show_years)
 
 
@@ -483,7 +491,8 @@ def artist_detail(request: HttpRequest, pk: int) -> HttpResponse:
             # Played songs nobody has looked up on MusicBrainz yet (for "Find albums").
             "pending": list(artist.songs.filter(album_checked_at=None, setlist_entries__is_tape=False)
                             .values_list("pk", flat=True).distinct().order_by("pk")),
-            "top_songs": songs[:10],
+            # Enough songs to fill the space beside the album charts (an album bar is ~1.5 song rows tall).
+            "top_songs": songs[:_songs_to_show(albums, band_charts)],
             "album_chart": albums,
             "band_charts": band_charts,
             "member_of": artist.member_of.all(),
@@ -736,8 +745,10 @@ def act_setlist(request: HttpRequest, pk: int, artist_pk: int) -> HttpResponse:
     band_charts = []
     for band, band_songs in sorted(by_band.items(), key=lambda kv: kv[0].name.casefold()):
         band_played, band_none = played_by_album(band_songs)
-        band_charts.append({"band": band, "rows": album_rows(band, band_played, no_album=band_none, skip_empty=skip_empty,
-                                                              sort=album_sort, released_by=released_by)})
+        rows = album_rows(band, band_played, no_album=band_none, skip_empty=skip_empty, sort=album_sort,
+                          released_by=released_by)
+        top_albums(rows)  # the band's most played album(s) get the green bar too
+        band_charts.append({"band": band, "rows": rows})
     number = 0
     for entry in entries:  # songs are numbered 1, 2, 3… skipping tapes
         if not entry.is_tape:

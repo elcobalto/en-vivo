@@ -2824,6 +2824,7 @@ class CoversAndBandsTests(BaseTestCase):
         self.assertContains(page, "As a member of")
         self.assertContains(page, "Member of ")
         self.assertContains(self.client.get(self.beatles.get_absolute_url()), "Members: ")
+        self.assertTrue(next(r for r in chart["rows"] if r["title"] == "Hey Jude").get("is_top"))  # green in band chart
 
     def test_setlist_page_has_the_band_chart_too(self):
         page = self.client.get(reverse("events:act_setlist", args=[self.event.pk, self.paul.pk]))
@@ -2871,6 +2872,15 @@ class TiedTopAlbumsTests(BaseTestCase):
         self.assertEqual([a["title"] for a in page.context["top_albums"]], ["First", "Third"])
         self.assertContains(page, "(tied)")
         self.assertEqual(page.content.decode().count("album-bar has-songs is-top"), 2)
+
+
+class SongsListLengthTests(BaseTestCase):
+    def test_more_albums_show_more_songs(self):
+        from events.views import _songs_to_show
+        self.assertEqual(_songs_to_show([], []), 10)
+        self.assertEqual(_songs_to_show([{}] * 12, []), 21)
+        self.assertEqual(_songs_to_show([{}] * 12, [{"rows": [{}] * 4}]), 30)
+        self.assertEqual(_songs_to_show([{}] * 100, []), 50)
 
 
 class TheaterCreditsTests(BaseTestCase):
