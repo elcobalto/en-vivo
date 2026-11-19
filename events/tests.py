@@ -2500,11 +2500,24 @@ class TapesAndAlbumsTests(BaseTestCase):
         self.assertEqual(page.context["song_count"], 1)
         self.assertEqual(page.context["top_album"]["n"], 1)
         self.assertContains(page, ">tape<")
+        html = page.content.decode()
+        self.assertIn("is-tape", html)
+        self.assertEqual([e.number for e in page.context["entries"]], [None, 1])  # tape isn't numbered
         self.assertContains(self.client.get(self.event.get_absolute_url()), "Setlist · 1 song →")
         songs = self.client.get(reverse("events:artist_songs", args=[self.band.pk])).context["songs"]
         self.assertEqual([s["song__title"] for s in songs], ["Hit"])
 
+    def test_setlist_chart_leaves_out_albums_released_after_the_show(self):
+        Album.objects.create(artist=self.band, title="Future", year=2030)  # event is in 1992
+        Album.objects.filter(title="Unplayed").update(year=1990)
+        titles = [r["title"] for r in self.client.get(self.url).context["timeline"]]
+        self.assertIn("Unplayed", titles)
+        self.assertNotIn("Future", titles)
+        self.assertIn("First", titles)  # played songs always count, whatever the album's year
+
     def test_empty_albums_show_unless_skipped(self):
+        self.event.date = date(2020, 1, 1)  # after the "Unplayed" album (2010)
+        self.event.save()
         rows = self.client.get(self.url).context["timeline"]
         self.assertEqual([(r["title"], r["n"]) for r in rows], [("Unplayed", 0), ("First", 1)])
         skipped = self.client.get(self.url + "?empty=skip").context["timeline"]
@@ -2527,6 +2540,17 @@ class TapesAndAlbumsTests(BaseTestCase):
         self.client.post(edit, {"delete": self.band.albums.get(title="Unplayed").pk})
         self.assertFalse(self.band.albums.filter(title="Unplayed").exists())
 
+    def test_albums_tab_is_one_chart_with_plays_and_songs_and_an_add_button(self):
+        url = reverse("events:artist_songs", args=[self.band.pk]) + "?tab=albums"
+        page = self.client.get(url).content.decode()
+        self.assertIn('1 <span class="opacity-75">/ 1</span>', page)  # First: 1 play / 1 song
+        self.assertNotIn("1 play · 1 song", page)  # no second list repeating the chart
+        self.assertNotIn("addAlbumModal", page)
+        self.user.is_superuser = True
+        self.user.save()
+        self.client.force_login(self.user)
+        self.assertContains(self.client.get(url), "+ Add album")
+
     def test_fixing_a_song_album_adds_it_to_the_artist(self):
         self.user.is_superuser = True
         self.user.save()
@@ -2535,6 +2559,54 @@ class TapesAndAlbumsTests(BaseTestCase):
         self.client.post(reverse("events:setlist_albums_edit", args=[self.event.pk, self.band.pk]),
                          {f"album_title_{hit.pk}": "Second", f"album_year_{hit.pk}": "2005"})
         self.assertTrue(self.band.albums.filter(title="Second", year=2005).exists())
+
+
+class PosterSortTests(BaseTestCase):
+    def setUp(self):
+        super().setUp()
+        self.event.image_url = "https://img.example/poster.jpg"
+        self.event.created_by = self.user
+        self.event.save()
+        self.url = reverse("events:event_poster_image", args=[self.event.pk])
+
+    def test_edit_form_has_the_poster_button(self):
+        self.client.force_login(self.user)
+        page = self.client.get(reverse("events:event_edit", args=[self.event.pk]))
+        self.assertContains(page, 'id="poster-sort"')
+        self.assertContains(page, self.url)
+        self.event.image_url = ""
+        self.event.save()
+        self.assertNotContains(self.client.get(reverse("events:event_edit", args=[self.event.pk])), 'id="poster-sort"')
+
+    def test_poster_is_proxied_for_editors_only(self):
+        class FakeResponse:
+            headers = {"Content-Type": "image/jpeg"}
+            def read(self, n): return b"jpegdata"
+            def __enter__(self): return self
+            def __exit__(self, *a): return False
+        opener = mock.Mock()
+        opener.open.return_value = FakeResponse()
+        with mock.patch("events.views_venues._public_https_url", return_value=True), \
+             mock.patch("urllib.request.build_opener", return_value=opener):
+            self.assertEqual(self.client.get(self.url).status_code, 302)  # login first
+            other = get_user_model().objects.create_user("bob", password="pw-test-123")
+            self.client.force_login(other)
+            self.assertEqual(self.client.get(self.url).status_code, 403)
+            self.client.force_login(self.user)
+            resp = self.client.get(self.url)
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp["Content-Type"], "image/jpeg")
+        self.assertEqual(resp.content, b"jpegdata")
+
+    def test_private_or_plain_http_hosts_are_refused(self):
+        from events.views_venues import _public_https_url
+        self.assertFalse(_public_https_url("http://example.com/a.jpg"))
+        self.assertFalse(_public_https_url("https://127.0.0.1/a.jpg"))
+        self.assertFalse(_public_https_url("https://10.0.0.5/a.jpg"))
+        self.event.image_url = "https://localhost/a.jpg"
+        self.event.save()
+        self.client.force_login(self.user)
+        self.assertEqual(self.client.get(self.url).status_code, 404)
 
 
 class TheaterCreditsTests(BaseTestCase):

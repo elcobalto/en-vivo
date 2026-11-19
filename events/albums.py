@@ -4,15 +4,20 @@ from __future__ import annotations
 from .models import Album, Artist, Song, normalize_name
 
 
-def album_rows(artist: Artist, played: dict, *, skip_empty: bool = False, sort: str = "newest") -> list[dict]:
+def album_rows(artist: Artist, played: dict, *, skip_empty: bool = False, sort: str = "newest",
+               released_by: int | None = None) -> list[dict]:
     """Rows of {title, year, n, songs, pct} for a chart or list.
 
     ``played`` maps album title → {"title", "year", "n", "songs"} counted from setlists (tapes left out).
     The artist's saved albums are added with 0 songs unless ``skip_empty``. ``sort`` is "newest" (default)
-    or "count"; ``pct`` is the bar width relative to the most played album.
+    or "count"; ``pct`` is the bar width relative to the most played album. With ``released_by`` (a year),
+    saved albums released after it are left out: they didn't exist yet at that show.
     """
     rows = {normalize_name(a["title"]): dict(a) for a in played.values()}
-    for album in Album.objects.filter(artist=artist):
+    saved = Album.objects.filter(artist=artist)
+    if released_by:
+        saved = saved.exclude(year__gt=released_by)
+    for album in saved:
         row = rows.get(normalize_name(album.title))
         if row is None:
             rows[normalize_name(album.title)] = {"title": album.title, "year": album.year, "n": 0, "songs": 0}

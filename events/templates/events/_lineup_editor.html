@@ -1,6 +1,12 @@
 {% comment %}Lineup rows, "+ Add another act" and the new-artist box (inside the event form).{% endcomment %}
         <h2 class="section-title mt-2 mb-2">Lineup</h2>
         <p class="small text-body-secondary mb-2">Bands, artists, cast, comedians… Drag ⠿ to set the order: first is the top of the bill. Setlists follow this order.</p>
+        {% if event and event.display_image %}
+          <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+            <button type="button" class="btn btn-sm btn-outline-info" id="poster-sort" data-image="{% url 'events:event_poster_image' event.pk %}">Sort lineup from poster</button>
+            <span class="small text-body-secondary" id="poster-sort-status" aria-live="polite">Reads the photo and orders these acts by how big their names are printed. Nothing is saved until you press Save.</span>
+          </div>
+        {% endif %}
         {{ formset.management_form }}
         {{ formset.non_form_errors }}
         <div class="row g-2 small text-body-secondary d-none d-md-flex mb-1" aria-hidden="true">

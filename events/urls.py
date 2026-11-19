@@ -14,6 +14,7 @@ urlpatterns = [
     path("events/<int:pk>/edit/", views.event_form, name="event_edit"),
     path("events/<int:pk>/delete/", views.event_delete, name="event_delete"),
     path("events/<int:pk>/photo/", views_venues.event_photo, name="event_photo"),
+    path("events/<int:pk>/poster-image/", views_venues.event_poster_image, name="event_poster_image"),
     path("events/<int:pk>/videos/", views.event_videos, name="event_videos"),
     path("events/<int:pk>/videos/add/", views_venues.video_add, name="video_add"),
     path("events/<int:pk>/videos/<int:video_pk>/remove/", views_venues.video_remove, name="video_remove"),

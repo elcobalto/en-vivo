@@ -127,4 +127,6 @@
 
   list.closest("form").addEventListener("submit", renumber);
   renumber();
+  // Other scripts (the poster sorter) reorder rows and then call this.
+  window.enVivoLineup = { renumber: renumber };
 })();

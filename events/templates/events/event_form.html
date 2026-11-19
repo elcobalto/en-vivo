@@ -3,7 +3,7 @@
 
 {% block title %}{% if event %}Edit {{ event.title }}{% else %}New event{% endif %} · En Vivo{% endblock %}
 
-{% block scripts %}<script src="{% static 'events/venue-search.js' %}"></script><script src="{% static 'events/lineup-order.js' %}"></script>{% endblock %}
+{% block scripts %}<script src="{% static 'events/venue-search.js' %}"></script><script src="{% static 'events/lineup-order.js' %}"></script><script src="{% static 'events/poster-lineup.js' %}"></script>{% endblock %}
 
 {% block content %}
   <div class="row justify-content-center g-4">

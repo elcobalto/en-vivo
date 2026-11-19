@@ -1,6 +1,7 @@
 {% comment %}
 Songs-per-album bars. Pass: rows (from albums.album_rows), top (albums.top_album), album_sort, skip_empty,
 keep (list of (name, value) query params to carry, e.g. tab/seen_by) and unit ("song" or "play").
+With unit="play" each row shows plays / different songs.
 {% endcomment %}
 <style>
   .album-row { display: flex; align-items: flex-end; gap: .6rem; padding: .3rem 0; }
@@ -30,16 +31,17 @@ keep (list of (name, value) query params to carry, e.g. tab/seen_by) and unit ("
 {% if rows %}
   <div class="album-chart" role="img" aria-label="{{ unit|capfirst }}s per album: {% for a in rows %}{{ a.title }}{% if a.year %} ({{ a.year }}){% endif %} {{ a.n }}{% if not forloop.last %}, {% endif %}{% endfor %}">
     {% for a in rows %}
-      <div class="album-row{% if not a.n %} is-empty{% endif %}" title="{{ a.title }}{% if a.year %} ({{ a.year }}){% endif %}: {{ a.n }} {{ unit }}{{ a.n|pluralize }}">
+      <div class="album-row{% if not a.n %} is-empty{% endif %}" title="{{ a.title }}{% if a.year %} ({{ a.year }}){% endif %}: {{ a.n }} {{ unit }}{{ a.n|pluralize }}{% if unit == 'play' %} of {{ a.songs }} song{{ a.songs|pluralize }}{% endif %}">
         <span class="album-year event-date">{{ a.year|default:"—" }}</span>
         <div class="album-bar-wrap">
           <div class="album-name small text-truncate">{{ a.title }}</div>
           <div class="album-track"><div class="album-bar{% if a.n %} has-songs{% endif %}{% if top and a.title == top.title and a.year == top.year %} is-top{% endif %}" style="width: {{ a.pct }}%"></div></div>
         </div>
-        <span class="album-n small">{{ a.n }}</span>
+        <span class="album-n small text-nowrap">{{ a.n }}{% if unit == "play" %} <span class="opacity-75">/ {{ a.songs }}</span>{% endif %}</span>
       </div>
     {% endfor %}
   </div>
+  {% if unit == "play" %}<div class="small text-body-secondary mt-1">Numbers are plays / different songs.</div>{% endif %}
 {% else %}
   <p class="small text-body-secondary mb-0">No albums to show.</p>
 {% endif %}

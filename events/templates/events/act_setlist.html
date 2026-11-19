@@ -3,6 +3,10 @@
 {% block title %}{{ setlist.artist.name }} setlist · {{ event.title }} · En Vivo{% endblock %}
 
 {% block content %}
+  <style>
+    .setlist-n { min-width: 1.8rem; }
+    .setlist .is-tape { color: var(--bs-secondary-color); opacity: .6; }
+  </style>
   <p class="small mb-1"><a href="{{ event.get_absolute_url }}">← {{ event.title }}</a></p>
   <h1 class="h3 fw-bold mb-1">{{ setlist.artist.name }}: setlist</h1>
   <div class="text-body-secondary mb-4">
@@ -11,16 +15,19 @@
 
   <div class="row g-4">
     <div class="col-12 col-md-7">
-      <ol class="mb-2">
+      <ol class="list-unstyled mb-2 setlist">
         {% for entry in entries %}
-          {% ifchanged entry.set_name %}{% if entry.set_name %}</ol><div class="section-title mt-3 mb-2">{{ entry.set_name }}</div><ol start="{{ entry.position }}" class="mb-2">{% endif %}{% endifchanged %}
-          <li class="py-1">
-            {{ entry.song.title }}{% if entry.is_tape %} <span class="badge text-bg-secondary" title="Played from a recording; not counted">tape</span>{% endif %}{% if entry.note %} <span class="small text-body-secondary">({{ entry.note }})</span>{% endif %}
-            <div class="small text-body-secondary">
-              {% if entry.song.album_title %}{{ entry.song.album_title }}{% if entry.song.album_year %} · {{ entry.song.album_year }}{% endif %}{% elif can_fix_albums and entry.song.album_checked_at %}No album{% endif %}
-            </div>
+          {% ifchanged entry.set_name %}{% if entry.set_name %}<li class="section-title mt-3 mb-2">{{ entry.set_name }}</li>{% endif %}{% endifchanged %}
+          <li class="d-flex gap-2 py-1{% if entry.is_tape %} is-tape{% endif %}">
+            <span class="setlist-n text-body-secondary text-end">{% if entry.number %}{{ entry.number }}.{% endif %}</span>
+            <span>
+              {{ entry.song.title }}{% if entry.is_tape %} <span class="badge text-bg-secondary" title="Played from a recording; not counted">tape</span>{% endif %}{% if entry.note %} <span class="small text-body-secondary">({{ entry.note }})</span>{% endif %}
+              {% if not entry.is_tape %}<div class="small text-body-secondary">
+                {% if entry.song.album_title %}{{ entry.song.album_title }}{% if entry.song.album_year %} · {{ entry.song.album_year }}{% endif %}{% elif can_fix_albums and entry.song.album_checked_at %}No album{% endif %}
+              </div>{% endif %}
+            </span>
           </li>
-        {% empty %}<li class="list-unstyled text-body-secondary">No songs in this setlist.</li>
+        {% empty %}<li class="text-body-secondary">No songs in this setlist.</li>
         {% endfor %}
       </ol>
       {% if setlist.notes %}<p class="small text-body-secondary">{{ setlist.notes }}</p>{% endif %}

@@ -385,6 +385,7 @@ def artist_songs(request: HttpRequest, pk: int) -> HttpResponse:
         "artist": artist, "seen_by": seen_by, "tab": tab, "shows": shows,
         "songs": songs, "albums": albums, "skip_empty": skip_empty, "album_sort": sort,
         "album_keep": [("tab", "albums")] + ([("seen_by", seen_by.get_username())] if seen_by else []),
+        "can_fix_albums": is_admin(request.user),
         "seen_q": f"seen_by={quote(seen_by.get_username())}" if seen_by else "",
     })
 
@@ -629,7 +630,14 @@ def act_setlist(request: HttpRequest, pk: int, artist_pk: int) -> HttpResponse:
     pending = sorted({e.song_id for e in played_entries if e.song.album_checked_at is None})
     album_sort = "count" if request.GET.get("sort") == "count" else "newest"
     skip_empty = request.GET.get("empty") == "skip"
-    timeline = album_rows(setlist.artist, played, skip_empty=skip_empty, sort=album_sort)
+    # Only albums already out at this show (an album released later can't have been "skipped").
+    timeline = album_rows(setlist.artist, played, skip_empty=skip_empty, sort=album_sort,
+                          released_by=event.date.year if event.date else None)
+    number = 0
+    for entry in entries:  # songs are numbered 1, 2, 3… skipping tapes
+        if not entry.is_tape:
+            number += 1
+        entry.number = None if entry.is_tape else number
     return render(request, "events/act_setlist.html", {
         "event": event, "setlist": setlist, "entries": entries, "song_count": len(played_entries),
         "top_album": top_album(timeline), "pending": pending, "timeline": timeline,

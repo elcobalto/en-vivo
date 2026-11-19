@@ -15,14 +15,7 @@
   {% if tab == "albums" %}
     <div style="max-width:44rem">
       {% include "events/_album_chart.html" with rows=albums top=None unit="play" keep=album_keep %}
-      <ul class="list-unstyled mt-3">
-        {% for a in albums %}
-          <li class="d-flex justify-content-between gap-2 py-1 border-bottom border-secondary-subtle">
-            <span>{{ a.title }}{% if a.year %} <span class="small text-body-secondary">{{ a.year }}</span>{% endif %}</span>
-            <span class="small text-body-secondary text-nowrap">{{ a.n }} play{{ a.n|pluralize }} · {{ a.songs }} song{{ a.songs|pluralize }}</span>
-          </li>
-        {% empty %}<li class="text-body-secondary">No albums known yet. They're looked up when a setlist page is opened.</li>{% endfor %}
-      </ul>
+      {% if can_fix_albums %}<button class="btn btn-sm btn-outline-secondary mt-3" type="button" data-bs-toggle="modal" data-bs-target="#addAlbumModal">+ Add album</button>{% endif %}
     </div>
   {% else %}
     <ol class="ps-4" style="max-width:44rem">
@@ -33,5 +26,21 @@
         </div></li>
       {% empty %}<li class="list-unstyled text-body-secondary">No setlists yet.</li>{% endfor %}
     </ol>
+  {% endif %}
+  {% if can_fix_albums %}
+  <div class="modal fade" id="addAlbumModal" tabindex="-1" aria-labelledby="addAlbumTitle" aria-hidden="true">
+    <div class="modal-dialog"><div class="modal-content">
+      <form method="post" action="{% url 'events:artist_albums_edit' artist.pk %}">
+        {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
+        <div class="modal-header"><h2 class="modal-title h5" id="addAlbumTitle">Add an album to {{ artist.name }}</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+        <div class="modal-body row g-2">
+          <p class="small text-body-secondary col-12 mb-1">It shows in the charts even if nothing from it was played (unless "Skip empty albums" is on).</p>
+          <div class="col-8"><label class="form-label small" for="add-album-title">Title</label><input class="form-control" id="add-album-title" name="title" maxlength="240" required placeholder="e.g. Kerplunk!"></div>
+          <div class="col-4"><label class="form-label small" for="add-album-year">Year</label><input class="form-control" id="add-album-year" name="year" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" placeholder="1991"></div>
+        </div>
+        <div class="modal-footer"><button class="btn btn-outline-secondary" type="button" data-bs-dismiss="modal">Cancel</button><button class="btn btn-success" type="submit">Add album</button></div>
+      </form>
+    </div></div>
+  </div>
   {% endif %}
 {% endblock %}

@@ -6,7 +6,7 @@ from django.contrib.auth.decorators import login_required
 from django.core.cache import cache
 from django.core.exceptions import PermissionDenied
 from django.db.models import Q
-from django.http import HttpRequest, HttpResponse, JsonResponse
+from django.http import Http404, HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.views.decorators.http import require_GET, require_POST
@@ -308,3 +308,64 @@ def video_remove(request: HttpRequest, pk: int, video_pk: int) -> HttpResponse:
     video.delete()
     messages.success(request, "Video removed.")
     return redirect("events:event_videos", pk=pk)
+
+
+POSTER_MAX_BYTES = 8 * 1024 * 1024
+
+
+def _public_https_url(url: str) -> bool:
+    """Only https links to public hosts (no localhost or private networks)."""
+    import ipaddress
+    import socket
+    from urllib.parse import urlsplit
+
+    parts = urlsplit(url)
+    if parts.scheme != "https" or not parts.hostname:
+        return False
+    try:
+        infos = socket.getaddrinfo(parts.hostname, parts.port or 443, proto=socket.IPPROTO_TCP)
+    except OSError:
+        return False
+    for info in infos:
+        ip = ipaddress.ip_address(info[4][0])
+        if not ip.is_global:
+            return False
+    return True
+
+
+@login_required
+def event_poster_image(request: HttpRequest, pk: int) -> HttpResponse:
+    """The event's photo served from En Vivo, so the edit page can read it (browsers block reading
+    images from most other sites). Editors only; https images from public hosts, up to 8 MB."""
+    from urllib.error import URLError
+    from urllib.request import HTTPRedirectHandler, Request, build_opener
+
+    event = get_object_or_404(Event, pk=pk)
+    if not can_edit_event(request.user, event):
+        raise PermissionDenied
+    url = event.display_image
+    if not url or not _public_https_url(url):
+        raise Http404
+
+    class SafeRedirects(HTTPRedirectHandler):
+        max_redirections = 3
+
+        def redirect_request(self, req, fp, code, msg, headers, newurl):
+            if not _public_https_url(newurl):
+                return None
+            return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+    try:
+        with build_opener(SafeRedirects).open(
+            Request(url, headers={"User-Agent": "EnVivo/1.0 (poster reader)", "Accept": "image/*"}), timeout=8
+        ) as resp:
+            content_type = (resp.headers.get("Content-Type") or "").split(";")[0].strip().lower()
+            data = resp.read(POSTER_MAX_BYTES + 1)
+    except (URLError, OSError, ValueError):
+        raise Http404
+    if not content_type.startswith("image/") or len(data) > POSTER_MAX_BYTES:
+        raise Http404
+    response = HttpResponse(data, content_type=content_type)
+    response["Cache-Control"] = "private, max-age=300"
+    return response
+
