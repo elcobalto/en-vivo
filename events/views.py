@@ -202,6 +202,12 @@ def event_detail(request: HttpRequest, pk: int) -> HttpResponse:
         wanted = WantToGo.objects.filter(user=request.user, event=event).exists()
         my_lists = EventList.objects.filter(user=request.user).exclude(items__event=event)
     in_lists = EventList.objects.filter(items__event=event).select_related("user").distinct()
+    # Each act's setlists open under it in the lineup; setlists for anyone not on the bill go after.
+    setlists = list(setlists)
+    act_rows = _act_rows(event, [l for l in lineup if l.role not in CREDIT_ROLES], my_log)
+    for row in act_rows:
+        row["setlists"] = [sl for sl in setlists if sl.performer_id == row["link"].performer_id]
+    on_bill = {row["link"].performer_id for row in act_rows}
 
     return render(
         request,
@@ -216,7 +222,8 @@ def event_detail(request: HttpRequest, pk: int) -> HttpResponse:
             "can_edit": _can_edit(request.user, event),
             "can_delete": can_delete_event(request.user, event),
             "slot_suggestions": suggestions_for(request.user, event),
-            "act_rows": _act_rows(event, [l for l in lineup if l.role not in CREDIT_ROLES], my_log),
+            "act_rows": act_rows,
+            "other_setlists": [sl for sl in setlists if sl.performer_id not in on_bill],
             "credits": [l for l in lineup if l.role in CREDIT_ROLES],
             "latest_videos": event.videos.select_related("performer").order_by("-created_at")[:LATEST_VIDEOS],
             "video_count": event.videos.count(),

@@ -2360,6 +2360,23 @@ class EventActionModalTests(BaseTestCase):
         self.assertLess(html.index('class="event-side"'), html.index('data-bs-target="#logModal"'))
 
 
+class LineupSetlistTests(BaseTestCase):
+    def test_setlist_sits_inside_its_act_closed_by_default(self):
+        band = Performer.objects.create(name="Green Day")
+        guest = Performer.objects.create(name="Not on the bill")
+        EventPerformer.objects.create(event=self.event, performer=band)
+        Setlist.objects.create(event=self.event, performer=band)
+        Setlist.objects.create(event=self.event, performer=guest)
+        page = self.client.get(self.event.get_absolute_url())
+        rows = page.context["act_rows"]
+        self.assertEqual([sl.performer for sl in rows[0]["setlists"]], [band])
+        self.assertEqual([sl.performer for sl in page.context["other_setlists"]], [guest])
+        html = page.content.decode()
+        self.assertIn('<details class="lineup-act', html)
+        self.assertNotIn('<details class="lineup-act border-bottom border-secondary-subtle" open', html)
+        self.assertIn("Other setlists", html)
+
+
 class TheaterCreditsTests(BaseTestCase):
     def test_author_and_director_are_credits_not_acts(self):
         play = Event.objects.create(title="", event_type=EventType.THEATER, date=date(2020, 1, 1))

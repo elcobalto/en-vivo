@@ -10,6 +10,10 @@
     .event-layout > * { min-width: 0; align-self: start; }
     .event-main { grid-area: main; } .event-photo { grid-area: photo; }
     .event-side { grid-area: side; } .event-rest { grid-area: rest; }
+    .lineup-act > summary { list-style: none; cursor: pointer; }
+    .lineup-act > summary::-webkit-details-marker { display: none; }
+    .lineup-act[open] .lineup-caret { transform: rotate(90deg); }
+    .lineup-caret { display: inline-block; transition: transform .15s; }
     @media (min-width: 768px) {
       .event-layout { grid-template-columns: 1fr 2fr 1fr; grid-template-rows: auto 1fr;
         grid-template-areas: "photo main side" "photo rest side"; }
@@ -63,15 +67,33 @@
         </p>
       {% endif %}
       {% if act_rows %}
-        <ul class="list-unstyled">
+        {# One row per act, closed by default; opening it shows that act's setlist. #}
+        <div class="lineup-acts mb-3">
           {% for row in act_rows %}{% with link=row.link %}
-            <li class="mb-1 d-flex align-items-baseline gap-2">
-              <span class="event-date" style="min-width:3.2rem">{% if link.start_time %}{{ link.start_time|time:"H:i" }}{% endif %}</span>
-              <span class="flex-grow-1"><a href="{{ link.performer.get_absolute_url }}">{{ link.performer.name }}</a> <span class="small text-body-secondary">{{ link.get_role_display }}{% if link.production %} · <a class="link-secondary" href="{{ link.production.get_absolute_url }}">{{ link.production.title }}</a>{% endif %}</span></span>
-              {% if row.avg %}<span class="stars small" title="Average from {{ row.seen_by }} who saw them">{{ row.avg|stars }}</span>{% endif %}
-            </li>
+            <details class="lineup-act border-bottom border-secondary-subtle">
+              <summary class="d-flex align-items-baseline gap-2 py-2">
+                <span class="lineup-caret text-body-secondary small" aria-hidden="true">▸</span>
+                <span class="event-date" style="min-width:3.2rem">{% if link.start_time %}{{ link.start_time|time:"H:i" }}{% endif %}</span>
+                <span class="flex-grow-1"><a href="{{ link.performer.get_absolute_url }}">{{ link.performer.name }}</a> <span class="small text-body-secondary">{{ link.get_role_display }}{% if link.production %} · <a class="link-secondary" href="{{ link.production.get_absolute_url }}">{{ link.production.title }}</a>{% endif %}</span></span>
+                {% if row.setlists %}<span class="small text-body-secondary text-nowrap">{% with n=row.setlists.0.entries.all|length %}{{ n }} song{{ n|pluralize }}{% endwith %}</span>{% endif %}
+                {% if row.avg %}<span class="stars small" title="Average from {{ row.seen_by }} who saw them">{{ row.avg|stars }}</span>{% endif %}
+              </summary>
+              <div class="ps-4 pb-3">
+                {% for setlist in row.setlists %}
+              <ol class="mb-1">
+                {% for entry in setlist.entries.all %}
+                  {% ifchanged entry.set_name %}{% if entry.set_name %}</ol><div class="small text-uppercase text-body-secondary mt-2">{{ entry.set_name }}</div><ol start="{{ entry.position }}" class="mb-1">{% endif %}{% endifchanged %}
+                  <li>{{ entry.song.title }}{% if entry.note %} <span class="small text-body-secondary">({{ entry.note }})</span>{% endif %}</li>
+                {% endfor %}
+              </ol>
+              {% if setlist.source_url %}<a class="small" href="{{ setlist.source_url }}" target="_blank" rel="noreferrer">Source: setlist.fm</a>{% endif %}
+                {% empty %}
+                  <p class="small text-body-secondary mb-0">No setlist yet.{% if user.is_authenticated and event.is_music %} <a href="{% url 'events:setlist_search' event.pk %}">Import from setlist.fm</a>{% endif %}</p>
+                {% endfor %}
+              </div>
+            </details>
           {% endwith %}{% endfor %}
-        </ul>
+        </div>
       {% else %}
         {% if not credits %}<p class="small text-body-secondary">No performers added yet.</p>{% endif %}
       {% endif %}
@@ -83,23 +105,19 @@
       {% endif %}
       {% if event.description %}<p>{{ event.description|linebreaksbr }}</p>{% endif %}
 
-      {% if event.is_music or setlists %}
-        <div class="d-flex align-items-center justify-content-between mt-4 mb-2">
-          <h2 class="section-title flex-grow-1 m-0">Setlist{{ setlists|length|pluralize }}</h2>
-        </div>
-        {% for setlist in setlists %}
+      {% if other_setlists %}
+        <h2 class="section-title mt-4 mb-2">Other setlists</h2>
+        {% for setlist in other_setlists %}
           <div class="mb-3">
             <div class="fw-semibold">{{ setlist.performer.name }}</div>
-            <ol class="mb-1">
-              {% for entry in setlist.entries.all %}
-                {% ifchanged entry.set_name %}{% if entry.set_name %}</ol><div class="small text-uppercase text-body-secondary mt-2">{{ entry.set_name }}</div><ol start="{{ entry.position }}" class="mb-1">{% endif %}{% endifchanged %}
-                <li>{{ entry.song.title }}{% if entry.note %} <span class="small text-body-secondary">({{ entry.note }})</span>{% endif %}</li>
-              {% endfor %}
-            </ol>
-            {% if setlist.source_url %}<a class="small" href="{{ setlist.source_url }}" target="_blank" rel="noreferrer">Source: setlist.fm</a>{% endif %}
+              <ol class="mb-1">
+                {% for entry in setlist.entries.all %}
+                  {% ifchanged entry.set_name %}{% if entry.set_name %}</ol><div class="small text-uppercase text-body-secondary mt-2">{{ entry.set_name }}</div><ol start="{{ entry.position }}" class="mb-1">{% endif %}{% endifchanged %}
+                  <li>{{ entry.song.title }}{% if entry.note %} <span class="small text-body-secondary">({{ entry.note }})</span>{% endif %}</li>
+                {% endfor %}
+              </ol>
+              {% if setlist.source_url %}<a class="small" href="{{ setlist.source_url }}" target="_blank" rel="noreferrer">Source: setlist.fm</a>{% endif %}
           </div>
-        {% empty %}
-          <p class="small text-body-secondary">No setlist yet.</p>
         {% endfor %}
       {% endif %}
 
