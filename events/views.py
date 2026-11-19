@@ -331,7 +331,7 @@ def artist_list(request: HttpRequest) -> HttpResponse:
     )
 
 
-def _artist_plays(artist: Artist, events, *, skip_empty: bool = False, sort: str = "count"):
+def _artist_plays(artist: Artist, events, *, skip_empty: bool = False, sort: str = "count", by: str = "n"):
     """How often each song and album was played by this act across these events' setlists (no tapes).
 
     Each song's ``of`` counts only the shows since it came out (shows in or after its album's year,
@@ -360,7 +360,7 @@ def _artist_plays(artist: Artist, events, *, skip_empty: bool = False, sort: str
         row["n"] += song["n"]
         row["songs"] += 1
         row["tracks"].append({"title": song["song__title"], "n": song["n"], "of": song["of"]})
-    return songs, album_rows(artist, played, skip_empty=skip_empty, sort=sort, no_album=no_album), len(show_years)
+    return songs, album_rows(artist, played, skip_empty=skip_empty, sort=sort, no_album=no_album, by=by), len(show_years)
 
 
 @login_required
@@ -396,11 +396,12 @@ def artist_songs(request: HttpRequest, pk: int) -> HttpResponse:
         events = events.filter(logs__user=seen_by, logs__acts__artist=artist)
     skip_empty = request.GET.get("empty") == "skip"
     sort = "newest" if request.GET.get("sort") == "newest" else "count"
-    songs, albums, shows = _artist_plays(artist, events.distinct(), skip_empty=skip_empty, sort=sort)
+    album_by = "songs" if request.GET.get("by") == "songs" else "n"
+    songs, albums, shows = _artist_plays(artist, events.distinct(), skip_empty=skip_empty, sort=sort, by=album_by)
     tab = "albums" if request.GET.get("tab") == "albums" else "songs"
     return render(request, "events/artist_songs.html", {
         "artist": artist, "seen_by": seen_by, "tab": tab, "shows": shows,
-        "songs": songs, "albums": albums, "skip_empty": skip_empty, "album_sort": sort,
+        "songs": songs, "albums": albums, "skip_empty": skip_empty, "album_sort": sort, "album_by": album_by,
         "album_keep": [("tab", "albums")] + ([("seen_by", seen_by.get_username())] if seen_by else []),
         "can_fix_albums": is_admin(request.user),
         "seen_q": f"seen_by={quote(seen_by.get_username())}" if seen_by else "",
@@ -418,7 +419,9 @@ def artist_detail(request: HttpRequest, pk: int) -> HttpResponse:
         events = events.filter(logs__user=seen_by, logs__acts__artist=artist)
     skip_empty = request.GET.get("empty") == "skip"
     album_sort = "count" if request.GET.get("sort") == "count" else "newest"
-    songs, albums, setlist_shows = _artist_plays(artist, events.distinct(), skip_empty=skip_empty, sort=album_sort)
+    album_by = "songs" if request.GET.get("by") == "songs" else "n"
+    songs, albums, setlist_shows = _artist_plays(artist, events.distinct(), skip_empty=skip_empty,
+                                                 sort=album_sort, by=album_by)
     return render(
         request,
         "events/artist_detail.html",
@@ -435,6 +438,7 @@ def artist_detail(request: HttpRequest, pk: int) -> HttpResponse:
             "top_album": top_album(albums),
             "skip_empty": skip_empty,
             "album_sort": album_sort,
+            "album_by": album_by,
             "album_keep": [("seen_by", seen_by.get_username())] if seen_by else [],
             "can_fix_albums": is_admin(request.user),
             "artist_albums": artist.albums.all() if is_admin(request.user) else [],
@@ -602,7 +606,7 @@ def festival_add_artists(request: HttpRequest, pk: int) -> HttpResponse:
                     break
         except SetlistFmError as e:
             error = str(e)
-        candidates.sort(key=lambda c: (not c["same_venue"], c["name"].casefold()))
+        candidates.sort(key=lambda c: (not c["same_venue"], c["venue"].casefold(), c["name"].casefold()))
     if request.method == "POST" and not error:
         chosen = [c for c in candidates if request.POST.get(f"add_{c['key']}")]
         last = event.eventartist_set.aggregate(m=models.Max("billing_order"))["m"] or 0
@@ -629,8 +633,17 @@ def festival_add_artists(request: HttpRequest, pk: int) -> HttpResponse:
         for note in skipped:
             messages.warning(request, f"Setlist not added for {note}")
         return redirect(event)
-    return render(request, "events/festival_add_artists.html",
-                  {"event": event, "candidates": candidates, "error": error})
+    # The venues setlist.fm found that day (the festival's own first): ticking one ticks all its artists.
+    venues: dict[str, dict] = {}
+    for c in candidates:
+        c["venue_key"] = normalize_name(c["venue"]) or "unknown"
+        v = venues.setdefault(c["venue_key"], {"key": c["venue_key"], "name": c["venue"] or "Unknown venue",
+                                               "count": 0, "same_venue": c["same_venue"]})
+        v["count"] += 1
+    return render(request, "events/festival_add_artists.html", {
+        "event": event, "candidates": candidates, "error": error,
+        "venues": sorted(venues.values(), key=lambda v: (not v["same_venue"], -v["count"], v["name"].casefold())),
+    })
 
 
 def act_setlist(request: HttpRequest, pk: int, artist_pk: int) -> HttpResponse:

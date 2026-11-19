@@ -16,9 +16,20 @@
     {% elif candidates %}
       <form method="post" class="card"><div class="card-body">
         {% csrf_token %}
+        {% if venues|length > 1 %}
+          <div class="mb-3">
+            <div class="small text-body-secondary mb-1">Venues setlist.fm found that day: tick one to add all of its artists.</div>
+            {% for v in venues %}
+              <div class="form-check form-check-inline">
+                <input class="form-check-input venue-pick" type="checkbox" form="" id="venue-{{ forloop.counter }}" data-venue="{{ v.key }}">
+                <label class="form-check-label small" for="venue-{{ forloop.counter }}">{{ v.name }} <span class="text-body-secondary">({{ v.count }})</span></label>
+              </div>
+            {% endfor %}
+          </div>
+        {% endif %}
         {% for c in candidates %}
           <div class="form-check py-1 border-bottom border-secondary-subtle">
-            <input class="form-check-input" type="checkbox" name="add_{{ c.key }}" value="1" id="add-{{ forloop.counter }}" {% if c.same_venue %}checked{% endif %}>
+            <input class="form-check-input artist-pick" type="checkbox" name="add_{{ c.key }}" value="1" id="add-{{ forloop.counter }}" data-venue="{{ c.venue_key }}" {% if c.same_venue %}checked{% endif %}>
             <div class="d-flex align-items-center gap-2">
               <label class="form-check-label flex-grow-1 d-flex justify-content-between gap-2" for="add-{{ forloop.counter }}">
                 <span>{{ c.name }}</span>
@@ -41,4 +52,23 @@
       <p class="text-body-secondary">setlist.fm has no other artists for that date and place. You can add them from <a href="{% url 'events:event_edit' event.pk %}">Edit event</a>.</p>
     {% endif %}
   </div></div>
+  <script>
+    // Venue boxes tick or untick all of that venue's artists, and show whether all, some or none are ticked.
+    (function () {
+      var venues = document.querySelectorAll(".venue-pick"), artists = document.querySelectorAll(".artist-pick");
+      function of(key) { return Array.prototype.filter.call(artists, function (a) { return a.dataset.venue === key; }); }
+      function sync() {
+        venues.forEach(function (v) {
+          var mine = of(v.dataset.venue), on = mine.filter(function (a) { return a.checked; }).length;
+          v.checked = on === mine.length && on > 0;
+          v.indeterminate = on > 0 && on < mine.length;
+        });
+      }
+      venues.forEach(function (v) {
+        v.addEventListener("change", function () { of(v.dataset.venue).forEach(function (a) { a.checked = v.checked; }); sync(); });
+      });
+      artists.forEach(function (a) { a.addEventListener("change", sync); });
+      sync();
+    })();
+  </script>
 {% endblock %}

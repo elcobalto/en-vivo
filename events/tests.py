@@ -2385,6 +2385,22 @@ class FestivalAddArtistsTests(BaseTestCase):
         self.assertEqual(list(fest.eventartist_set.order_by("billing_order").values_list("artist__name", "role")),
                          [("Already On", "headliner"), ("City Band", "headliner"), ("Same Venue Band", "support")])
 
+    def test_venues_found_that_day_are_listed_to_tick_all_their_artists(self):
+        fest = Event.objects.create(title="Lolla", event_type=EventType.FESTIVAL, venue=self.venue, date=date(2024, 3, 15),
+                                    created_by=self.user)
+        results = [
+            {"artist": {"name": "A"}, "venue": {"name": "Movistar Arena"}},
+            {"artist": {"name": "B"}, "venue": {"name": "Movistar Arena"}},
+            {"artist": {"name": "C"}, "venue": {"name": "Teatro Caupolicán"}},
+        ]
+        self.client.force_login(self.user)
+        with mock.patch("events.views.search_setlists", return_value=results):
+            page = self.client.get(reverse("events:festival_add_artists", args=[fest.pk]))
+        self.assertEqual([(v["name"], v["count"]) for v in page.context["venues"]],
+                         [("Teatro Caupolicán", 1), ("Movistar Arena", 2)])  # the festival's own venue first
+        self.assertContains(page, 'class="form-check-input venue-pick"', count=2)
+        self.assertContains(page, 'data-venue="movistar arena"', count=3)  # the box + its two artists
+
     def test_setlistfm_error_is_shown(self):
         fest = Event.objects.create(title="Lolla", event_type=EventType.FESTIVAL, venue=self.venue, date=date(2024, 3, 15),
                                     created_by=self.user)
@@ -2668,6 +2684,28 @@ class NoAlbumRowTests(BaseTestCase):
         self.assertEqual(chart[-1]["title"], "No album")
         page = self.client.get(url).content.decode()
         self.assertIn("Find albums on MusicBrainz", page)  # lookups wait for the button
+
+
+class AlbumMeasureToggleTests(BaseTestCase):
+    def test_bars_can_measure_plays_or_different_songs(self):
+        from events.models import SetlistSong, Song
+        band = Artist.objects.create(name="Band")
+        hit = Song.objects.create(artist=band, title="Hit", album_title="One-hit album", album_year=2000)
+        a = Song.objects.create(artist=band, title="A", album_title="Deep album", album_year=2001)
+        b = Song.objects.create(artist=band, title="B", album_title="Deep album", album_year=2001)
+        for year, songs in [(2005, [hit]), (2006, [hit]), (2007, [hit, a, b])]:
+            e = Event.objects.create(title=str(year), date=date(year, 1, 1))
+            EventArtist.objects.create(event=e, artist=band)
+            sl = Setlist.objects.create(event=e, artist=band)
+            for pos, song in enumerate(songs, start=1):
+                SetlistSong.objects.create(setlist=sl, song=song, position=pos)
+        url = band.get_absolute_url() + "?sort=count"
+        by_plays = self.client.get(url).context["album_chart"]
+        self.assertEqual([(r["title"], r["pct"]) for r in by_plays], [("One-hit album", 100), ("Deep album", 67)])
+        by_songs = self.client.get(url + "&by=songs")
+        self.assertEqual([(r["title"], r["pct"]) for r in by_songs.context["album_chart"]],
+                         [("Deep album", 100), ("One-hit album", 50)])
+        self.assertContains(by_songs, 'id="by-songs" checked')
 
 
 class TheaterCreditsTests(BaseTestCase):

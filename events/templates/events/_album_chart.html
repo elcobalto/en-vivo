@@ -1,7 +1,7 @@
 {% comment %}
 Songs-per-album bars. Pass: rows (from albums.album_rows), top (albums.top_album), album_sort, skip_empty,
 keep (list of (name, value) query params to carry, e.g. tab/seen_by) and unit ("song" or "play").
-With unit="play" each row shows plays / different songs.
+With unit="play" each row shows plays / different songs, and album_by ("n" or "songs") picks which one the bars measure.
 {% endcomment %}
 <style>
   .album-row { display: flex; align-items: flex-end; gap: .6rem; padding: .3rem 0; }
@@ -26,8 +26,16 @@ With unit="play" each row shows plays / different songs.
     <input type="radio" class="btn-check" name="sort" value="newest" id="sort-newest-{{ unit }}" {% if album_sort == "newest" %}checked{% endif %} onchange="this.form.submit()">
     <label class="btn btn-outline-secondary" for="sort-newest-{{ unit }}">Newest first</label>
     <input type="radio" class="btn-check" name="sort" value="count" id="sort-count-{{ unit }}" {% if album_sort == "count" %}checked{% endif %} onchange="this.form.submit()">
-    <label class="btn btn-outline-secondary" for="sort-count-{{ unit }}">Most {{ unit }}s</label>
+    <label class="btn btn-outline-secondary" for="sort-count-{{ unit }}">{% if unit == "play" and album_by == "songs" %}Most songs{% else %}Most {{ unit }}s{% endif %}</label>
   </div>
+  {% if unit == "play" %}
+  <div class="btn-group btn-group-sm" role="group" aria-label="Measure albums by">
+    <input type="radio" class="btn-check" name="by" value="n" id="by-plays" {% if album_by != "songs" %}checked{% endif %} onchange="this.form.submit()">
+    <label class="btn btn-outline-secondary" for="by-plays">Plays</label>
+    <input type="radio" class="btn-check" name="by" value="songs" id="by-songs" {% if album_by == "songs" %}checked{% endif %} onchange="this.form.submit()">
+    <label class="btn btn-outline-secondary" for="by-songs">Songs</label>
+  </div>
+  {% endif %}
   <div class="form-check form-switch m-0">
     <input class="form-check-input" type="checkbox" role="switch" name="empty" value="skip" id="skip-empty-{{ unit }}" {% if skip_empty %}checked{% endif %} onchange="this.form.submit()">
     <label class="form-check-label small" for="skip-empty-{{ unit }}">Skip empty albums</label>
@@ -44,7 +52,7 @@ With unit="play" each row shows plays / different songs.
             <div class="album-name small text-truncate">{{ a.title }}</div>
             <div class="album-track"><div class="album-bar{% if a.n %} has-songs{% endif %}{% if top and a.title == top.title and a.year == top.year %} is-top{% endif %}" style="width: {{ a.pct }}%"></div></div>
           </div>
-          <span class="album-n small text-nowrap">{{ a.n }}{% if unit == "play" %} <span class="opacity-75">/ {{ a.songs }}</span>{% endif %}</span>
+          <span class="album-n small text-nowrap">{% if unit == "play" and album_by == "songs" %}<span class="opacity-75">{{ a.n }} /</span> {{ a.songs }}{% else %}{{ a.n }}{% if unit == "play" %} <span class="opacity-75">/ {{ a.songs }}</span>{% endif %}{% endif %}</span>
         </summary>
         {% if a.tracks %}
           <ul class="list-unstyled small album-tracks mb-2">
@@ -59,7 +67,7 @@ With unit="play" each row shows plays / different songs.
       </details>
     {% endfor %}
   </div>
-  {% if unit == "play" %}<div class="small text-body-secondary mt-1">Numbers are plays / different songs.</div>{% endif %}
+  {% if unit == "play" %}<div class="small text-body-secondary mt-1">Numbers are plays / different songs; bars measure {% if album_by == "songs" %}songs{% else %}plays{% endif %}.</div>{% endif %}
 {% else %}
   <p class="small text-body-secondary mb-0">No albums to show.</p>
 {% endif %}
