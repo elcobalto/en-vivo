@@ -4,9 +4,9 @@ from .models import (
     Event,
     EventList,
     EventListItem,
-    EventPerformer,
+    EventArtist,
     Log,
-    Performer,
+    Artist,
     Production,
     Setlist,
     SetlistSong,
@@ -27,8 +27,8 @@ class VenueAdmin(admin.ModelAdmin):
     list_display = ["name", "city", "country", "capacity"]
 
 
-@admin.register(Performer)
-class PerformerAdmin(admin.ModelAdmin):
+@admin.register(Artist)
+class ArtistAdmin(admin.ModelAdmin):
     search_fields = ["name", "mbid"]
     list_display = ["name", "kind"]
     list_filter = ["kind"]
@@ -41,20 +41,20 @@ class ProductionAdmin(admin.ModelAdmin):
     list_filter = ["event_type"]
 
 
-class EventPerformerInline(admin.TabularInline):
-    model = EventPerformer
+class EventArtistInline(admin.TabularInline):
+    model = EventArtist
     extra = 0
-    autocomplete_fields = ["performer"]
+    autocomplete_fields = ["artist"]
 
 
 @admin.register(Event)
 class EventAdmin(admin.ModelAdmin):
-    search_fields = ["title", "venue__name", "performers__name"]
+    search_fields = ["title", "venue__name", "artists__name"]
     list_display = ["title", "event_type", "date", "venue", "production"]
     list_filter = ["event_type"]
     list_select_related = ["venue", "production"]
     autocomplete_fields = ["venue", "production"]
-    inlines = [EventPerformerInline]
+    inlines = [EventArtistInline]
 
 
 @admin.register(Log)
@@ -66,9 +66,9 @@ class LogAdmin(admin.ModelAdmin):
 
 @admin.register(Song)
 class SongAdmin(admin.ModelAdmin):
-    search_fields = ["title", "performer__name"]
-    list_display = ["title", "performer"]
-    list_select_related = ["performer"]
+    search_fields = ["title", "artist__name"]
+    list_display = ["title", "artist"]
+    list_select_related = ["artist"]
 
 
 class SetlistSongInline(admin.TabularInline):
@@ -79,9 +79,9 @@ class SetlistSongInline(admin.TabularInline):
 
 @admin.register(Setlist)
 class SetlistAdmin(admin.ModelAdmin):
-    search_fields = ["event__title", "performer__name"]
-    list_display = ["event", "performer", "setlistfm_id"]
-    list_select_related = ["event", "performer"]
+    search_fields = ["event__title", "artist__name"]
+    list_display = ["event", "artist", "setlistfm_id"]
+    list_select_related = ["event", "artist"]
     inlines = [SetlistSongInline]
 
 

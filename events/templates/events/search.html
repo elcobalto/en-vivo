@@ -4,7 +4,7 @@
 
 {% block content %}
   <form method="get" class="mb-4 d-flex gap-2">
-    <input class="form-control" type="search" name="q" value="{{ q }}" placeholder="Search events, performers, productions, venues, lists" aria-label="Search" autofocus />
+    <input class="form-control" type="search" name="q" value="{{ q }}" placeholder="Search events, artists, productions, venues, lists" aria-label="Search" autofocus />
     <button class="btn btn-primary" type="submit">Search</button>
   </form>
 
@@ -19,10 +19,10 @@
       <a class="small d-inline-block mb-4" href="{% url 'events:event_list' %}?q={{ q|urlencode }}">All matching events →</a>
     {% endif %}
 
-    {% if results.performers %}
-      <h2 class="section-title mb-2">Performers</h2>
+    {% if results.artists %}
+      <h2 class="section-title mb-2">Artists</h2>
       <ul class="list-unstyled mb-4">
-        {% for p in results.performers %}<li class="py-1"><a href="{{ p.get_absolute_url }}">{{ p.name }}</a> <span class="small text-body-secondary">{{ p.get_kind_display }} · {{ p.n }} event{{ p.n|pluralize }}</span></li>{% endfor %}
+        {% for p in results.artists %}<li class="py-1"><a href="{{ p.get_absolute_url }}">{{ p.name }}</a> <span class="small text-body-secondary">{{ p.get_kind_display }} · {{ p.n }} event{{ p.n|pluralize }}</span></li>{% endfor %}
       </ul>
     {% endif %}
 

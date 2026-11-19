@@ -46,7 +46,7 @@
           {% if event.bill %}
             <ul class="list-unstyled small mt-2 mb-0">
               {% for link in event.bill %}
-                <li><a href="{{ link.performer.get_absolute_url }}">{{ link.performer.name }}</a> <span class="text-body-secondary">{{ link.get_role_display }}{% if link.start_time %} · {{ link.start_time|time:"H:i" }}{% endif %}</span></li>
+                <li><a href="{{ link.artist.get_absolute_url }}">{{ link.artist.name }}</a> <span class="text-body-secondary">{{ link.get_role_display }}{% if link.start_time %} · {{ link.start_time|time:"H:i" }}{% endif %}</span></li>
               {% endfor %}
             </ul>
           {% endif %}

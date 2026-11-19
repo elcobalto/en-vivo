@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+{% load event_extras %}
+
+{% block title %}{{ artist.name }} · En Vivo{% endblock %}
+
+{% block content %}
+  <div class="d-flex flex-wrap gap-4 align-items-start mb-4">
+  <div style="width:180px" class="flex-shrink-0">
+    {% if artist.image_url %}
+      <img class="event-photo" src="{{ artist.image_url }}" alt="{{ artist.name }}" referrerpolicy="no-referrer" />
+      {% if user|is_admin %}<a class="btn btn-sm btn-outline-secondary w-100 mt-2" href="{% url 'events:artist_photo' artist.pk %}">Change photo</a>{% endif %}
+    {% else %}
+      <div class="poster position-relative">
+        {% if user.is_authenticated %}
+          <a class="poster-placeholder text-decoration-none flex-column gap-1" href="{% url 'events:artist_photo' artist.pk %}"><span class="fs-4">＋</span><span>Find photo</span></a>
+        {% else %}<div class="poster-placeholder">{{ artist.get_kind_display }}</div>{% endif %}
+      </div>
+    {% endif %}
+  </div>
+  <div class="flex-grow-1">
+    <div class="small text-body-secondary text-uppercase">{{ artist.get_kind_display }}{% if artist.country %} · {{ artist.country.name }}{% endif %}</div>
+    <h1 class="h3 fw-bold">{{ artist.name }}</h1>
+    {% if user|is_admin %}<a class="btn btn-sm btn-outline-secondary mb-2" href="{% url 'events:artist_edit' artist.pk %}">Edit artist</a>
+    <a class="btn btn-sm btn-outline-danger mb-2" href="{% url 'events:artist_delete' artist.pk %}">Delete artist</a>
+    <details class="mb-2"><summary class="small text-warning">Merge a duplicate into this artist</summary>
+      <form method="post" action="{% url 'events:artist_merge' artist.pk %}" class="d-flex flex-wrap gap-2 mt-2"
+            onsubmit="return confirm('Merge the selected artist into {{ artist.name|escapejs }}? Its events, setlists and ratings move here and it is deleted.');">
+        {% csrf_token %}
+        <select class="form-select form-select-sm" style="max-width:20rem" name="other" required aria-label="Duplicate artist">
+          <option value="">Choose the duplicate…</option>
+          {% if merge_similar %}<optgroup label="Similar names">{% for p in merge_similar %}<option value="{{ p.pk }}">{{ p.name }}</option>{% endfor %}</optgroup>{% endif %}
+          {% if merge_rest %}<optgroup label="All artists">{% for p in merge_rest %}<option value="{{ p.pk }}">{{ p.name }}</option>{% endfor %}</optgroup>{% endif %}
+        </select>
+        <button class="btn btn-sm btn-warning" type="submit">Merge into {{ artist.name }}</button>
+      </form>
+    </details>{% endif %}
+    {% if avg_rating %}<div><span class="stars">{{ avg_rating|stars }}</span> <span class="small text-body-secondary">{{ avg_rating|avg_stars }} average from {{ log_count }} time{{ log_count|pluralize }} seen</span></div>{% endif %}
+    <div class="my-2" style="max-width:24rem">{% rating_histogram act_logs "Ratings of this act" True %}</div>
+    {% if artist.bio %}<p class="mt-2">{{ artist.bio|linebreaksbr }}</p>{% endif %}
+  </div>
+  </div>
+
+  {% if tours %}
+    <h2 class="section-title mb-2">Tours</h2>
+    <ul class="list-unstyled mb-4">{% for t in tours %}<li class="py-1"><a href="{{ t.get_absolute_url }}">{{ t.title }}</a></li>{% endfor %}</ul>
+  {% endif %}
+
+  {% if seen_by %}
+    <div class="alert alert-secondary d-flex flex-wrap justify-content-between align-items-center gap-2 py-2">
+      <span><a href="{% url 'events:profile' seen_by.get_username %}">@{{ seen_by.get_username }}</a> has seen {{ artist.name }}
+        <strong>{{ events|length }} time{{ events|length|pluralize }}</strong></span>
+      <a class="small" href="{{ request.path }}">Show all events</a>
+    </div>
+  {% endif %}
+  {% if top_songs %}
+    {% with seen_q=seen_by.get_username|urlencode %}
+    <div class="row g-4 mb-4">
+      <div class="col-12 col-md-6">
+        <div class="d-flex justify-content-between align-items-end mb-2">
+          <h2 class="section-title flex-grow-1 m-0">Most played songs{% if seen_by %} they heard{% endif %}</h2>
+          <a class="small ms-2 text-nowrap" href="{% url 'events:artist_songs' artist.pk %}{% if seen_by %}?seen_by={{ seen_q }}{% endif %}">All songs →</a>
+        </div>
+        <ol class="list-unstyled mb-0">
+          {% for s in top_songs %}
+            <li class="d-flex justify-content-between gap-2 py-1 border-bottom border-secondary-subtle">
+              <span class="text-truncate">{{ s.song__title }}{% if s.song__album_title %} <span class="small text-body-secondary">{{ s.song__album_title }}</span>{% endif %}</span>
+              <span class="small text-body-secondary text-nowrap">{{ s.n }} of {{ setlist_shows }}</span>
+            </li>
+          {% endfor %}
+        </ol>
+      </div>
+      <div class="col-12 col-md-6">
+        <div class="d-flex justify-content-between align-items-end mb-2">
+          <h2 class="section-title flex-grow-1 m-0">Most played albums</h2>
+          {% if top_albums %}<a class="small ms-2 text-nowrap" href="{% url 'events:artist_songs' artist.pk %}?tab=albums{% if seen_by %}&seen_by={{ seen_q }}{% endif %}">All albums →</a>{% endif %}
+        </div>
+        <ol class="list-unstyled mb-0">
+          {% for a in top_albums %}
+            <li class="d-flex justify-content-between gap-2 py-1 border-bottom border-secondary-subtle">
+              <span class="text-truncate">{{ a.song__album_title }}{% if a.song__album_year %} <span class="small text-body-secondary">{{ a.song__album_year }}</span>{% endif %}</span>
+              <span class="small text-body-secondary text-nowrap">{{ a.n }} play{{ a.n|pluralize }}</span>
+            </li>
+          {% empty %}<li class="small text-body-secondary">Albums appear once setlist pages have looked them up.</li>{% endfor %}
+        </ol>
+      </div>
+    </div>
+    {% endwith %}
+  {% endif %}
+
+  <h2 class="section-title mb-3">Events{% if seen_by %} they saw{% endif %}</h2>
+  {% if events %}
+    <div class="row row-cols-2 row-cols-sm-3 row-cols-lg-6 g-3">
+      {% for event in events %}<div class="col">{% include "events/_event_card.html" %}</div>{% endfor %}
+    </div>
+  {% else %}
+    <p class="text-body-secondary">No events yet.</p>
+  {% endif %}
+{% endblock %}

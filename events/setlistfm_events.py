@@ -3,7 +3,7 @@ Create music events straight from setlist.fm setlists (any logged-in user).
 
 One setlist becomes (or joins) an Event with its venue, tour (as a Production),
 headliner and songs. Existing data is reused whenever possible so imports never
-duplicate venues, tours, performers or events.
+duplicate venues, tours, artists or events.
 """
 from __future__ import annotations
 
@@ -19,7 +19,7 @@ from django.db import transaction
 logger = logging.getLogger(__name__)
 
 from . import google_places
-from .models import Event, EventPerformer, EventType, Production, Setlist, Venue, production_named
+from .models import Event, EventArtist, EventType, Production, Setlist, Venue, production_named
 from .setlistfm import SetlistFmError, get_setlist, import_setlist, parse_event_date
 
 
@@ -100,12 +100,12 @@ def match_venue(venue_payload: dict[str, Any]) -> Venue | None:
     )
 
 
-def match_tour(tour_payload: dict[str, Any] | None, performer) -> Production | None:
-    """The performer's tour with this name (tours belong to artists), created if new."""
+def match_tour(tour_payload: dict[str, Any] | None, artist) -> Production | None:
+    """The artist's tour with this name (tours belong to artists), created if new."""
     name = ((tour_payload or {}).get("name") or "").strip()
     if not name:
         return None
-    return production_named(name, EventType.MUSIC, performer)
+    return production_named(name, EventType.MUSIC, artist)
 
 
 @transaction.atomic
@@ -138,9 +138,9 @@ def create_event_from_setlist(payload: dict[str, Any], user=None) -> ImportResul
         )
 
     setlist = import_setlist(event, payload)
-    tour = match_tour(payload.get("tour"), setlist.performer)
+    tour = match_tour(payload.get("tour"), setlist.artist)
     if tour:  # the tour is this act's, at this event
-        EventPerformer.objects.filter(event=event, performer=setlist.performer, production=None).update(production=tour)
+        EventArtist.objects.filter(event=event, artist=setlist.artist, production=None).update(production=tour)
     event.refresh_from_db()
     return ImportResult(event, created=created)
 

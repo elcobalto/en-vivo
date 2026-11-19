@@ -13,7 +13,7 @@ from django.utils import timezone
 from django.views.decorators.http import require_POST
 
 from .forms import EventListForm
-from .models import Event, EventList, EventListItem, Performer, Production, Venue, WantToGo
+from .models import Event, EventList, EventListItem, Artist, Production, Venue, WantToGo
 from .views import _safe_next
 
 
@@ -194,10 +194,10 @@ def search(request: HttpRequest) -> HttpResponse:
         results = {
             "events": Event.objects.with_stats()
             .select_related("venue")
-            .filter(Q(title__icontains=q) | Q(performers__name__icontains=q))
+            .filter(Q(title__icontains=q) | Q(artists__name__icontains=q))
             .distinct()[:12],
-            "performers": Performer.objects.filter(name__icontains=q).annotate(n=Count("events"))[:12],
-            "productions": Production.objects.filter(title__icontains=q).select_related("performer")
+            "artists": Artist.objects.filter(name__icontains=q).annotate(n=Count("events"))[:12],
+            "productions": Production.objects.filter(title__icontains=q).select_related("artist")
             .annotate(n=Count("events", distinct=True) + Count("lineup_entries__event", distinct=True))[:12],
             "venues": Venue.objects.filter(Q(name__icontains=q) | Q(city__icontains=q)).annotate(n=Count("events"))[:12],
             "lists": _lists_with_preview(EventList.objects.filter(title__icontains=q))[:12],

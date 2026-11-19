@@ -17,8 +17,8 @@
     // The first act on the bill (not a credit like author/director) is the headliner.
     for (var i = 0; i < rows.length; i++) {
       var role = rows[i].querySelector('select[name$="-role"]');
-      var filled = rows[i].querySelector('select[name$="-performer"]');
-      var named = rows[i].querySelector('input[name$="-new_performer"]');
+      var filled = rows[i].querySelector('select[name$="-artist"]');
+      var named = rows[i].querySelector('input[name$="-new_artist"]');
       var hasAct = (filled && filled.value) || (named && named.value);
       if (!hasAct || (role && CREDITS.indexOf(role.value) !== -1)) continue;
       if (role) role.value = "headliner";
@@ -85,7 +85,7 @@
   var addAct = document.getElementById("add-act");
   if (addAct) addAct.addEventListener("click", function () {
     var row = addRow();
-    var select = row.querySelector('select[name$="-performer"]');
+    var select = row.querySelector('select[name$="-artist"]');
     if (select) select.focus();
   });
 
@@ -96,12 +96,12 @@
     if (!name) { nameInput.focus(); return; }
     // Reuse an empty row if there is one, otherwise add a row.
     var row = Array.prototype.slice.call(list.querySelectorAll(".lineup-row")).find(function (r) {
-      var sel = r.querySelector('select[name$="-performer"]');
-      var hidden = r.querySelector('input[name$="-new_performer"]');
+      var sel = r.querySelector('select[name$="-artist"]');
+      var hidden = r.querySelector('input[name$="-new_artist"]');
       return sel && !sel.value && hidden && !hidden.value && !r.querySelector('input[name$="-id"]').value;
     }) || addRow();
-    row.querySelector('input[name$="-new_performer"]').value = name;
-    row.querySelector(".performer-pick").classList.add("d-none");
+    row.querySelector('input[name$="-new_artist"]').value = name;
+    row.querySelector(".artist-pick").classList.add("d-none");
     var label = row.querySelector(".new-artist-label");
     label.classList.remove("d-none");
     label.querySelector(".fw-semibold").textContent = name;
@@ -116,7 +116,7 @@
 
   // × on rows that aren't saved yet just removes them from the page.
   list.addEventListener("change", function (e) {
-    if (e.target.matches('select[name$="-performer"]')) renumber();
+    if (e.target.matches('select[name$="-artist"]')) renumber();
   });
   list.addEventListener("click", function (e) {
     var remove = e.target.closest(".remove-row");

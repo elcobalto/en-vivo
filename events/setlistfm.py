@@ -17,7 +17,7 @@ from urllib.request import HTTPSHandler, ProxyHandler, Request, build_opener
 from django.conf import settings
 from django.db import transaction
 
-from .models import Event, EventPerformer, Performer, Setlist, SetlistSong, Song
+from .models import Event, EventArtist, Artist, Setlist, SetlistSong, Song
 
 FALSY = {"0", "false", "no", "off"}
 
@@ -123,35 +123,35 @@ def _as_list(value) -> list:
     return value if isinstance(value, list) else [value]
 
 
-def _match_performer(artist_payload: dict) -> Performer:
-    performer = _find_or_create_performer(artist_payload)
-    if not performer.country and performer.mbid:
+def _match_artist(artist_payload: dict) -> Artist:
+    artist = _find_or_create_artist(artist_payload)
+    if not artist.country and artist.mbid:
         from .musicbrainz import artist_country
 
-        code = artist_country(performer.mbid)
+        code = artist_country(artist.mbid)
         if code:
-            performer.country = code
-            performer.save(update_fields=["country", "updated_at"])
-    return performer
+            artist.country = code
+            artist.save(update_fields=["country", "updated_at"])
+    return artist
 
 
-def _find_or_create_performer(artist_payload: dict) -> Performer:
+def _find_or_create_artist(artist_payload: dict) -> Artist:
     name = (artist_payload.get("name") or "").strip() or "Unknown artist"
     mbid = (artist_payload.get("mbid") or "").strip() or None
 
     if mbid:
-        performer = Performer.objects.filter(mbid=mbid).first()
-        if performer:
-            return performer
+        artist = Artist.objects.filter(mbid=mbid).first()
+        if artist:
+            return artist
 
-    performer = Performer.objects.filter(name__iexact=name).first()
-    if performer:
-        if mbid and not performer.mbid:
-            performer.mbid = mbid
-            performer.save(update_fields=["mbid", "updated_at"])
-        return performer
+    artist = Artist.objects.filter(name__iexact=name).first()
+    if artist:
+        if mbid and not artist.mbid:
+            artist.mbid = mbid
+            artist.save(update_fields=["mbid", "updated_at"])
+        return artist
 
-    return Performer.objects.create(name=name, mbid=mbid, kind=Performer.Kind.GROUP)
+    return Artist.objects.create(name=name, mbid=mbid, kind=Artist.Kind.GROUP)
 
 
 def _set_name(set_payload: dict, encore_count: int) -> str:
@@ -189,20 +189,20 @@ def import_setlist(event: Event, payload: dict[str, Any]) -> Setlist:
     if existing:
         raise SetlistFmError(f"This setlist is already attached to “{existing.event}”.")
 
-    performer = _match_performer(payload.get("artist") or {})
+    artist = _match_artist(payload.get("artist") or {})
 
-    if not EventPerformer.objects.filter(event=event, performer=performer).exists():
-        current = EventPerformer.objects.filter(event=event)
-        EventPerformer.objects.create(
+    if not EventArtist.objects.filter(event=event, artist=artist).exists():
+        current = EventArtist.objects.filter(event=event)
+        EventArtist.objects.create(
             event=event,
-            performer=performer,
-            role=EventPerformer.Role.SUPPORT if current.exists() else EventPerformer.Role.HEADLINER,
+            artist=artist,
+            role=EventArtist.Role.SUPPORT if current.exists() else EventArtist.Role.HEADLINER,
             billing_order=current.count() + 1,
         )
 
     setlist, _ = Setlist.objects.update_or_create(
         event=event,
-        performer=performer,
+        artist=artist,
         defaults={
             "setlistfm_id": setlistfm_id,
             "source_url": (payload.get("url") or "").strip(),
@@ -226,7 +226,7 @@ def import_setlist(event: Event, payload: dict[str, Any]) -> Setlist:
             title = (song_payload.get("name") or "").strip()
             if not title:
                 continue
-            song, _ = Song.objects.get_or_create(performer=performer, title=title)
+            song, _ = Song.objects.get_or_create(artist=artist, title=title)
             position += 1
             SetlistSong.objects.create(
                 setlist=setlist,

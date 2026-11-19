@@ -1,15 +1,16 @@
 {% extends "base.html" %}
 {% load event_extras %}
 
-{% block title %}Performers · En Vivo{% endblock %}
+{% block title %}Artists · En Vivo{% endblock %}
 
 {% block content %}
   <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
-    <h1 class="h4 m-0">Performers <a class="small fs-6 fw-normal ms-2" href="{% url 'events:play_list' %}">Plays →</a></h1>
+    <h1 class="h4 m-0">Artists <a class="small fs-6 fw-normal ms-2" href="{% url 'events:play_list' %}">Plays →</a></h1>
     <form class="d-flex flex-wrap gap-2" method="get" role="search">
-      <input class="form-control form-control-sm w-auto" type="search" name="q" value="{{ q }}" placeholder="Search performers" aria-label="Search performers">
+      <input class="form-control form-control-sm w-auto" type="search" name="q" value="{{ q }}" placeholder="Search artists" aria-label="Search artists">
       <select class="form-select form-select-sm w-auto" name="country" onchange="this.form.submit()" aria-label="Country">
         <option value="">All countries</option>
+        <option value="NONE" {% if country == "NONE" %}selected{% endif %}>No country</option>
         {% for code, name in countries %}<option value="{{ code }}" {% if country == code %}selected{% endif %}>{{ name }}</option>{% endfor %}
       </select>
       <select class="form-select form-select-sm w-auto" name="sort" onchange="this.form.submit()" aria-label="Sort by">
@@ -46,6 +47,6 @@
       </nav>
     {% endif %}
   {% else %}
-    <p class="text-body-secondary">{% if q %}No performers match “{{ q }}”.{% else %}No performers yet.{% endif %}</p>
+    <p class="text-body-secondary">{% if q %}No artists match “{{ q }}”.{% else %}No artists yet.{% endif %}</p>
   {% endif %}
 {% endblock %}

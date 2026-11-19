@@ -182,7 +182,7 @@ def festival_admin_actions(user, event: Event) -> dict:
         return {}
     return {
         "duplicate_candidates": event_duplicate_candidates(event),
-        "can_make_festival": event.event_type == EventType.MUSIC and event.eventperformer_set.count() > 1,
+        "can_make_festival": event.event_type == EventType.MUSIC and event.eventartist_set.count() > 1,
         "festivals_same_day": list(same_day_festivals(event)),
     }
 
@@ -236,13 +236,13 @@ def add_to_festival(request: HttpRequest, pk: int) -> HttpResponse:
 # --------------------------------------------------------------------------- admins: merge duplicates
 
 
-def performer_duplicate_candidates(performer):
+def artist_duplicate_candidates(artist):
     """Similar names first (same first word, or one name contains the other), then everyone else."""
-    from .models import Performer
+    from .models import Artist
 
-    name = performer.name.casefold()
+    name = artist.name.casefold()
     first = name.split()[0] if name.split() else name
-    others = list(Performer.objects.exclude(pk=performer.pk).order_by("name")[:2000])
+    others = list(Artist.objects.exclude(pk=artist.pk).order_by("name")[:2000])
     similar = [p for p in others if p.name.casefold().split()[:1] == [first]
                or name in p.name.casefold() or p.name.casefold() in name]
     rest = [p for p in others if p not in similar]
@@ -261,17 +261,17 @@ def event_duplicate_candidates(event):
 
 @login_required
 @require_POST
-def performer_merge_duplicate(request: HttpRequest, pk: int) -> HttpResponse:
-    from .merge import merge_performers
-    from .models import Performer
+def artist_merge_duplicate(request: HttpRequest, pk: int) -> HttpResponse:
+    from .merge import merge_artists
+    from .models import Artist
     from .roles import is_admin
 
     if not is_admin(request.user):
         raise PermissionDenied
-    keep = get_object_or_404(Performer, pk=pk)
-    remove = get_object_or_404(Performer.objects.exclude(pk=pk), pk=request.POST.get("other") or 0)
+    keep = get_object_or_404(Artist, pk=pk)
+    remove = get_object_or_404(Artist.objects.exclude(pk=pk), pk=request.POST.get("other") or 0)
     removed = remove.name
-    merge_performers(keep, remove)
+    merge_artists(keep, remove)
     messages.success(request, f"Merged “{removed}” into “{keep.name}”.")
     return redirect(keep)
 

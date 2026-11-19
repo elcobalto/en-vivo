@@ -11,8 +11,8 @@
     </div>
     <a class="btn btn-sm btn-outline-secondary" href="{{ event.get_absolute_url }}">Back to event</a>
   </div>
-      {% for label, performer, videos in video_groups %}
-        <div class="small fw-semibold mb-1">{% if performer %}<a href="{{ performer.get_absolute_url }}">{{ label }}</a>{% else %}{{ label }}{% endif %}</div>
+      {% for label, artist, videos in video_groups %}
+        <div class="small fw-semibold mb-1">{% if artist %}<a href="{{ artist.get_absolute_url }}">{{ label }}</a>{% else %}{{ label }}{% endif %}</div>
         <div class="row row-cols-1 row-cols-md-2 g-2 mb-3">
           {% for v in videos %}
             <div class="col">
@@ -40,9 +40,9 @@
           {% csrf_token %}
           <input class="form-control form-control-sm" style="max-width:22rem" type="url" name="url" required
                  placeholder="Paste a YouTube link" aria-label="YouTube link" />
-          <select class="form-select form-select-sm w-auto" name="performer" aria-label="Who's in the video">
+          <select class="form-select form-select-sm w-auto" name="artist" aria-label="Who's in the video">
             <option value="">Whole event</option>
-            {% for link in acts %}<option value="{{ link.performer_id }}">{{ link.performer.name }}</option>{% endfor %}
+            {% for link in acts %}<option value="{{ link.artist_id }}">{{ link.artist.name }}</option>{% endfor %}
           </select>
           <button class="btn btn-sm btn-outline-light" type="submit">Add video</button>
         </form>

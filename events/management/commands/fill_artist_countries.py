@@ -2,7 +2,7 @@ import time
 
 from django.core.management.base import BaseCommand
 
-from events.models import Performer
+from events.models import Artist
 from events.musicbrainz import artist_country
 
 
@@ -14,11 +14,11 @@ class Command(BaseCommand):
 
     def handle(self, limit, **options):
         filled = 0
-        for performer in Performer.objects.filter(country="").exclude(mbid=None)[:limit]:
-            code = artist_country(performer.mbid)
+        for artist in Artist.objects.filter(country="").exclude(mbid=None)[:limit]:
+            code = artist_country(artist.mbid)
             if code:
-                performer.country = code
-                performer.save(update_fields=["country", "updated_at"])
+                artist.country = code
+                artist.save(update_fields=["country", "updated_at"])
                 filled += 1
             time.sleep(1.1)  # MusicBrainz allows about one request per second
         self.stdout.write(f"Filled {filled} artist countries.")

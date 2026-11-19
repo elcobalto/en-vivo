@@ -22,12 +22,12 @@ The catalog is our own; setlist.fm is only used to import song lists for music e
 Implemented in `events/models.py`:
 
 - **Catalog:** `Event` (one performance: type, date, venue) optionally grouped by a `Production`
-  (tour, theater run, special). `Performer`s join events via `EventPerformer(role, billing_order)`.
+  (tour, theater run, special). `Artist`s join events via `EventArtist(role, billing_order)`.
   `Venue` holds location details.
 - **Diary:** `Log` is a user's entry for an event: rating stored 1–10 and shown as ½–5 stars,
   review, liked, spoilers flag. One log per user per event.
-- **Setlists (music):** `Setlist(event, performer)` with ordered `SetlistSong(position, song, set_name, note)`.
-  `Song` belongs to a `Performer`. Imported from setlist.fm via `events/setlistfm.py`.
+- **Setlists (music):** `Setlist(event, artist)` with ordered `SetlistSong(position, song, set_name, note)`.
+  `Song` belongs to a `Artist`. Imported from setlist.fm via `events/setlistfm.py`.
 - **Discovery:** `WantToGo(user, event)` is the watchlist. `EventList` + ordered `EventListItem(position, note)`
   are user-curated lists (optionally ranked). Global search lives at `/search/`; `/events/` filters by
   type, when, year and city and sorts by date, popularity or rating.

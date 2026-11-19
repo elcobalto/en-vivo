@@ -7,19 +7,21 @@
     <p class="small mb-1"><a href="{{ event.get_absolute_url }}">← {{ event.title }}</a></p>
     <h1 class="h4 mb-1">Add artists to the lineup</h1>
     <p class="small text-body-secondary mb-3">
-      Acts on other events on {{ event.date|date:"j F Y"|default:"this date" }} at {{ event.venue.name|default:"this venue" }}{% if event.venue.city %} or elsewhere in {{ event.venue.city }}{% endif %}.
+      Acts setlist.fm has on {{ event.date|date:"j F Y"|default:"this date" }} in {{ event.venue.city|default:event.venue.name|default:"this place" }}.
     </p>
     {% if not event.date or not event.venue %}
       <p class="text-body-secondary">Add a date and venue to this festival day to find artists. <a href="{% url 'events:event_edit' event.pk %}">Edit event</a></p>
+    {% elif error %}
+      <div class="alert alert-warning">Couldn't search setlist.fm: {{ error }}</div>
     {% elif candidates %}
       <form method="post" class="card"><div class="card-body">
         {% csrf_token %}
-        {% for link in candidates %}
+        {% for c in candidates %}
           <div class="form-check py-1 border-bottom border-secondary-subtle">
-            <input class="form-check-input" type="checkbox" name="add_{{ link.performer_id }}" value="1" id="add-{{ link.performer_id }}" {% if link.event.venue_id == event.venue_id %}checked{% endif %}>
-            <label class="form-check-label d-flex justify-content-between gap-2" for="add-{{ link.performer_id }}">
-              <span>{{ link.performer.name }}</span>
-              <span class="small text-body-secondary text-end">{{ link.event.venue.name }}</span>
+            <input class="form-check-input" type="checkbox" name="add_{{ c.key }}" value="1" id="add-{{ forloop.counter }}" {% if c.same_venue %}checked{% endif %}>
+            <label class="form-check-label d-flex justify-content-between gap-2" for="add-{{ forloop.counter }}">
+              <span>{{ c.name }}</span>
+              <span class="small text-body-secondary text-end">{{ c.venue }}</span>
             </label>
           </div>
         {% endfor %}
@@ -28,9 +30,9 @@
           <button class="btn btn-success" type="submit">Add to lineup</button>
         </div>
       </div></form>
-      <p class="small text-body-secondary mt-2">Acts at the same venue are ticked; others in the city aren't. Anyone else can be added from <a href="{% url 'events:event_edit' event.pk %}">Edit event</a>.</p>
+      <p class="small text-body-secondary mt-2">Acts setlist.fm lists at this venue are ticked; others in the city aren't. Anyone else can be added from <a href="{% url 'events:event_edit' event.pk %}">Edit event</a>.</p>
     {% else %}
-      <p class="text-body-secondary">No other artists found for that date and place. You can add them from <a href="{% url 'events:event_edit' event.pk %}">Edit event</a>.</p>
+      <p class="text-body-secondary">setlist.fm has no other artists for that date and place. You can add them from <a href="{% url 'events:event_edit' event.pk %}">Edit event</a>.</p>
     {% endif %}
   </div></div>
 {% endblock %}

@@ -9,10 +9,10 @@ from .models import (
     Event,
     EventType,
     EventList,
-    EventPerformer,
+    EventArtist,
     FavoriteEvent,
     Log,
-    Performer,
+    Artist,
     Play,
     Production,
     Profile,
@@ -125,15 +125,15 @@ class EventForm(BootstrapMixin, forms.ModelForm):
         return venue
 
 
-class EventPerformerForm(BootstrapMixin, forms.ModelForm):
-    new_performer = forms.CharField(
+class EventArtistForm(BootstrapMixin, forms.ModelForm):
+    new_artist = forms.CharField(
         label="New artist", max_length=200, required=False,
         widget=forms.TextInput(attrs={"placeholder": "…or type a new artist", "class": "form-control form-control-sm mt-1"}),
     )
 
     class Meta:
-        model = EventPerformer
-        fields = ["performer", "role", "billing_order", "start_time", "production"]
+        model = EventArtist
+        fields = ["artist", "role", "billing_order", "start_time", "production"]
         labels = {"billing_order": "Order", "start_time": "Time", "production": "Tour"}
         widgets = {"start_time": forms.TimeInput(attrs={"type": "time"}, format="%H:%M")}
 
@@ -141,60 +141,60 @@ class EventPerformerForm(BootstrapMixin, forms.ModelForm):
         super().__init__(*args, **kwargs)
         self.fields["role"].required = False
         self.fields["billing_order"].required = False
-        self.fields["performer"].required = False
+        self.fields["artist"].required = False
         tours = self.fields["production"]
-        tours.queryset = Production.objects.exclude(event_type=EventType.FESTIVAL).select_related("performer")
-        tours.label_from_instance = lambda p: f"{p.title} ({p.performer.name})" if p.performer_id else p.title
+        tours.queryset = Production.objects.exclude(event_type=EventType.FESTIVAL).select_related("artist")
+        tours.label_from_instance = lambda p: f"{p.title} ({p.artist.name})" if p.artist_id else p.title
         tours.empty_label = "No tour"
 
     def has_changed(self) -> bool:
-        # A new row without a performer (picked or typed) is an unused blank row, whatever role/order say.
-        if (not self.instance.pk and not self.data.get(self.add_prefix("performer"))
-                and not (self.data.get(self.add_prefix("new_performer")) or "").strip()):
+        # A new row without a artist (picked or typed) is an unused blank row, whatever role/order say.
+        if (not self.instance.pk and not self.data.get(self.add_prefix("artist"))
+                and not (self.data.get(self.add_prefix("new_artist")) or "").strip()):
             return False
         return super().has_changed()
 
     def clean(self):
         cleaned = super().clean()
-        name = (cleaned.get("new_performer") or "").strip()
-        if cleaned.get("performer") and name:
-            self.add_error("new_performer", "Pick an artist or type a new one, not both.")
-        elif not cleaned.get("performer") and not name and not cleaned.get("DELETE"):
-            self.add_error("performer", "Pick an artist or type a new one.")
+        name = (cleaned.get("new_artist") or "").strip()
+        if cleaned.get("artist") and name:
+            self.add_error("new_artist", "Pick an artist or type a new one, not both.")
+        elif not cleaned.get("artist") and not name and not cleaned.get("DELETE"):
+            self.add_error("artist", "Pick an artist or type a new one.")
         return cleaned
 
     def save(self, commit: bool = True):
-        name = (self.cleaned_data.get("new_performer") or "").strip()
-        if name and not self.cleaned_data.get("performer"):
+        name = (self.cleaned_data.get("new_artist") or "").strip()
+        if name and not self.cleaned_data.get("artist"):
             existing = next(
-                (p for p in Performer.objects.filter(name__icontains=name[:3]) if p.name.casefold() == name.casefold()),
+                (p for p in Artist.objects.filter(name__icontains=name[:3]) if p.name.casefold() == name.casefold()),
                 None,
             )
-            self.instance.performer = existing or Performer.objects.create(name=name[:200])
+            self.instance.artist = existing or Artist.objects.create(name=name[:200])
         return super().save(commit=commit)
 
     def clean_role(self) -> str:
-        return self.cleaned_data.get("role") or EventPerformer.Role.HEADLINER
+        return self.cleaned_data.get("role") or EventArtist.Role.HEADLINER
 
     def clean_billing_order(self) -> int:
         return self.cleaned_data.get("billing_order") or 1
 
 
-EventPerformerFormSet = inlineformset_factory(
+EventArtistFormSet = inlineformset_factory(
     Event,
-    EventPerformer,
-    form=EventPerformerForm,
+    EventArtist,
+    form=EventArtistForm,
     extra=1,
     can_delete=True,
 )
 
 
-class PerformerForm(BootstrapMixin, forms.ModelForm):
+class ArtistForm(BootstrapMixin, forms.ModelForm):
     class Meta:
-        model = Performer
+        model = Artist
         fields = ["name", "kind", "country", "bio", "image_url", "mbid"]
         widgets = {"bio": forms.Textarea(attrs={"rows": 4})}
-        help_texts = {"mbid": "Optional. Helps match setlist.fm imports to this performer."}
+        help_texts = {"mbid": "Optional. Helps match setlist.fm imports to this artist."}
 
 
 class VenueForm(BootstrapMixin, forms.ModelForm):
@@ -215,10 +215,10 @@ class PlayForm(BootstrapMixin, forms.ModelForm):
 class ProductionForm(BootstrapMixin, forms.ModelForm):
     class Meta:
         model = Production
-        fields = ["title", "event_type", "performer", "description", "image_url"]
+        fields = ["title", "event_type", "artist", "description", "image_url"]
         widgets = {"description": forms.Textarea(attrs={"rows": 4})}
-        labels = {"event_type": "Type", "image_url": "Poster / image URL", "performer": "Artist"}
-        help_texts = {"performer": "Whose tour or run this is. Leave empty for a festival."}
+        labels = {"event_type": "Type", "image_url": "Poster / image URL", "artist": "Artist"}
+        help_texts = {"artist": "Whose tour or run this is. Leave empty for a festival."}
 
     def clean_title(self) -> str:
         from django.utils.html import format_html

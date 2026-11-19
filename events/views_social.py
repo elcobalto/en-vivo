@@ -25,7 +25,7 @@ from .models import (
     FavoriteEvent,
     Follow,
     Log,
-    Performer,
+    Artist,
     Profile,
     Venue,
     ReviewLike,
@@ -83,7 +83,7 @@ def with_social_counts(logs_qs):
 
 def _seen_artists(owner):
     return (
-        Performer.objects.filter(act_logs__log__user=owner)
+        Artist.objects.filter(act_logs__log__user=owner)
         .annotate(
             n=Count("act_logs", filter=Q(act_logs__log__user=owner), distinct=True),
             last_seen=Max("act_logs__log__event__date", filter=Q(act_logs__log__user=owner)),
@@ -305,8 +305,8 @@ def review_detail(request: HttpRequest, pk: int) -> HttpResponse:
         {
             "log": log,
             "comments": log.comments.select_related("user__profile"),
-            "acts": log.acts.select_related("performer"),
-            "missed": log.event.eventperformer_set.exclude(performer__act_logs__log=log).select_related("performer"),
+            "acts": log.acts.select_related("artist"),
+            "missed": log.event.eventartist_set.exclude(artist__act_logs__log=log).select_related("artist"),
             "liked": liked,
             "comment_form": CommentForm(),
             "likers": User.objects.filter(review_likes__log=log).select_related("profile")[:12],

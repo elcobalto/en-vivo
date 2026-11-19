@@ -2,7 +2,7 @@
 Catalog + diary models for En Vivo ("Letterboxd for live events").
 
 Catalog (our own database):
-    Venue, Performer, Production, Event, EventPerformer
+    Venue, Artist, Production, Event, EventArtist
 Diary:
     Log (a user's rating/review of an event they attended)
 Music-only enrichment (imported from setlist.fm):
@@ -76,7 +76,7 @@ class Venue(TimestampedModel):
         return reverse("events:venue_detail", args=[self.pk])
 
 
-class Performer(TimestampedModel):
+class Artist(TimestampedModel):
     class Kind(models.TextChoices):
         PERSON = "person", "Person"
         GROUP = "group", "Band / group"
@@ -99,7 +99,7 @@ class Performer(TimestampedModel):
         return self.name
 
     def get_absolute_url(self) -> str:
-        return reverse("events:performer_detail", args=[self.pk])
+        return reverse("events:artist_detail", args=[self.pk])
 
 
 def normalize_name(text: str) -> str:
@@ -111,13 +111,13 @@ def normalize_name(text: str) -> str:
 
 
 class Production(TimestampedModel):
-    """A tour or run by a performer (linked per lineup act), or a festival grouping events."""
+    """A tour or run by a artist (linked per lineup act), or a festival grouping events."""
 
     title = models.CharField(max_length=240, db_index=True)
     event_type = models.CharField(max_length=20, choices=EventType.choices, default=EventType.MUSIC)
     # Whose tour/run this is. Empty for festivals, which group whole events instead.
-    performer = models.ForeignKey(
-        "Performer", on_delete=models.SET_NULL, null=True, blank=True, related_name="tours"
+    artist = models.ForeignKey(
+        "Artist", on_delete=models.SET_NULL, null=True, blank=True, related_name="tours"
     )
     description = models.TextField(blank=True, default="")
     image_url = models.URLField(max_length=1000, blank=True, default="")
@@ -144,14 +144,14 @@ class Production(TimestampedModel):
         if not wanted:
             return None
         qs = cls.objects.all() if exclude_pk is None else cls.objects.exclude(pk=exclude_pk)
-        return next((p for p in qs.only("pk", "title", "performer_id", "event_type") if normalize_name(p.title) == wanted), None)
+        return next((p for p in qs.only("pk", "title", "artist_id", "event_type") if normalize_name(p.title) == wanted), None)
 
 
 class Play(TimestampedModel):
     """An original play. Each staging of it is a theater event linked here (one play, many adaptations)."""
 
     title = models.CharField(max_length=240, db_index=True)
-    authors = models.ManyToManyField("Performer", blank=True, related_name="plays_written")
+    authors = models.ManyToManyField("Artist", blank=True, related_name="plays_written")
     description = models.TextField(blank=True, default="")
     image_url = models.URLField(max_length=1000, blank=True, default="")
 
@@ -171,7 +171,7 @@ class EventQuerySet(LogStatsQuerySet):
 
 
 
-def production_named(title: str, event_type: str, performer=None) -> Production:
+def production_named(title: str, event_type: str, artist=None) -> Production:
     """The one production with this name, created if needed (names are unique).
 
     A tour already owned by another artist isn't hijacked: the new one gets the artist's
@@ -183,14 +183,14 @@ def production_named(title: str, event_type: str, performer=None) -> Production:
     is_festival = event_type == EventType.FESTIVAL
     if existing:
         same_kind = (existing.event_type == EventType.FESTIVAL) == is_festival
-        same_owner = performer is None or existing.performer_id in (None, getattr(performer, "pk", None))
+        same_owner = artist is None or existing.artist_id in (None, getattr(artist, "pk", None))
         if same_kind and same_owner:
-            if performer is not None and not existing.performer_id and not is_festival:
-                Production.objects.filter(pk=existing.pk).update(performer=performer)
+            if artist is not None and not existing.artist_id and not is_festival:
+                Production.objects.filter(pk=existing.pk).update(artist=artist)
             return Production.objects.get(pk=existing.pk)
-        suffix = performer.name if (performer is not None and not same_owner) else ("festival" if is_festival else "tour")
-        return production_named(f"{title} ({suffix})", event_type, performer)
-    return Production.objects.create(title=title, event_type=event_type, performer=performer)
+        suffix = artist.name if (artist is not None and not same_owner) else ("festival" if is_festival else "tour")
+        return production_named(f"{title} ({suffix})", event_type, artist)
+    return Production.objects.create(title=title, event_type=event_type, artist=artist)
 
 class Event(TimestampedModel):
     """One specific performance: a date at a venue. This is what people attend and log."""
@@ -231,7 +231,7 @@ class Event(TimestampedModel):
         help_text="How the photo fits the poster-shaped thumbnails on cards and lists.",
     )
 
-    performers = models.ManyToManyField(Performer, through="EventPerformer", related_name="events")
+    artists = models.ManyToManyField(Artist, through="EventArtist", related_name="events")
 
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -272,9 +272,9 @@ class Event(TimestampedModel):
             return self.production.title[:240]  # festival days are named after their festival
         if self.pk and self.event_type == EventType.FESTIVAL and not self.production_id:
             names = list(
-                self.eventperformer_set.filter(role=EventPerformer.Role.HEADLINER)
-                .order_by("billing_order", "performer__name")
-                .values_list("performer__name", flat=True)[:4]
+                self.eventartist_set.filter(role=EventArtist.Role.HEADLINER)
+                .order_by("billing_order", "artist__name")
+                .values_list("artist__name", flat=True)[:4]
             )
             if len(names) > 1:
                 # “Green Day & Foo Fighters”, “A, B & C”, “A, B, C & more”
@@ -316,8 +316,8 @@ class Event(TimestampedModel):
         if link and link.production_id and link.production.image_url:
             return link.production.image_url
         first_with_photo = (
-            self.eventperformer_set.exclude(performer__image_url="")
-            .order_by("billing_order", "pk").values_list("performer__image_url", flat=True).first()
+            self.eventartist_set.exclude(artist__image_url="")
+            .order_by("billing_order", "pk").values_list("artist__image_url", flat=True).first()
         )
         return first_with_photo or ""
 
@@ -340,23 +340,23 @@ class Event(TimestampedModel):
         return self.event_type in (EventType.MUSIC, EventType.FESTIVAL)
 
     @property
-    def headliner(self) -> Performer | None:
+    def headliner(self) -> Artist | None:
         """The top-billed act on stage (authors and directors are credits, not acts)."""
-        link = self.acts_on_stage().select_related("performer").first()
-        return link.performer if link else None
+        link = self.acts_on_stage().select_related("artist").first()
+        return link.artist if link else None
 
     def acts_on_stage(self):
-        return self.eventperformer_set.exclude(role__in=CREDIT_ROLES)
+        return self.eventartist_set.exclude(role__in=CREDIT_ROLES)
 
     def credits(self):
-        return self.eventperformer_set.filter(role__in=CREDIT_ROLES).select_related("performer")
+        return self.eventartist_set.filter(role__in=CREDIT_ROLES).select_related("artist")
 
 
 
 # Roles that credit someone without them being an act you watch (theater authors, directors).
 CREDIT_ROLES = ("author", "director")
 
-class EventPerformer(models.Model):
+class EventArtist(models.Model):
     class Role(models.TextChoices):
         HEADLINER = "headliner", "Headliner"
         SUPPORT = "support", "Support"
@@ -368,11 +368,11 @@ class EventPerformer(models.Model):
         OTHER = "other", "Other"
 
     event = models.ForeignKey(Event, on_delete=models.CASCADE)
-    performer = models.ForeignKey(Performer, on_delete=models.CASCADE)
+    artist = models.ForeignKey(Artist, on_delete=models.CASCADE)
     role = models.CharField(max_length=20, choices=Role.choices, default=Role.HEADLINER)
     billing_order = models.PositiveIntegerField(default=1)
     start_time = models.TimeField("Set time", null=True, blank=True)
-    # The tour this act was on at this event (tours belong to performers, not events).
+    # The tour this act was on at this event (tours belong to artists, not events).
     production = models.ForeignKey(
         Production, on_delete=models.SET_NULL, null=True, blank=True, related_name="lineup_entries",
         verbose_name="Tour",
@@ -380,15 +380,15 @@ class EventPerformer(models.Model):
 
     class Meta:
         constraints = [
-            models.UniqueConstraint(fields=["event", "performer"], name="uq_event_performer"),
+            models.UniqueConstraint(fields=["event", "artist"], name="uq_event_artist"),
             models.CheckConstraint(
-                check=models.Q(billing_order__gte=1), name="ck_event_performer_billing_gte_1"
+                check=models.Q(billing_order__gte=1), name="ck_event_artist_billing_gte_1"
             ),
         ]
-        ordering = ["billing_order", "performer__name"]
+        ordering = ["billing_order", "artist__name"]
 
     def __str__(self) -> str:
-        return f"{self.performer} @ {self.event} ({self.get_role_display()})"
+        return f"{self.artist} @ {self.event} ({self.get_role_display()})"
 
 
 # --------------------------------------------------------------------------- diary
@@ -421,26 +421,26 @@ class ActLog(TimestampedModel):
     """One act the user actually saw at a logged event, with its own rating and note."""
 
     log = models.ForeignKey(Log, on_delete=models.CASCADE, related_name="acts")
-    performer = models.ForeignKey(Performer, on_delete=models.CASCADE, related_name="act_logs")
+    artist = models.ForeignKey(Artist, on_delete=models.CASCADE, related_name="act_logs")
     rating = models.PositiveSmallIntegerField(
         null=True, blank=True, validators=[MinValueValidator(1), MaxValueValidator(10)]
     )
     note = models.CharField(max_length=200, blank=True, default="")
 
     class Meta:
-        constraints = [models.UniqueConstraint(fields=["log", "performer"], name="uq_actlog_log_performer")]
+        constraints = [models.UniqueConstraint(fields=["log", "artist"], name="uq_actlog_log_artist")]
         ordering = ["pk"]
 
     def __str__(self) -> str:
-        return f"{self.log.user} saw {self.performer} at {self.log.event}"
+        return f"{self.log.user} saw {self.artist} at {self.log.event}"
 
 
 def add_all_acts(log: Log) -> None:
     """Mark every act in the event's lineup as seen (the default for a new log)."""
-    seen = set(log.acts.values_list("performer_id", flat=True))
+    seen = set(log.acts.values_list("artist_id", flat=True))
     ActLog.objects.bulk_create(
-        [ActLog(log=log, performer_id=pid)
-         for pid in log.event.acts_on_stage().values_list("performer_id", flat=True) if pid not in seen]
+        [ActLog(log=log, artist_id=pid)
+         for pid in log.event.acts_on_stage().values_list("artist_id", flat=True) if pid not in seen]
     )
 
 
@@ -448,7 +448,7 @@ def add_all_acts(log: Log) -> None:
 
 
 class Song(TimestampedModel):
-    performer = models.ForeignKey(Performer, on_delete=models.CASCADE, related_name="songs")
+    artist = models.ForeignKey(Artist, on_delete=models.CASCADE, related_name="songs")
     title = models.CharField(max_length=240, db_index=True)
     # The studio album it first appeared on, from MusicBrainz (looked up once, on demand).
     album_title = models.CharField(max_length=240, blank=True, default="")
@@ -458,19 +458,19 @@ class Song(TimestampedModel):
 
     class Meta:
         constraints = [
-            models.UniqueConstraint(fields=["performer", "title"], name="uq_song_performer_title"),
+            models.UniqueConstraint(fields=["artist", "title"], name="uq_song_artist_title"),
         ]
-        ordering = ["performer__name", "title"]
+        ordering = ["artist__name", "title"]
 
     def __str__(self) -> str:
-        return f"{self.title} — {self.performer}"
+        return f"{self.title} — {self.artist}"
 
 
 class Setlist(TimestampedModel):
-    """What one performer played at one event. Imported from setlist.fm or entered by hand."""
+    """What one artist played at one event. Imported from setlist.fm or entered by hand."""
 
     event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name="setlists")
-    performer = models.ForeignKey(Performer, on_delete=models.CASCADE, related_name="setlists")
+    artist = models.ForeignKey(Artist, on_delete=models.CASCADE, related_name="setlists")
 
     setlistfm_id = models.CharField(max_length=40, null=True, blank=True, unique=True)
     source_url = models.URLField(blank=True, default="")
@@ -478,12 +478,12 @@ class Setlist(TimestampedModel):
 
     class Meta:
         constraints = [
-            models.UniqueConstraint(fields=["event", "performer"], name="uq_setlist_event_performer"),
+            models.UniqueConstraint(fields=["event", "artist"], name="uq_setlist_event_artist"),
         ]
-        ordering = ["event", "performer__name"]
+        ordering = ["event", "artist__name"]
 
     def __str__(self) -> str:
-        return f"{self.performer} — {self.event}"
+        return f"{self.artist} — {self.event}"
 
 
 class SetlistSong(models.Model):
@@ -659,8 +659,8 @@ class EventVideo(TimestampedModel):
     """A YouTube video from an event, of one act or of the whole event."""
 
     event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name="videos")
-    performer = models.ForeignKey(
-        Performer, on_delete=models.CASCADE, null=True, blank=True, related_name="videos",
+    artist = models.ForeignKey(
+        Artist, on_delete=models.CASCADE, null=True, blank=True, related_name="videos",
         help_text="Empty for videos of the whole event.",
     )
     youtube_id = models.CharField(max_length=20)

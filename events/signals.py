@@ -44,11 +44,11 @@ if user_signed_up is not None:
 
 from django.db.models.signals import post_delete  # noqa: E402
 
-from .models import Event, EventPerformer  # noqa: E402
+from .models import Event, EventArtist  # noqa: E402
 
 
-@receiver(post_save, sender=EventPerformer)
-@receiver(post_delete, sender=EventPerformer)
+@receiver(post_save, sender=EventArtist)
+@receiver(post_delete, sender=EventArtist)
 def refresh_title_after_lineup_change(sender, instance, **kwargs):
     event = Event.objects.filter(pk=instance.event_id, title_is_auto=True).first()
     if event:

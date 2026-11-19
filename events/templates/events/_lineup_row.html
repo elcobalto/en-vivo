@@ -1,12 +1,12 @@
 {% comment %}One lineup row (also used, with __prefix__, as the template for "+ Add another act").{% endcomment %}
 <div class="row g-2 align-items-center mb-2 lineup-row">
-  {{ f.id }}{{ f.billing_order.as_hidden }}{{ f.new_performer.as_hidden }}
+  {{ f.id }}{{ f.billing_order.as_hidden }}{{ f.new_artist.as_hidden }}
   <div class="col-1 text-center"><span class="drag-handle fs-5 text-body-secondary" title="Drag (or ↑/↓) to reorder" aria-label="Reorder" role="button" tabindex="0" style="cursor:grab">⠿</span></div>
   <div class="col-11 col-md-3">
-    <label class="visually-hidden" for="{{ f.performer.id_for_label }}">Performer</label>
-    <div class="performer-pick {% if f.new_performer.value %}d-none{% endif %}">{{ f.performer }}</div>
-    <div class="new-artist-label form-control form-control-sm {% if not f.new_performer.value %}d-none{% endif %}">
-      <span class="fw-semibold">{{ f.new_performer.value }}</span> <span class="badge text-bg-success">new artist</span>
+    <label class="visually-hidden" for="{{ f.artist.id_for_label }}">Artist</label>
+    <div class="artist-pick {% if f.new_artist.value %}d-none{% endif %}">{{ f.artist }}</div>
+    <div class="new-artist-label form-control form-control-sm {% if not f.new_artist.value %}d-none{% endif %}">
+      <span class="fw-semibold">{{ f.new_artist.value }}</span> <span class="badge text-bg-success">new artist</span>
     </div>
   </div>
   <div class="col-5 col-md-2"><label class="visually-hidden" for="{{ f.role.id_for_label }}">Role</label>{{ f.role }}</div>

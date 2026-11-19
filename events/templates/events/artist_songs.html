@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+
+{% block title %}{{ artist.name }} · {% if tab == "albums" %}Albums{% else %}Songs{% endif %} played · En Vivo{% endblock %}
+
+{% block content %}
+  <p class="small mb-1"><a href="{{ artist.get_absolute_url }}{% if seen_q %}?{{ seen_q }}{% endif %}">← {{ artist.name }}</a></p>
+  <h1 class="h4 mb-1">{{ artist.name }}: what they played</h1>
+  <p class="small text-body-secondary mb-3">
+    Across {{ shows }} setlist{{ shows|pluralize }}{% if seen_by %} from shows <a href="{% url 'events:profile' seen_by.get_username %}">@{{ seen_by.get_username }}</a> saw · <a href="{{ request.path }}{% if tab == 'albums' %}?tab=albums{% endif %}">all shows</a>{% endif %}.
+  </p>
+  <ul class="nav nav-tabs mb-3">
+    <li class="nav-item"><a class="nav-link{% if tab == 'songs' %} active{% endif %}" href="?{{ seen_q }}">Songs</a></li>
+    <li class="nav-item"><a class="nav-link{% if tab == 'albums' %} active{% endif %}" href="?tab=albums{% if seen_q %}&{{ seen_q }}{% endif %}">Albums</a></li>
+  </ul>
+  <ol class="ps-4" style="max-width:44rem">
+    {% if tab == "albums" %}
+      {% for a in albums %}
+        <li class="py-1 border-bottom border-secondary-subtle"><div class="d-flex justify-content-between gap-2">
+          <span>{{ a.song__album_title }}{% if a.song__album_year %} <span class="small text-body-secondary">{{ a.song__album_year }}</span>{% endif %}</span>
+          <span class="small text-body-secondary text-nowrap">{{ a.n }} play{{ a.n|pluralize }} · {{ a.songs }} song{{ a.songs|pluralize }}</span>
+        </div></li>
+      {% empty %}<li class="list-unstyled text-body-secondary">No albums known yet. They're looked up when a setlist page is opened.</li>{% endfor %}
+    {% else %}
+      {% for s in songs %}
+        <li class="py-1 border-bottom border-secondary-subtle"><div class="d-flex justify-content-between gap-2">
+          <span>{{ s.song__title }}{% if s.song__album_title %} <span class="small text-body-secondary">{{ s.song__album_title }}{% if s.song__album_year %} · {{ s.song__album_year }}{% endif %}</span>{% endif %}</span>
+          <span class="small text-body-secondary text-nowrap">{{ s.n }} of {{ shows }}</span>
+        </div></li>
+      {% empty %}<li class="list-unstyled text-body-secondary">No setlists yet.</li>{% endfor %}
+    {% endif %}
+  </ol>
+{% endblock %}

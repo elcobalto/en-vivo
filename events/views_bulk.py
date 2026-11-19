@@ -15,7 +15,7 @@ from django.shortcuts import redirect, render
 from django.urls import reverse
 from django.utils.html import format_html
 
-from .models import Event, EventPerformer, EventType, Performer, Venue, normalize_name
+from .models import Event, EventArtist, EventType, Artist, Venue, normalize_name
 from .roles import can_edit_event
 
 MAX_ROWS = 200
@@ -105,10 +105,10 @@ def bulk_import(request: HttpRequest) -> HttpResponse:
     })
 
 
-def _performer_named(name: str) -> Performer:
+def _artist_named(name: str) -> Artist:
     wanted = normalize_name(name)
-    existing = next((p for p in Performer.objects.filter(name__icontains=name[:3]) if normalize_name(p.name) == wanted), None)
-    return existing or Performer.objects.create(name=name[:200])
+    existing = next((p for p in Artist.objects.filter(name__icontains=name[:3]) if normalize_name(p.name) == wanted), None)
+    return existing or Artist.objects.create(name=name[:200])
 
 
 @login_required
@@ -133,13 +133,13 @@ def bulk_review(request: HttpRequest) -> HttpResponse:
                         changed = True
                 names = [n.strip() for n in (request.POST.get(f"artists_{event.pk}") or "").split(",") if n.strip()]
                 if names:
-                    order = (event.eventperformer_set.aggregate(m=Max("billing_order"))["m"] or 0) + 1
+                    order = (event.eventartist_set.aggregate(m=Max("billing_order"))["m"] or 0) + 1
                     for name in names:
-                        performer = _performer_named(name)
-                        _, created = EventPerformer.objects.get_or_create(
-                            event=event, performer=performer,
+                        artist = _artist_named(name)
+                        _, created = EventArtist.objects.get_or_create(
+                            event=event, artist=artist,
                             defaults={"billing_order": order,
-                                      "role": EventPerformer.Role.HEADLINER if order == 1 else EventPerformer.Role.SUPPORT},
+                                      "role": EventArtist.Role.HEADLINER if order == 1 else EventArtist.Role.SUPPORT},
                         )
                         order += created
                         changed |= created
@@ -151,6 +151,6 @@ def bulk_review(request: HttpRequest) -> HttpResponse:
         "event": e,
         "venue_input": format_html('<input type="hidden" class="vs-value" name="venue_{}" value="{}" />',
                                    e.pk, e.venue_id or ""),
-        "lineup": ", ".join(e.eventperformer_set.order_by("billing_order").values_list("performer__name", flat=True)),
+        "lineup": ", ".join(e.eventartist_set.order_by("billing_order").values_list("artist__name", flat=True)),
     } for e in events]
     return render(request, "events/bulk_review.html", {"rows": rows, "ids": ",".join(str(e.pk) for e in events)})

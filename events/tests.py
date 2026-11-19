@@ -14,7 +14,7 @@ from events import musicbrainz as _musicbrainz  # noqa: E402
 REAL_ARTIST_COUNTRY = _musicbrainz.artist_country
 mock.patch("events.musicbrainz.artist_country", return_value="").start()
 
-from .models import Event, EventPerformer, EventType, Log, Performer, Production, Setlist, Venue
+from .models import Event, EventArtist, EventType, Log, Artist, Production, Setlist, Venue
 from .setlistfm import SetlistFmError, import_setlist
 from .templatetags.event_extras import avg_stars, stars
 
@@ -52,13 +52,13 @@ class StarsFilterTests(TestCase):
 
 
 class SetlistImportTests(BaseTestCase):
-    def test_import_creates_performer_lineup_and_songs(self):
+    def test_import_creates_artist_lineup_and_songs(self):
         setlist = import_setlist(self.event, SETLIST_PAYLOAD)
 
-        performer = Performer.objects.get(name="Green Day")
-        self.assertEqual(performer.mbid, "084308bd-1654-436f-ba03-df6697104e19")
-        link = EventPerformer.objects.get(event=self.event, performer=performer)
-        self.assertEqual(link.role, EventPerformer.Role.HEADLINER)
+        artist = Artist.objects.get(name="Green Day")
+        self.assertEqual(artist.mbid, "084308bd-1654-436f-ba03-df6697104e19")
+        link = EventArtist.objects.get(event=self.event, artist=artist)
+        self.assertEqual(link.role, EventArtist.Role.HEADLINER)
 
         entries = list(setlist.entries.select_related("song"))
         self.assertEqual([e.song.title for e in entries], ["Welcome to Paradise", "2000 Light Years Away", "Knowledge"])
@@ -75,10 +75,10 @@ class SetlistImportTests(BaseTestCase):
         self.assertEqual(Setlist.objects.count(), 1)
         self.assertEqual(Setlist.objects.get().entries.count(), 3)
 
-    def test_matches_existing_performer_by_name(self):
-        existing = Performer.objects.create(name="green day")
+    def test_matches_existing_artist_by_name(self):
+        existing = Artist.objects.create(name="green day")
         import_setlist(self.event, SETLIST_PAYLOAD)
-        self.assertEqual(Performer.objects.count(), 1)
+        self.assertEqual(Artist.objects.count(), 1)
         existing.refresh_from_db()
         self.assertEqual(existing.mbid, "084308bd-1654-436f-ba03-df6697104e19")
 
@@ -94,8 +94,8 @@ class PageTests(BaseTestCase):
         production = Production.objects.create(title="Kerplunk Tour")
         self.event.production = production
         self.event.save()
-        performer = Performer.objects.create(name="Green Day")
-        EventPerformer.objects.create(event=self.event, performer=performer)
+        artist = Artist.objects.create(name="Green Day")
+        EventArtist.objects.create(event=self.event, artist=artist)
         Log.objects.create(user=self.user, event=self.event, rating=9, review="Loud.")
 
         for url in [
@@ -104,7 +104,7 @@ class PageTests(BaseTestCase):
             reverse("events:event_list") + "?type=music&q=green",
             self.event.get_absolute_url(),
             production.get_absolute_url(),
-            performer.get_absolute_url(),
+            artist.get_absolute_url(),
             self.venue.get_absolute_url(),
             reverse("events:user_diary", args=["ana"]),
             reverse("login"),
@@ -117,7 +117,7 @@ class PageTests(BaseTestCase):
         self.assertContains(page, "Kerplunk Tour")
 
     def test_create_pages_require_login(self):
-        for name in ["event_create", "performer_create", "venue_create", "production_create", "diary"]:
+        for name in ["event_create", "artist_create", "venue_create", "production_create", "diary"]:
             with self.subTest(name=name):
                 self.assertEqual(self.client.get(reverse(f"events:{name}")).status_code, 302)
 
@@ -152,7 +152,7 @@ class EventFormTests(BaseTestCase):
     def setUp(self):
         super().setUp()
         self.client.force_login(self.user)
-        self.performer = Performer.objects.create(name="Bill Burr")
+        self.artist = Artist.objects.create(name="Bill Burr")
 
     def _payload(self, **extra):
         data = {
@@ -160,13 +160,13 @@ class EventFormTests(BaseTestCase):
             "event_type": "comedy",
             "date": "2026-12-01",
             "venue": str(self.venue.pk),
-            "eventperformer_set-TOTAL_FORMS": "3",
-            "eventperformer_set-INITIAL_FORMS": "0",
-            "eventperformer_set-MIN_NUM_FORMS": "0",
-            "eventperformer_set-MAX_NUM_FORMS": "1000",
-            "eventperformer_set-0-performer": str(self.performer.pk),
-            "eventperformer_set-0-role": "headliner",
-            "eventperformer_set-0-billing_order": "1",
+            "eventartist_set-TOTAL_FORMS": "3",
+            "eventartist_set-INITIAL_FORMS": "0",
+            "eventartist_set-MIN_NUM_FORMS": "0",
+            "eventartist_set-MAX_NUM_FORMS": "1000",
+            "eventartist_set-0-artist": str(self.artist.pk),
+            "eventartist_set-0-role": "headliner",
+            "eventartist_set-0-billing_order": "1",
         }
         data.update(extra)
         return data
@@ -176,7 +176,7 @@ class EventFormTests(BaseTestCase):
         event = Event.objects.get(title="Bill Burr Live")
         self.assertRedirects(response, event.get_absolute_url())
         self.assertEqual(event.created_by, self.user)
-        self.assertEqual(list(event.performers.all()), [self.performer])
+        self.assertEqual(list(event.artists.all()), [self.artist])
 
     def test_only_creator_can_edit(self):
         self.client.post(reverse("events:event_create"), self._payload())
@@ -199,7 +199,7 @@ class SetlistViewTests(BaseTestCase):
         )
         self.assertRedirects(response, self.event.get_absolute_url())
         setlist = self.event.setlists.get()
-        page = self.client.get(reverse("events:act_setlist", args=[self.event.pk, setlist.performer_id]))
+        page = self.client.get(reverse("events:act_setlist", args=[self.event.pk, setlist.artist_id]))
         self.assertContains(page, "Welcome to Paradise")
         self.assertContains(page, "Encore")
 
@@ -330,8 +330,8 @@ class ListTests(BaseTestCase):
 class SearchAndBrowseTests(BaseTestCase):
     def setUp(self):
         super().setUp()
-        performer = Performer.objects.create(name="Green Day")
-        EventPerformer.objects.create(event=self.event, performer=performer)
+        artist = Artist.objects.create(name="Green Day")
+        EventArtist.objects.create(event=self.event, artist=artist)
         Production.objects.create(title="Green Room Sessions")
         self.hamlet = Event.objects.create(
             title="Hamlet", event_type=EventType.THEATER, date=date(2030, 1, 1),
@@ -346,7 +346,7 @@ class SearchAndBrowseTests(BaseTestCase):
     def test_search_groups_results(self):
         page = self.client.get(reverse("events:search") + "?q=green")
         self.assertContains(page, "Green Day in Chile")
-        self.assertContains(page, "Performers")
+        self.assertContains(page, "Artists")
         self.assertContains(page, "Green Room Sessions")
         self.assertContains(page, "Teatro Caupolicán", count=2)  # event card only (text + hover title), not under Venues
         self.assertContains(self.client.get(reverse("events:search") + "?q=zzz"), "Nothing found")
@@ -518,8 +518,8 @@ class AutoTitleTests(BaseTestCase):
         self.assertTrue(event.title_is_auto)
         self.assertEqual(event.title, "Music event")
 
-        green_day = Performer.objects.create(name="Green Day")
-        EventPerformer.objects.create(event=event, performer=green_day)
+        green_day = Artist.objects.create(name="Green Day")
+        EventArtist.objects.create(event=event, artist=green_day)
         event.refresh_from_db()
         self.assertEqual(event.title, "Green Day")
 
@@ -533,28 +533,10 @@ class AutoTitleTests(BaseTestCase):
         event = Event.objects.create(title="", production=Production.objects.create(title="Hamilton"))
         self.assertEqual(event.title, "Hamilton")
 
-    def test_migration_shortens_old_auto_titles(self):
-        import importlib
-
-        from django.apps import apps
-
-        event = Event.objects.create(title="", venue=self.venue, date=date(2019, 3, 29))
-        EventPerformer.objects.create(event=event, performer=Performer.objects.create(name="Paul McCartney"))
-        Event.objects.filter(pk=event.pk).update(title="Paul McCartney in Estadio Nacional, 29 Mar 2019")
-        custom = Event.objects.create(title="My own title", venue=self.venue)
-
-        migration = importlib.import_module("events.migrations.0009_auto_title_headliner_only")
-        migration.headliner_only_titles(apps, None)
-
-        event.refresh_from_db()
-        custom.refresh_from_db()
-        self.assertEqual(event.title, "Paul McCartney")
-        self.assertEqual(custom.title, "My own title")
-
     def test_card_shows_title_then_venue_and_date(self):
         auto = Event.objects.create(title="", venue=self.venue, date=date(2019, 3, 29),
                                     image_url="https://example.com/poster.jpg")
-        EventPerformer.objects.create(event=auto, performer=Performer.objects.create(name="Paul McCartney"))
+        EventArtist.objects.create(event=auto, artist=Artist.objects.create(name="Paul McCartney"))
         html = self.client.get(reverse("events:event_list")).content.decode()
         self.assertIn("Paul McCartney</a>", html)
         # Date on its own line (never cut off), venue below it.
@@ -569,7 +551,7 @@ class AutoTitleTests(BaseTestCase):
 
     def test_custom_title_is_kept(self):
         self.assertFalse(self.event.title_is_auto)
-        EventPerformer.objects.create(event=self.event, performer=Performer.objects.create(name="X"))
+        EventArtist.objects.create(event=self.event, artist=Artist.objects.create(name="X"))
         self.event.refresh_from_db()
         self.assertEqual(self.event.title, "Green Day in Chile")
 
@@ -579,25 +561,25 @@ class AutoTitleTests(BaseTestCase):
 
     def test_form_creates_auto_title_and_keeps_it_auto_on_edit(self):
         self.client.force_login(self.user)
-        performer = Performer.objects.create(name="Bill Burr")
+        artist = Artist.objects.create(name="Bill Burr")
         data = {
             "title": "", "event_type": "comedy", "date": "2026-12-01", "venue": str(self.venue.pk),
-            "eventperformer_set-TOTAL_FORMS": "1", "eventperformer_set-INITIAL_FORMS": "0",
-            "eventperformer_set-MIN_NUM_FORMS": "0", "eventperformer_set-MAX_NUM_FORMS": "1000",
-            "eventperformer_set-0-performer": str(performer.pk),
-            "eventperformer_set-0-role": "headliner", "eventperformer_set-0-billing_order": "1",
+            "eventartist_set-TOTAL_FORMS": "1", "eventartist_set-INITIAL_FORMS": "0",
+            "eventartist_set-MIN_NUM_FORMS": "0", "eventartist_set-MAX_NUM_FORMS": "1000",
+            "eventartist_set-0-artist": str(artist.pk),
+            "eventartist_set-0-role": "headliner", "eventartist_set-0-billing_order": "1",
         }
         self.client.post(reverse("events:event_create"), data)
-        event = Event.objects.get(performers=performer)
+        event = Event.objects.get(artists=artist)
         self.assertEqual(event.title, "Bill Burr")
 
         page = self.client.get(reverse("events:event_edit", args=[event.pk]))
         self.assertContains(page, "Automatic: Bill Burr")
 
-        link = event.eventperformer_set.get()
+        link = event.eventartist_set.get()
         edit = dict(data, date="2026-12-02", **{
-            "eventperformer_set-INITIAL_FORMS": "1", "eventperformer_set-0-id": str(link.pk),
-            "eventperformer_set-0-event": str(event.pk),
+            "eventartist_set-INITIAL_FORMS": "1", "eventartist_set-0-id": str(link.pk),
+            "eventartist_set-0-event": str(event.pk),
         })
         self.client.post(reverse("events:event_edit", args=[event.pk]), edit)
         event.refresh_from_db()
@@ -669,27 +651,27 @@ class SuperuserBootstrapTests(TestCase):
 class CatalogEditTests(BaseTestCase):
     def setUp(self):
         super().setUp()
-        self.performer = Performer.objects.create(name="Paul McCartny")
+        self.artist = Artist.objects.create(name="Paul McCartny")
         self.production = Production.objects.create(title="Got Back Tour")
         self.admin = get_user_model().objects.create_user("mod", password="pw-test-000")
         call_command("make_admin", "mod", stdout=open("/dev/null", "w"))
 
     def test_regular_users_cannot_edit_catalog(self):
         self.client.force_login(self.user)
-        for name, obj in [("performer", self.performer), ("venue", self.venue), ("production", self.production)]:
+        for name, obj in [("artist", self.artist), ("venue", self.venue), ("production", self.production)]:
             with self.subTest(name=name):
                 self.assertEqual(self.client.get(reverse(f"events:{name}_edit", args=[obj.pk])).status_code, 403)
                 self.assertNotContains(self.client.get(obj.get_absolute_url()), f"Edit {name}")
 
-    def test_admin_edits_performer_and_venue(self):
+    def test_admin_edits_artist_and_venue(self):
         self.client.force_login(self.admin)
-        self.assertContains(self.client.get(self.performer.get_absolute_url()), "Edit performer")
+        self.assertContains(self.client.get(self.artist.get_absolute_url()), "Edit artist")
         response = self.client.post(
-            reverse("events:performer_edit", args=[self.performer.pk]), {"name": "Paul McCartney", "kind": "person"}
+            reverse("events:artist_edit", args=[self.artist.pk]), {"name": "Paul McCartney", "kind": "person"}
         )
-        self.assertRedirects(response, self.performer.get_absolute_url())
-        self.performer.refresh_from_db()
-        self.assertEqual(self.performer.name, "Paul McCartney")
+        self.assertRedirects(response, self.artist.get_absolute_url())
+        self.artist.refresh_from_db()
+        self.assertEqual(self.artist.name, "Paul McCartney")
 
         self.client.post(
             reverse("events:venue_edit", args=[self.venue.pk]),
@@ -707,8 +689,8 @@ class EventPagePolishTests(BaseTestCase):
     def _payload(self, **extra):
         data = {
             "title": "", "event_type": "music", "date": "",
-            "eventperformer_set-TOTAL_FORMS": "0", "eventperformer_set-INITIAL_FORMS": "0",
-            "eventperformer_set-MIN_NUM_FORMS": "0", "eventperformer_set-MAX_NUM_FORMS": "1000",
+            "eventartist_set-TOTAL_FORMS": "0", "eventartist_set-INITIAL_FORMS": "0",
+            "eventartist_set-MIN_NUM_FORMS": "0", "eventartist_set-MAX_NUM_FORMS": "1000",
         }
         data.update(extra)
         return data
@@ -914,9 +896,9 @@ class SetlistShowImportTests(BaseTestCase):
         self.assertEqual((event.venue.name, event.venue.city, event.venue.country.code),
                          ("Estadio Nacional", "Santiago", "CL"))
         self.assertEqual(event.venue.setlistfm_id, "6bd6ca6e")
-        link = event.eventperformer_set.get(performer__name="Paul McCartney")
+        link = event.eventartist_set.get(artist__name="Paul McCartney")
         self.assertEqual(link.production.title, "Freshen Up")  # the tour belongs to the act
-        self.assertEqual(link.production.performer.name, "Paul McCartney")
+        self.assertEqual(link.production.artist.name, "Paul McCartney")
         self.assertIsNone(event.production)
         self.assertEqual(event.created_by, self.user)
         self.assertEqual(event.setlists.get().entries.count(), 3)
@@ -931,7 +913,7 @@ class SetlistShowImportTests(BaseTestCase):
         self.assertNotEqual(second_night.event, first.event)
         self.assertEqual(Venue.objects.filter(name="Estadio Nacional").count(), 1)
         self.assertEqual(Production.objects.filter(title="Freshen Up").count(), 1)
-        tour = lambda e: e.eventperformer_set.get(performer__name="Paul McCartney").production  # noqa: E731
+        tour = lambda e: e.eventartist_set.get(artist__name="Paul McCartney").production  # noqa: E731
         self.assertEqual(tour(second_night.event), tour(first.event))
 
     def test_joins_event_added_by_hand_and_hand_typed_venue(self):
@@ -1115,7 +1097,7 @@ class FindPhotoTests(BaseTestCase):
         cache.clear()
         self.event.created_by = self.user
         self.event.save()
-        EventPerformer.objects.create(event=self.event, performer=Performer.objects.create(name="Paul McCartney"))
+        EventArtist.objects.create(event=self.event, artist=Artist.objects.create(name="Paul McCartney"))
         self.client.force_login(self.user)
 
     def test_parsers(self):
@@ -1137,8 +1119,8 @@ class FindPhotoTests(BaseTestCase):
         self.assertNotContains(page, "img.example")
         called = [c.args[0] for c in get_json.call_args_list]
         self.assertFalse(any("googleapis" in u for u in called))
-        self.assertEqual(page.context["query"], "Green Day in Chile Teatro Caupolicán 10 November 1992")
-        self.assertContains(page, "https://www.google.com/search?tbm=isch&amp;q=Green+Day+in+Chile+Teatro+Caupolic%C3%A1n+10+November+1992")
+        self.assertEqual(page.context["query"], "Green Day in Chile Chile 1992")  # name, venue country, year
+        self.assertContains(page, "https://www.google.com/search?tbm=isch&amp;q=Green+Day+in+Chile+Chile+1992")
         self.assertContains(page, "Use this link")
 
     @override_settings(GOOGLE_SEARCH_API_KEY="k", GOOGLE_SEARCH_ENGINE_ID="cx")
@@ -1184,15 +1166,15 @@ from .models import Comment, ReviewLike  # noqa: E402, F811
 class SameSlotTests(BaseTestCase):
     def setUp(self):
         super().setUp()
-        self.green_day = Performer.objects.create(name="Green Day")
-        self.foo = Performer.objects.create(name="Foo Fighters")
-        self.opener = Performer.objects.create(name="Opener Band")
+        self.green_day = Artist.objects.create(name="Green Day")
+        self.foo = Artist.objects.create(name="Foo Fighters")
+        self.opener = Artist.objects.create(name="Opener Band")
         self.a = Event.objects.create(title="", venue=self.venue, date=date(2019, 3, 20), created_by=self.user)
-        EventPerformer.objects.create(event=self.a, performer=self.green_day)
+        EventArtist.objects.create(event=self.a, artist=self.green_day)
         self.b = Event.objects.create(title="", venue=self.venue, date=date(2019, 3, 20), created_by=self.user,
                                       image_url="https://img.example/foo.jpg")
-        EventPerformer.objects.create(event=self.b, performer=self.foo)
-        EventPerformer.objects.create(event=self.b, performer=self.opener, role="support", billing_order=2)
+        EventArtist.objects.create(event=self.b, artist=self.foo)
+        EventArtist.objects.create(event=self.b, artist=self.opener, role="support", billing_order=2)
         self.a.refresh_from_db()
         self.b.refresh_from_db()
 
@@ -1231,7 +1213,7 @@ class SameSlotTests(BaseTestCase):
         self.assertEqual(kept.event_type, EventType.FESTIVAL)
         self.assertEqual(kept.title, "Green Day & Foo Fighters")  # kept event's headliner billed first
         self.assertEqual(kept.image_url, "https://img.example/foo.jpg")
-        roles = dict(kept.eventperformer_set.values_list("performer__name", "role"))
+        roles = dict(kept.eventartist_set.values_list("artist__name", "role"))
         self.assertEqual(roles, {"Green Day": "headliner", "Foo Fighters": "headliner", "Opener Band": "support"})
 
         bob_log = Log.objects.get(user=bob, event=kept)  # one entry, gaps filled
@@ -1250,7 +1232,7 @@ class SameSlotTests(BaseTestCase):
         )
         self.assertRedirects(response, self.a.get_absolute_url())
         self.assertFalse(Event.objects.filter(pk=self.b.pk).exists())
-        roles = dict(self.a.eventperformer_set.values_list("performer__name", "role"))
+        roles = dict(self.a.eventartist_set.values_list("artist__name", "role"))
         self.assertEqual(roles["Green Day"], "headliner")
         self.assertEqual(roles["Foo Fighters"], "support")
         self.a.refresh_from_db()
@@ -1291,11 +1273,11 @@ class HomeOrderTests(BaseTestCase):
 
 class ProfileStatsAndArtistPhotoTests(BaseTestCase):
     def test_most_seen_artists_and_venues(self):
-        green_day = Performer.objects.create(name="Green Day")
+        green_day = Artist.objects.create(name="Green Day")
         other_venue = Venue.objects.create(name="Movistar Arena", city="Santiago")
         for i, venue in enumerate([self.venue, self.venue, other_venue]):
             e = Event.objects.create(title=f"Show {i}", venue=venue, date=date(2020, 1, i + 1))
-            EventPerformer.objects.create(event=e, performer=green_day)
+            EventArtist.objects.create(event=e, artist=green_day)
             Log.objects.create(user=self.user, event=e)
         stranger = get_user_model().objects.create_user("bob", password="pw-test-456")
         Log.objects.create(user=stranger, event=self.event)  # not counted for ana
@@ -1308,8 +1290,8 @@ class ProfileStatsAndArtistPhotoTests(BaseTestCase):
         self.assertContains(page, "2 visits")
 
     def test_event_uses_artist_photo_when_it_has_none(self):
-        artist = Performer.objects.create(name="Green Day", image_url="https://img.example/gd.jpg")
-        EventPerformer.objects.create(event=self.event, performer=artist)
+        artist = Artist.objects.create(name="Green Day", image_url="https://img.example/gd.jpg")
+        EventArtist.objects.create(event=self.event, artist=artist)
         self.assertEqual(self.event.display_image, "https://img.example/gd.jpg")
         self.assertContains(self.client.get(reverse("events:event_list")), "https://img.example/gd.jpg")
         self.event.image_url = "https://img.example/poster.jpg"
@@ -1319,21 +1301,21 @@ class ProfileStatsAndArtistPhotoTests(BaseTestCase):
 
 
 @override_settings(GOOGLE_SEARCH_API_KEY="", GOOGLE_SEARCH_ENGINE_ID="")
-class PerformerPhotoTests(BaseTestCase):
+class ArtistPhotoTests(BaseTestCase):
     def setUp(self):
         super().setUp()
         cache.clear()
-        self.artist = Performer.objects.create(name="Paul McCartney")
-        EventPerformer.objects.create(event=self.event, performer=self.artist)
+        self.artist = Artist.objects.create(name="Paul McCartney")
+        EventArtist.objects.create(event=self.event, artist=self.artist)
         self.client.force_login(self.user)
 
     @mock.patch("events.image_search._get_json", side_effect=_fake_get_json)
     def test_any_user_adds_missing_artist_photo_and_events_use_it(self, _):
         self.assertContains(self.client.get(self.artist.get_absolute_url()), "Find photo")
-        page = self.client.get(reverse("events:performer_photo", args=[self.artist.pk]))
+        page = self.client.get(reverse("events:artist_photo", args=[self.artist.pk]))
         self.assertEqual(page.context["query"], "Paul McCartney")
         self.assertContains(page, "Deezer")
-        response = self.client.post(reverse("events:performer_photo", args=[self.artist.pk]),
+        response = self.client.post(reverse("events:artist_photo", args=[self.artist.pk]),
                                     {"url": "https://cdn.deezer.example/xl.jpg"})
         self.assertRedirects(response, self.artist.get_absolute_url())
         self.artist.refresh_from_db()
@@ -1343,7 +1325,7 @@ class PerformerPhotoTests(BaseTestCase):
     def test_only_admins_change_an_existing_artist_photo(self):
         self.artist.image_url = "https://img.example/old.jpg"
         self.artist.save()
-        self.assertEqual(self.client.get(reverse("events:performer_photo", args=[self.artist.pk])).status_code, 403)
+        self.assertEqual(self.client.get(reverse("events:artist_photo", args=[self.artist.pk])).status_code, 403)
         self.assertNotContains(self.client.get(self.artist.get_absolute_url()), "Change photo")
         admin = get_user_model().objects.create_user("mod", password="pw-test-000")
         call_command("make_admin", "mod", stdout=open("/dev/null", "w"))
@@ -1433,8 +1415,8 @@ class NewVenueDefaultsIgnoredTests(BaseTestCase):
         response = self.client.post(reverse("events:event_create"), {
             "title": "No venue yet", "event_type": "music", "date": "",
             "new_venue_name": "", "new_venue_city": "Santiago", "new_venue_country": "CL",
-            "eventperformer_set-TOTAL_FORMS": "0", "eventperformer_set-INITIAL_FORMS": "0",
-            "eventperformer_set-MIN_NUM_FORMS": "0", "eventperformer_set-MAX_NUM_FORMS": "1000",
+            "eventartist_set-TOTAL_FORMS": "0", "eventartist_set-INITIAL_FORMS": "0",
+            "eventartist_set-MIN_NUM_FORMS": "0", "eventartist_set-MAX_NUM_FORMS": "1000",
         })
         event = Event.objects.get(title="No venue yet")
         self.assertRedirects(response, event.get_absolute_url())
@@ -1443,36 +1425,23 @@ class NewVenueDefaultsIgnoredTests(BaseTestCase):
 
 
 class SetTimesAndFestivalTests(BaseTestCase):
-    def test_set_times_per_performer_in_form_and_lineup(self):
+    def test_set_times_per_artist_in_form_and_lineup(self):
         self.client.force_login(self.user)
-        opener = Performer.objects.create(name="Opener")
-        star = Performer.objects.create(name="Star")
+        opener = Artist.objects.create(name="Opener")
+        star = Artist.objects.create(name="Star")
         self.client.post(reverse("events:event_create"), {
             "title": "", "event_type": "music", "date": "2020-01-10",
-            "eventperformer_set-TOTAL_FORMS": "2", "eventperformer_set-INITIAL_FORMS": "0",
-            "eventperformer_set-MIN_NUM_FORMS": "0", "eventperformer_set-MAX_NUM_FORMS": "1000",
-            "eventperformer_set-0-performer": str(star.pk), "eventperformer_set-0-role": "headliner",
-            "eventperformer_set-0-billing_order": "1", "eventperformer_set-0-start_time": "21:30",
-            "eventperformer_set-1-performer": str(opener.pk), "eventperformer_set-1-role": "support",
-            "eventperformer_set-1-billing_order": "2", "eventperformer_set-1-start_time": "19:00",
+            "eventartist_set-TOTAL_FORMS": "2", "eventartist_set-INITIAL_FORMS": "0",
+            "eventartist_set-MIN_NUM_FORMS": "0", "eventartist_set-MAX_NUM_FORMS": "1000",
+            "eventartist_set-0-artist": str(star.pk), "eventartist_set-0-role": "headliner",
+            "eventartist_set-0-billing_order": "1", "eventartist_set-0-start_time": "21:30",
+            "eventartist_set-1-artist": str(opener.pk), "eventartist_set-1-role": "support",
+            "eventartist_set-1-billing_order": "2", "eventartist_set-1-start_time": "19:00",
         })
-        event = Event.objects.get(performers=star)
+        event = Event.objects.get(artists=star)
         page = self.client.get(event.get_absolute_url())
-        self.assertEqual([l.performer.name for l in page.context["lineup"]], ["Star", "Opener"])  # billing order wins
+        self.assertEqual([l.artist.name for l in page.context["lineup"]], ["Star", "Opener"])  # billing order wins
         self.assertContains(page, "21:30")
-
-    def test_migration_moves_event_time_to_headliner(self):
-        import importlib
-        from datetime import time
-
-        from django.apps import apps
-
-        migration = importlib.import_module("events.migrations.0013_set_times_per_performer")
-        self.assertTrue(callable(migration.copy_event_times_to_headliners))  # moved via RunPython
-        link = EventPerformer.objects.create(event=self.event, performer=Performer.objects.create(name="GD"),
-                                             start_time=time(21, 0))
-        self.assertEqual(link.start_time.hour, 21)
-        self.assertIsNotNone(apps.get_model("events", "EventPerformer")._meta.get_field("start_time"))
 
     def test_group_nearby_festival_days(self):
         self.client.force_login(self.user)
@@ -1538,30 +1507,30 @@ class NewArtistInLineupTests(BaseTestCase):
     def _post(self, **rows):
         data = {
             "title": "", "event_type": "music", "date": "2020-01-10",
-            "eventperformer_set-TOTAL_FORMS": "3", "eventperformer_set-INITIAL_FORMS": "0",
-            "eventperformer_set-MIN_NUM_FORMS": "0", "eventperformer_set-MAX_NUM_FORMS": "1000",
+            "eventartist_set-TOTAL_FORMS": "3", "eventartist_set-INITIAL_FORMS": "0",
+            "eventartist_set-MIN_NUM_FORMS": "0", "eventartist_set-MAX_NUM_FORMS": "1000",
         }
         data.update(rows)
         self.client.force_login(self.user)
         return self.client.post(reverse("events:event_create"), data)
 
     def test_typing_a_new_artist_creates_it(self):
-        self._post(**{"eventperformer_set-0-new_performer": "Los Bunkers", "eventperformer_set-0-role": "headliner",
-                      "eventperformer_set-0-billing_order": "1"})
-        event = Event.objects.get(performers__name="Los Bunkers")
+        self._post(**{"eventartist_set-0-new_artist": "Los Bunkers", "eventartist_set-0-role": "headliner",
+                      "eventartist_set-0-billing_order": "1"})
+        event = Event.objects.get(artists__name="Los Bunkers")
         self.assertEqual(event.title, "Los Bunkers")
 
     def test_existing_artist_is_reused_ignoring_case(self):
-        existing = Performer.objects.create(name="Los Bunkers")
-        self._post(**{"eventperformer_set-0-new_performer": "los bunkers"})
-        self.assertEqual(Performer.objects.filter(name__iexact="los bunkers").count(), 1)
-        self.assertTrue(Event.objects.filter(performers=existing).exists())
+        existing = Artist.objects.create(name="Los Bunkers")
+        self._post(**{"eventartist_set-0-new_artist": "los bunkers"})
+        self.assertEqual(Artist.objects.filter(name__iexact="los bunkers").count(), 1)
+        self.assertTrue(Event.objects.filter(artists=existing).exists())
 
     def test_picking_and_typing_is_rejected(self):
-        p = Performer.objects.create(name="A")
-        page = self._post(**{"eventperformer_set-0-performer": str(p.pk), "eventperformer_set-0-new_performer": "B"})
+        p = Artist.objects.create(name="A")
+        page = self._post(**{"eventartist_set-0-artist": str(p.pk), "eventartist_set-0-new_artist": "B"})
         self.assertContains(page, "not both")
-        self.assertFalse(Performer.objects.filter(name="B").exists())
+        self.assertFalse(Artist.objects.filter(name="B").exists())
 
 
 class UpcomingSortTests(BaseTestCase):
@@ -1588,10 +1557,10 @@ from .models import ActLog  # noqa: E402
 class ActLogTests(BaseTestCase):
     def setUp(self):
         super().setUp()
-        self.star = Performer.objects.create(name="Star")
-        self.opener = Performer.objects.create(name="Opener")
-        EventPerformer.objects.create(event=self.event, performer=self.star)
-        EventPerformer.objects.create(event=self.event, performer=self.opener, role="support", billing_order=2)
+        self.star = Artist.objects.create(name="Star")
+        self.opener = Artist.objects.create(name="Opener")
+        EventArtist.objects.create(event=self.event, artist=self.star)
+        EventArtist.objects.create(event=self.event, artist=self.opener, role="support", billing_order=2)
         self.client.force_login(self.user)
 
     def _log(self, **data):
@@ -1599,7 +1568,7 @@ class ActLogTests(BaseTestCase):
 
     def test_new_log_sees_every_act_by_default(self):
         Log.objects.create(user=self.user, event=self.event)
-        self.assertEqual(set(ActLog.objects.values_list("performer__name", flat=True)), {"Star", "Opener"})
+        self.assertEqual(set(ActLog.objects.values_list("artist__name", flat=True)), {"Star", "Opener"})
 
     def test_untick_rate_and_note_acts(self):
         self._log(acts_submitted="1",
@@ -1607,7 +1576,7 @@ class ActLogTests(BaseTestCase):
                      f"act_note_{self.star.pk}": "Played Yesterday"})
         log = Log.objects.get(user=self.user, event=self.event)
         self.assertEqual(log.rating, 8)  # event rating stays on the event
-        self.assertEqual([(a.performer.name, a.rating, a.note) for a in log.acts.all()],
+        self.assertEqual([(a.artist.name, a.rating, a.note) for a in log.acts.all()],
                          [("Star", 10, "Played Yesterday")])
 
         page = self.client.get(reverse("events:review_detail", args=[log.pk]))
@@ -1633,25 +1602,13 @@ class ActLogTests(BaseTestCase):
         self.assertNotContains(page, f'name="act_seen_{self.opener.pk}" value="1" checked')
         self.assertContains(page, 'title="Average from 1 who saw them"')
 
-    def test_migration_marks_existing_logs_as_seeing_everyone(self):
-        import importlib
-
-        from django.apps import apps
-
-        log = Log.objects.create(user=self.user, event=self.event)
-        log.acts.all().delete()  # as if logged before acts existed
-        importlib.import_module("events.migrations.0014_act_logs").everyone_saw_every_act(apps, None)
-        self.assertEqual(log.acts.count(), 2)
-
-
-
-class ToursBelongToPerformersTests(BaseTestCase):
+class ToursBelongToArtistsTests(BaseTestCase):
     def test_tour_page_lists_the_acts_dates_and_act_ratings(self):
-        artist = Performer.objects.create(name="Paul McCartney")
-        tour = Production.objects.create(title="Got Back", performer=artist)
-        link = EventPerformer.objects.create(event=self.event, performer=artist, production=tour)
+        artist = Artist.objects.create(name="Paul McCartney")
+        tour = Production.objects.create(title="Got Back", artist=artist)
+        link = EventArtist.objects.create(event=self.event, artist=artist, production=tour)
         log = Log.objects.create(user=self.user, event=self.event, rating=4)
-        log.acts.filter(performer=artist).update(rating=10)
+        log.acts.filter(artist=artist).update(rating=10)
         page = self.client.get(tour.get_absolute_url())
         self.assertContains(page, "Tour by")
         self.assertEqual(page.context["avg_rating"], 10)  # the act's rating, not the event's
@@ -1659,29 +1616,13 @@ class ToursBelongToPerformersTests(BaseTestCase):
         self.assertContains(self.client.get(artist.get_absolute_url()), "Got Back")
         self.assertTrue(link.pk)
 
-    def test_migration_moves_event_tour_to_headliner(self):
-        import importlib
-
-        from django.apps import apps
-
-        headliner = Performer.objects.create(name="Headliner")
-        EventPerformer.objects.create(event=self.event, performer=headliner)
-        tour = Production.objects.create(title="Old tour")
-        Event.objects.filter(pk=self.event.pk).update(production=tour)
-        importlib.import_module("events.migrations.0015_tours_belong_to_performers").tours_to_headliners(apps, None)
-        self.event.refresh_from_db(); tour.refresh_from_db()
-        self.assertIsNone(self.event.production)
-        self.assertEqual(tour.performer, headliner)
-        self.assertEqual(self.event.eventperformer_set.get().production, tour)
-
-
 class AdminFestivalButtonsTests(BaseTestCase):
     def setUp(self):
         super().setUp()
         self.admin = get_user_model().objects.create_user("mod", password="pw-test-000")
         call_command("make_admin", "mod", stdout=open("/dev/null", "w"))
         for i, name in enumerate(["A", "B"], start=1):
-            EventPerformer.objects.create(event=self.event, performer=Performer.objects.create(name=name), billing_order=i)
+            EventArtist.objects.create(event=self.event, artist=Artist.objects.create(name=name), billing_order=i)
 
     def test_turn_into_festival_admin_only(self):
         self.client.force_login(self.user)
@@ -1703,38 +1644,38 @@ class AdminFestivalButtonsTests(BaseTestCase):
         response = self.client.post(reverse("events:add_to_festival", args=[self.event.pk]), {"festival": fest.pk})
         self.assertRedirects(response, fest.get_absolute_url())
         self.assertFalse(Event.objects.filter(pk=self.event.pk).exists())
-        self.assertEqual(set(fest.performers.values_list("name", flat=True)), {"A", "B"})
+        self.assertEqual(set(fest.artists.values_list("name", flat=True)), {"A", "B"})
 
 
 class LineupOrderTests(BaseTestCase):
     def test_lineup_and_setlists_follow_billing_order(self):
-        first = Performer.objects.create(name="Zed")  # alphabetically last, billed first
-        second = Performer.objects.create(name="Abe")
-        EventPerformer.objects.create(event=self.event, performer=first, billing_order=1)
-        EventPerformer.objects.create(event=self.event, performer=second, billing_order=2)
-        Setlist.objects.create(event=self.event, performer=second)
-        Setlist.objects.create(event=self.event, performer=first)
+        first = Artist.objects.create(name="Zed")  # alphabetically last, billed first
+        second = Artist.objects.create(name="Abe")
+        EventArtist.objects.create(event=self.event, artist=first, billing_order=1)
+        EventArtist.objects.create(event=self.event, artist=second, billing_order=2)
+        Setlist.objects.create(event=self.event, artist=second)
+        Setlist.objects.create(event=self.event, artist=first)
         page = self.client.get(self.event.get_absolute_url())
-        self.assertEqual([r["link"].performer.name for r in page.context["act_rows"]], ["Zed", "Abe"])
-        self.assertEqual([s.performer.name for s in page.context["setlists"]], ["Zed", "Abe"])
+        self.assertEqual([r["link"].artist.name for r in page.context["act_rows"]], ["Zed", "Abe"])
+        self.assertEqual([s.artist.name for s in page.context["setlists"]], ["Zed", "Abe"])
 
     def test_form_has_drag_handles_and_hidden_order(self):
         self.client.force_login(self.user)
         page = self.client.get(reverse("events:event_create"))
         self.assertContains(page, 'class="drag-handle')
-        self.assertContains(page, 'type="hidden" name="eventperformer_set-0-billing_order"')
+        self.assertContains(page, 'type="hidden" name="eventartist_set-0-billing_order"')
         self.assertContains(page, "lineup-order.js")
 
 
 class ArtistVenueEventsTests(BaseTestCase):
     def setUp(self):
         super().setUp()
-        self.artist = Performer.objects.create(name="Paul McCartney")
+        self.artist = Artist.objects.create(name="Paul McCartney")
         self.e2010 = Event.objects.create(title="2010", venue=self.venue, date=date(2010, 5, 1))
         self.e2019 = Event.objects.create(title="2019", venue=self.venue, date=date(2019, 3, 20))
         self.undated = Event.objects.create(title="Undated", venue=self.venue)
         for e in [self.e2010, self.e2019, self.undated, self.event]:
-            EventPerformer.objects.create(event=e, performer=self.artist)
+            EventArtist.objects.create(event=e, artist=self.artist)
 
     def test_events_sorted_latest_first(self):
         for url in [self.artist.get_absolute_url(), self.venue.get_absolute_url()]:
@@ -1746,7 +1687,7 @@ class ArtistVenueEventsTests(BaseTestCase):
         Log.objects.create(user=self.user, event=self.e2019)
         Log.objects.create(user=self.user, event=self.e2010)
         log = Log.objects.create(user=self.user, event=self.event)
-        log.acts.filter(performer=self.artist).delete()  # was there but missed this act
+        log.acts.filter(artist=self.artist).delete()  # was there but missed this act
 
         profile = self.client.get(reverse("events:profile", args=["ana"]))
         self.assertContains(profile, f"{self.artist.get_absolute_url()}?seen_by=ana")
@@ -1767,57 +1708,57 @@ class LineupFormUiTests(BaseTestCase):
         self.assertEqual(html.count('id="new-artist-box"'), 1)
         self.assertIn('id="add-act"', html)
         self.assertIn('id="lineup-row-template"', html)
-        self.assertIn("eventperformer_set-__prefix__-performer", html)  # template row for new acts
+        self.assertIn("eventartist_set-__prefix__-artist", html)  # template row for new acts
         self.assertNotIn("…or type a new artist", html)
-        self.assertIn('type="hidden" name="eventperformer_set-0-new_performer"', html)
+        self.assertIn('type="hidden" name="eventartist_set-0-new_artist"', html)
 
     def test_rows_added_on_the_page_are_saved(self):
         self.client.force_login(self.user)
-        existing = Performer.objects.create(name="Headliner")
+        existing = Artist.objects.create(name="Headliner")
         self.client.post(reverse("events:event_create"), {
             "title": "", "event_type": "music", "date": "2020-02-02",
-            "eventperformer_set-TOTAL_FORMS": "3", "eventperformer_set-INITIAL_FORMS": "0",
-            "eventperformer_set-MIN_NUM_FORMS": "0", "eventperformer_set-MAX_NUM_FORMS": "1000",
-            "eventperformer_set-0-performer": str(existing.pk), "eventperformer_set-0-billing_order": "1",
+            "eventartist_set-TOTAL_FORMS": "3", "eventartist_set-INITIAL_FORMS": "0",
+            "eventartist_set-MIN_NUM_FORMS": "0", "eventartist_set-MAX_NUM_FORMS": "1000",
+            "eventartist_set-0-artist": str(existing.pk), "eventartist_set-0-billing_order": "1",
             # row 1 was removed with × on the page: its fields are simply missing
-            "eventperformer_set-2-new_performer": "Brand New Band", "eventperformer_set-2-billing_order": "2",
-            "eventperformer_set-2-role": "support",
+            "eventartist_set-2-new_artist": "Brand New Band", "eventartist_set-2-billing_order": "2",
+            "eventartist_set-2-role": "support",
         })
-        event = Event.objects.get(performers=existing)
-        self.assertEqual(list(event.eventperformer_set.values_list("performer__name", "billing_order")),
+        event = Event.objects.get(artists=existing)
+        self.assertEqual(list(event.eventartist_set.values_list("artist__name", "billing_order")),
                          [("Headliner", 1), ("Brand New Band", 2)])
 
 
-class PerformerDeleteTests(BaseTestCase):
+class ArtistDeleteTests(BaseTestCase):
     def setUp(self):
         super().setUp()
-        self.artist = Performer.objects.create(name="Old Band")
-        self.other = Performer.objects.create(name="Stays")
-        EventPerformer.objects.create(event=self.event, performer=self.other)
-        EventPerformer.objects.create(event=self.event, performer=self.artist, billing_order=2)
+        self.artist = Artist.objects.create(name="Old Band")
+        self.other = Artist.objects.create(name="Stays")
+        EventArtist.objects.create(event=self.event, artist=self.other)
+        EventArtist.objects.create(event=self.event, artist=self.artist, billing_order=2)
         self.log = Log.objects.create(user=self.user, event=self.event, rating=9)
         import_setlist(self.event, {**SETLIST_PAYLOAD, "artist": {"name": "Old Band"}})
-        self.tour = Production.objects.create(title="Farewell", performer=self.artist)
+        self.tour = Production.objects.create(title="Farewell", artist=self.artist)
 
     def test_regular_users_cannot_delete(self):
         self.client.force_login(self.user)
-        self.assertEqual(self.client.get(reverse("events:performer_delete", args=[self.artist.pk])).status_code, 403)
-        self.assertNotContains(self.client.get(self.artist.get_absolute_url()), "Delete performer")
+        self.assertEqual(self.client.get(reverse("events:artist_delete", args=[self.artist.pk])).status_code, 403)
+        self.assertNotContains(self.client.get(self.artist.get_absolute_url()), "Delete artist")
 
-    def test_admin_deletes_performer_keeps_events_and_logs(self):
+    def test_admin_deletes_artist_keeps_events_and_logs(self):
         admin = get_user_model().objects.create_user("mod", password="pw-test-000")
         call_command("make_admin", "mod", stdout=open("/dev/null", "w"))
         self.client.force_login(admin)
-        confirm = self.client.get(reverse("events:performer_delete", args=[self.artist.pk]))
+        confirm = self.client.get(reverse("events:artist_delete", args=[self.artist.pk]))
         self.assertContains(confirm, "1 setlist")
-        self.client.post(reverse("events:performer_delete", args=[self.artist.pk]))
-        self.assertFalse(Performer.objects.filter(pk=self.artist.pk).exists())
+        self.client.post(reverse("events:artist_delete", args=[self.artist.pk]))
+        self.assertFalse(Artist.objects.filter(pk=self.artist.pk).exists())
         self.assertTrue(Event.objects.filter(pk=self.event.pk).exists())
         self.log.refresh_from_db()
-        self.assertEqual(list(self.log.acts.values_list("performer__name", flat=True)), ["Stays"])
+        self.assertEqual(list(self.log.acts.values_list("artist__name", flat=True)), ["Stays"])
         self.assertFalse(Setlist.objects.exists())
         self.tour.refresh_from_db()
-        self.assertIsNone(self.tour.performer)
+        self.assertIsNone(self.tour.artist)
 
 
 class MergeDuplicatesTests(BaseTestCase):
@@ -1826,35 +1767,35 @@ class MergeDuplicatesTests(BaseTestCase):
         self.admin = get_user_model().objects.create_user("mod", password="pw-test-000")
         call_command("make_admin", "mod", stdout=open("/dev/null", "w"))
 
-    def test_merge_duplicate_performer(self):
-        keep = Performer.objects.create(name="Los Bunkers")
-        dup = Performer.objects.create(name="Los bunkers", image_url="https://img.example/lb.jpg")
+    def test_merge_duplicate_artist(self):
+        keep = Artist.objects.create(name="Los Bunkers")
+        dup = Artist.objects.create(name="Los bunkers", image_url="https://img.example/lb.jpg")
         other_event = Event.objects.create(title="", date=date(2020, 1, 1))
-        EventPerformer.objects.create(event=self.event, performer=keep)
-        EventPerformer.objects.create(event=self.event, performer=dup, billing_order=2)  # both on one lineup
-        EventPerformer.objects.create(event=other_event, performer=dup)
+        EventArtist.objects.create(event=self.event, artist=keep)
+        EventArtist.objects.create(event=self.event, artist=dup, billing_order=2)  # both on one lineup
+        EventArtist.objects.create(event=other_event, artist=dup)
         log = Log.objects.create(user=self.user, event=self.event)
-        log.acts.filter(performer=dup).update(rating=9)
+        log.acts.filter(artist=dup).update(rating=9)
         import_setlist(other_event, {**SETLIST_PAYLOAD, "artist": {"name": "Los bunkers"}})
-        tour = Production.objects.create(title="Tour", performer=dup)
+        tour = Production.objects.create(title="Tour", artist=dup)
 
         self.client.force_login(self.admin)
         page = self.client.get(keep.get_absolute_url())
         self.assertContains(page, "Similar names")
-        self.client.post(reverse("events:performer_merge", args=[keep.pk]), {"other": dup.pk})
+        self.client.post(reverse("events:artist_merge", args=[keep.pk]), {"other": dup.pk})
 
-        self.assertFalse(Performer.objects.filter(pk=dup.pk).exists())
-        self.assertEqual(self.event.eventperformer_set.filter(performer=keep).count(), 1)
-        self.assertTrue(other_event.eventperformer_set.filter(performer=keep).exists())
-        self.assertEqual(log.acts.get(performer=keep).rating, 9)
-        self.assertEqual(Setlist.objects.get().performer, keep)
+        self.assertFalse(Artist.objects.filter(pk=dup.pk).exists())
+        self.assertEqual(self.event.eventartist_set.filter(artist=keep).count(), 1)
+        self.assertTrue(other_event.eventartist_set.filter(artist=keep).exists())
+        self.assertEqual(log.acts.get(artist=keep).rating, 9)
+        self.assertEqual(Setlist.objects.get().artist, keep)
         tour.refresh_from_db(); keep.refresh_from_db(); other_event.refresh_from_db()
-        self.assertEqual((tour.performer, keep.image_url), (keep, "https://img.example/lb.jpg"))
+        self.assertEqual((tour.artist, keep.image_url), (keep, "https://img.example/lb.jpg"))
         self.assertEqual(other_event.title, "Los Bunkers")
 
     def test_merge_duplicate_event(self):
         dup = Event.objects.create(title="Green Day in Chile", date=self.event.date)
-        EventPerformer.objects.create(event=dup, performer=Performer.objects.create(name="Green Day"))
+        EventArtist.objects.create(event=dup, artist=Artist.objects.create(name="Green Day"))
         bob = get_user_model().objects.create_user("bob", password="pw-test-456")
         Log.objects.create(user=bob, event=dup, rating=7)
         self.client.force_login(self.admin)
@@ -1863,7 +1804,7 @@ class MergeDuplicatesTests(BaseTestCase):
         self.client.post(reverse("events:event_merge_duplicate", args=[self.event.pk]), {"other": dup.pk})
         self.assertFalse(Event.objects.filter(pk=dup.pk).exists())
         self.assertTrue(Log.objects.filter(user=bob, event=self.event, rating=7).exists())
-        self.assertEqual(self.event.eventperformer_set.get().role, "headliner")
+        self.assertEqual(self.event.eventartist_set.get().role, "headliner")
 
     def test_merge_by_pasted_link_and_admin_only(self):
         dup = Event.objects.create(title="Other title", date=date(2001, 1, 1))
@@ -1878,8 +1819,8 @@ class MergeDuplicatesTests(BaseTestCase):
 class SameFestivalDayTests(BaseTestCase):
     def _payload(self, **extra):
         data = {"title": "", "event_type": "festival", "date": "2024-03-15", "venue": str(self.venue.pk),
-                "eventperformer_set-TOTAL_FORMS": "1", "eventperformer_set-INITIAL_FORMS": "0",
-                "eventperformer_set-MIN_NUM_FORMS": "0", "eventperformer_set-MAX_NUM_FORMS": "1000"}
+                "eventartist_set-TOTAL_FORMS": "1", "eventartist_set-INITIAL_FORMS": "0",
+                "eventartist_set-MIN_NUM_FORMS": "0", "eventartist_set-MAX_NUM_FORMS": "1000"}
         data.update(extra)
         return data
 
@@ -1888,14 +1829,14 @@ class SameFestivalDayTests(BaseTestCase):
         park = Venue.objects.create(name="Parque Cerrillos", city="santiago")  # another venue, same city
         existing = Event.objects.create(title="", event_type=EventType.FESTIVAL, production=fest,
                                         date=date(2024, 3, 15), venue=park)
-        EventPerformer.objects.create(event=existing, performer=Performer.objects.create(name="A"))
+        EventArtist.objects.create(event=existing, artist=Artist.objects.create(name="A"))
         self.client.force_login(self.user)
         response = self.client.post(reverse("events:event_create"), self._payload(
-            title="lollapalooza chile", **{"eventperformer_set-0-new_performer": "B",
-                                           "eventperformer_set-0-billing_order": "1"}))
+            title="lollapalooza chile", **{"eventartist_set-0-new_artist": "B",
+                                           "eventartist_set-0-billing_order": "1"}))
         self.assertRedirects(response, existing.get_absolute_url(), fetch_redirect_response=False)
         self.assertEqual(Event.objects.filter(event_type=EventType.FESTIVAL).count(), 1)
-        self.assertEqual(set(existing.performers.values_list("name", flat=True)), {"A", "B"})
+        self.assertEqual(set(existing.artists.values_list("name", flat=True)), {"A", "B"})
 
     def test_other_day_name_or_city_stays_separate(self):
         Event.objects.create(title="Rock en Ñuñoa", event_type=EventType.FESTIVAL, date=date(2024, 3, 15), venue=self.venue)
@@ -1947,11 +1888,11 @@ class DiaryFilterTests(BaseTestCase):
 
 class LocalForeignAndSearchTests(BaseTestCase):
     def test_profile_splits_local_and_foreign_artists(self):
-        local = Performer.objects.create(name="Los Bunkers", country="CL")
-        foreign = Performer.objects.create(name="Green Day", country="US")
-        unknown = Performer.objects.create(name="Mystery")
+        local = Artist.objects.create(name="Los Bunkers", country="CL")
+        foreign = Artist.objects.create(name="Green Day", country="US")
+        unknown = Artist.objects.create(name="Mystery")
         for p in [local, foreign, unknown]:
-            EventPerformer.objects.create(event=self.event, performer=p)
+            EventArtist.objects.create(event=self.event, artist=p)
         Log.objects.create(user=self.user, event=self.event)
         page = self.client.get(reverse("events:profile", args=["ana"]))
         self.assertIsNone(page.context["home_country"])
@@ -1968,7 +1909,7 @@ class LocalForeignAndSearchTests(BaseTestCase):
     def test_import_fills_artist_country_from_musicbrainz(self):
         with mock.patch("events.musicbrainz.artist_country", return_value="US") as lookup:
             import_setlist(self.event, SETLIST_PAYLOAD)
-        self.assertEqual(Performer.objects.get(name="Green Day").country.code, "US")
+        self.assertEqual(Artist.objects.get(name="Green Day").country.code, "US")
         lookup.assert_called_once_with("084308bd-1654-436f-ba03-df6697104e19")
 
     @mock.patch("events.views_venues.search_setlists", return_value=[])
@@ -1986,7 +1927,7 @@ class LocalForeignAndSearchTests(BaseTestCase):
         html = self.client.get(reverse("events:event_create")).content.decode()
         rows_start = html.index('id="lineup-rows"')
         self.assertLess(html.index(">Set time</div>"), rows_start)
-        self.assertNotIn('class="form-label small">Performer', html[rows_start:])
+        self.assertNotIn('class="form-label small">Artist', html[rows_start:])
 
 
 class ImportFailsSafelyTests(BaseTestCase):
@@ -2013,16 +1954,16 @@ class ImportFailsSafelyTests(BaseTestCase):
 class SetlistImportSuggestsNextActTests(BaseTestCase):
     @mock.patch("events.views.search_setlists", return_value=[])
     def test_suggests_highest_billed_act_without_setlist(self, search):
-        top = Performer.objects.create(name="Headliner")
-        second = Performer.objects.create(name="Second")
-        EventPerformer.objects.create(event=self.event, performer=top, billing_order=1)
-        EventPerformer.objects.create(event=self.event, performer=second, billing_order=2)
+        top = Artist.objects.create(name="Headliner")
+        second = Artist.objects.create(name="Second")
+        EventArtist.objects.create(event=self.event, artist=top, billing_order=1)
+        EventArtist.objects.create(event=self.event, artist=second, billing_order=2)
         self.client.force_login(self.user)
         url = reverse("events:setlist_search", args=[self.event.pk])
         self.assertEqual(self.client.get(url).context["artist"], "Headliner")
-        Setlist.objects.create(event=self.event, performer=top)
+        Setlist.objects.create(event=self.event, artist=top)
         self.assertEqual(self.client.get(url).context["artist"], "Second")
-        Setlist.objects.create(event=self.event, performer=second)
+        Setlist.objects.create(event=self.event, artist=second)
         self.assertEqual(self.client.get(url).context["artist"], "Headliner")  # all done: back to the headliner
 
 
@@ -2044,8 +1985,8 @@ class UniqueProductionNameTests(BaseTestCase):
     def test_tour_of_another_artist_gets_artist_suffix(self):
         from .models import production_named
 
-        gd = Performer.objects.create(name="Green Day")
-        pm = Performer.objects.create(name="Paul McCartney")
+        gd = Artist.objects.create(name="Green Day")
+        pm = Artist.objects.create(name="Paul McCartney")
         first = production_named("World Tour", EventType.MUSIC, gd)
         self.assertEqual(production_named("world tour", EventType.MUSIC, gd), first)  # reused
         other = production_named("World Tour", EventType.MUSIC, pm)
@@ -2053,32 +1994,15 @@ class UniqueProductionNameTests(BaseTestCase):
         fest = production_named("World Tour", EventType.FESTIVAL)
         self.assertEqual(fest.title, "World Tour (festival)")
 
-    def test_migration_merges_same_name_productions(self):
-        import importlib
-
-        from django.apps import apps
-
-        from .models import Production as P
-
-        keep = P.objects.create(title="Tour A")
-        # bypass the unique rule the way old data would look: different accents
-        dup = P.objects.create(title="Tóur A", image_url="https://img.example/t.jpg")
-        link = EventPerformer.objects.create(event=self.event, performer=Performer.objects.create(name="X"), production=dup)
-        importlib.import_module("events.migrations.0018_unique_production_names").merge_same_name_productions(apps, None)
-        link.refresh_from_db(); keep.refresh_from_db()
-        self.assertFalse(P.objects.filter(pk=dup.pk).exists())
-        self.assertEqual((link.production_id, keep.image_url), (keep.pk, "https://img.example/t.jpg"))
-
-
 class MostSeenTieBreakTests(BaseTestCase):
     def test_ties_go_to_most_recently_seen(self):
-        old_fav = Performer.objects.create(name="Aaa Old")
-        recent = Performer.objects.create(name="Zzz Recent")
+        old_fav = Artist.objects.create(name="Aaa Old")
+        recent = Artist.objects.create(name="Zzz Recent")
         old_venue = Venue.objects.create(name="Aaa Hall", city="Santiago")
         new_venue = Venue.objects.create(name="Zzz Arena", city="Santiago")
-        for performer, venue, when in [(old_fav, old_venue, date(2010, 1, 1)), (recent, new_venue, date(2024, 1, 1))]:
-            e = Event.objects.create(title=performer.name, venue=venue, date=when)
-            EventPerformer.objects.create(event=e, performer=performer)
+        for artist, venue, when in [(old_fav, old_venue, date(2010, 1, 1)), (recent, new_venue, date(2024, 1, 1))]:
+            e = Event.objects.create(title=artist.name, venue=venue, date=when)
+            EventArtist.objects.create(event=e, artist=artist)
             Log.objects.create(user=self.user, event=e)
         page = self.client.get(reverse("events:profile", args=["ana"]))
         self.assertEqual([p.name for p in page.context["top_artists"]], ["Zzz Recent", "Aaa Old"])
@@ -2088,9 +2012,9 @@ class MostSeenTieBreakTests(BaseTestCase):
 @override_settings(GOOGLE_SEARCH_API_KEY="", GOOGLE_SEARCH_ENGINE_ID="")
 class ProductionPhotoTests(BaseTestCase):
     def test_event_photo_fallback_order(self):
-        artist = Performer.objects.create(name="Paul McCartney", image_url="https://img.example/artist.jpg")
-        tour = Production.objects.create(title="Got Back", performer=artist)
-        link = EventPerformer.objects.create(event=self.event, performer=artist)
+        artist = Artist.objects.create(name="Paul McCartney", image_url="https://img.example/artist.jpg")
+        tour = Production.objects.create(title="Got Back", artist=artist)
+        link = EventArtist.objects.create(event=self.event, artist=artist)
         self.assertEqual(self.event.display_image, "https://img.example/artist.jpg")
         link.production = tour
         link.save()
@@ -2150,16 +2074,16 @@ class BulkImportTests(BaseTestCase):
 
         review = self.client.get(response["Location"])
         self.assertContains(review, f'name="venue_{macca.pk}"')
-        Performer.objects.create(name="Paul McCartney")
+        Artist.objects.create(name="Paul McCartney")
         self.client.post(reverse("events:bulk_review"), {
             "ids": str(macca.pk), f"venue_{macca.pk}": str(self.venue.pk),
             f"artists_{macca.pk}": "paul mccartney, Opener Band",
         })
         macca.refresh_from_db()
         self.assertEqual(macca.venue, self.venue)
-        self.assertEqual(list(macca.eventperformer_set.order_by("billing_order").values_list("performer__name", "role")),
+        self.assertEqual(list(macca.eventartist_set.order_by("billing_order").values_list("artist__name", "role")),
                          [("Paul McCartney", "headliner"), ("Opener Band", "support")])
-        self.assertEqual(Performer.objects.filter(name__iexact="paul mccartney").count(), 1)
+        self.assertEqual(Artist.objects.filter(name__iexact="paul mccartney").count(), 1)
 
         # importing the same list again reuses the events
         self.client.post(reverse("events:bulk_import"), {"lines": self.LINES, "confirm": "1"})
@@ -2218,23 +2142,23 @@ class YearHistogramTests(BaseTestCase):
         self.assertContains(page, 'title="2021: 1 event"')
 
 
-class PerformerListTests(BaseTestCase):
-    def test_performers_tab_lists_and_searches(self):
-        from events.models import Performer
-        Performer.objects.create(name="Los Bunkers")
-        Performer.objects.create(name="Mon Laferte")
-        page = self.client.get(reverse("events:performer_list"))
-        self.assertContains(page, 'href="/performers/">Performers</a>')
+class ArtistListTests(BaseTestCase):
+    def test_artists_tab_lists_and_searches(self):
+        from events.models import Artist
+        Artist.objects.create(name="Los Bunkers")
+        Artist.objects.create(name="Mon Laferte")
+        page = self.client.get(reverse("events:artist_list"))
+        self.assertContains(page, 'href="/artists/">Artists</a>')
         self.assertContains(page, "Los Bunkers")
-        page = self.client.get(reverse("events:performer_list") + "?q=bunk")
+        page = self.client.get(reverse("events:artist_list") + "?q=bunk")
         self.assertContains(page, "Los Bunkers")
         self.assertNotContains(page, "Mon Laferte")
 
 
 class PlayTests(BaseTestCase):
     def test_new_staging_from_a_play_gets_its_name_and_authors(self):
-        from events.models import Performer, Play
-        lorca = Performer.objects.create(name="Federico García Lorca")
+        from events.models import Artist, Play
+        lorca = Artist.objects.create(name="Federico García Lorca")
         play = Play.objects.create(title="La casa de Bernarda Alba")
         play.authors.add(lorca)
         self.client.force_login(self.user)
@@ -2249,7 +2173,7 @@ class PlayTests(BaseTestCase):
         event = Event.objects.get(play=play)
         self.assertRedirects(resp, event.get_absolute_url(), fetch_redirect_response=False)
         self.assertEqual(event.title, "La casa de Bernarda Alba")
-        self.assertTrue(event.eventperformer_set.filter(performer=lorca, role="author").exists())
+        self.assertTrue(event.eventartist_set.filter(artist=lorca, role="author").exists())
         page = self.client.get(play.get_absolute_url())
         self.assertContains(page, "Written by")
         self.assertContains(page, event.get_absolute_url())
@@ -2258,9 +2182,9 @@ class PlayTests(BaseTestCase):
 
 class ExpandedDiaryTests(BaseTestCase):
     def test_expanded_diary_shows_posters_and_lineup(self):
-        from events.models import Performer
-        EventPerformer.objects.create(event=self.event, performer=Performer.objects.create(name="Green Day"))
-        EventPerformer.objects.create(event=self.event, performer=Performer.objects.create(name="Supporting Act"),
+        from events.models import Artist
+        EventArtist.objects.create(event=self.event, artist=Artist.objects.create(name="Green Day"))
+        EventArtist.objects.create(event=self.event, artist=Artist.objects.create(name="Supporting Act"),
                                       role="support", billing_order=2)
         self.event.image_url = "https://img.example/p.jpg"
         self.event.save()
@@ -2274,60 +2198,43 @@ class ExpandedDiaryTests(BaseTestCase):
         self.assertContains(expanded, "https://img.example/p.jpg")
 
 
-class TheaterToPlaysMigrationTests(BaseTestCase):
-    def test_theater_events_become_stagings_of_one_play_per_title(self):
-        import importlib
-        from django.apps import apps as real_apps
-        from events.models import Play
-        mig = importlib.import_module("events.migrations.0026_theater_events_to_plays")
-        lorca = Performer.objects.create(name="Lorca")
-        a = Event.objects.create(title="Bodas de Sangre", event_type=EventType.THEATER, date=date(2020, 1, 1))
-        b = Event.objects.create(title="bodas de sangre ", event_type=EventType.THEATER, date=date(2022, 1, 1))
-        EventPerformer.objects.create(event=b, performer=lorca, role="author")
-        mig.forwards(real_apps, None)
-        play = Play.objects.get()
-        self.assertEqual(play.title, "Bodas de Sangre")
-        self.assertEqual(list(play.authors.all()), [lorca])
-        self.assertEqual(set(play.stagings.all()), {a, b})
-        self.event.refresh_from_db()
-        self.assertIsNone(self.event.play)  # music untouched
-
-
-class PerformerSortTests(BaseTestCase):
+class ArtistSortTests(BaseTestCase):
     def test_country_filter_and_sorts(self):
         from django.contrib.auth import get_user_model
         from events.models import ActLog
-        old = Performer.objects.create(name="Old Band", country="CL")
-        new = Performer.objects.create(name="New Band", country="AR")
+        old = Artist.objects.create(name="Old Band", country="CL")
+        new = Artist.objects.create(name="New Band", country="AR")
         e1 = Event.objects.create(title="a", date=date(2001, 1, 1))
         e2 = Event.objects.create(title="b", date=date(2023, 1, 1))
         e3 = Event.objects.create(title="c", date=date(2002, 1, 1))
         for e in (e1, e3):
-            EventPerformer.objects.create(event=e, performer=old)
-        EventPerformer.objects.create(event=e2, performer=new)
+            EventArtist.objects.create(event=e, artist=old)
+        EventArtist.objects.create(event=e2, artist=new)
         bob = get_user_model().objects.create_user("bob", password="pw-test-123")
         for u in (self.user, bob):
-            ActLog.objects.update_or_create(log=Log.objects.create(user=u, event=e2), performer=new,
+            ActLog.objects.update_or_create(log=Log.objects.create(user=u, event=e2), artist=new,
                                             defaults={"rating": 10})
-        ActLog.objects.update_or_create(log=Log.objects.create(user=self.user, event=e1), performer=old,
+        ActLog.objects.update_or_create(log=Log.objects.create(user=self.user, event=e1), artist=old,
                                         defaults={"rating": 4})
-        url = reverse("events:performer_list")
+        url = reverse("events:artist_list")
         names = lambda qs: [p.name for p in self.client.get(url + qs).context["page"]]
         self.assertEqual(names(""), ["Old Band", "New Band"])
         self.assertEqual(names("?sort=popular"), ["New Band", "Old Band"])
         self.assertEqual(names("?sort=rated"), ["New Band", "Old Band"])
         self.assertEqual(names("?sort=recent"), ["New Band", "Old Band"])
         self.assertEqual(names("?country=CL"), ["Old Band"])
+        Artist.objects.create(name="Unknown origin")
+        self.assertEqual(names("?country=NONE"), ["Unknown origin"])
 
 
 class PhotoFallbackTests(BaseTestCase):
     def test_no_photo_uses_first_person_on_the_bill_with_one(self):
-        lead = Performer.objects.create(name="Lead, no photo")
-        director = Performer.objects.create(name="Director", image_url="https://img.example/dir.jpg")
-        late = Performer.objects.create(name="Later", image_url="https://img.example/late.jpg")
-        EventPerformer.objects.create(event=self.event, performer=lead, billing_order=1)
-        EventPerformer.objects.create(event=self.event, performer=director, role="director", billing_order=2)
-        EventPerformer.objects.create(event=self.event, performer=late, role="cast", billing_order=3)
+        lead = Artist.objects.create(name="Lead, no photo")
+        director = Artist.objects.create(name="Director", image_url="https://img.example/dir.jpg")
+        late = Artist.objects.create(name="Later", image_url="https://img.example/late.jpg")
+        EventArtist.objects.create(event=self.event, artist=lead, billing_order=1)
+        EventArtist.objects.create(event=self.event, artist=director, role="director", billing_order=2)
+        EventArtist.objects.create(event=self.event, artist=late, role="cast", billing_order=3)
         self.assertEqual(self.event.display_image, "https://img.example/dir.jpg")
         self.event.image_url = "https://img.example/own.jpg"
         self.assertEqual(self.event.display_image, "https://img.example/own.jpg")
@@ -2365,13 +2272,13 @@ class LineupSetlistTests(BaseTestCase):
     def test_lineup_links_to_each_acts_setlist_page(self):
         from unittest import mock
         from events.models import SetlistSong, Song
-        band = Performer.objects.create(name="Green Day")
-        guest = Performer.objects.create(name="Not on the bill")
-        EventPerformer.objects.create(event=self.event, performer=band)
-        setlist = Setlist.objects.create(event=self.event, performer=band)
-        Setlist.objects.create(event=self.event, performer=guest)
-        dookie = [Song.objects.create(performer=band, title=t) for t in ["Basket Case", "Welcome to Paradise"]]
-        later = Song.objects.create(performer=band, title="Holiday")
+        band = Artist.objects.create(name="Green Day")
+        guest = Artist.objects.create(name="Not on the bill")
+        EventArtist.objects.create(event=self.event, artist=band)
+        setlist = Setlist.objects.create(event=self.event, artist=band)
+        Setlist.objects.create(event=self.event, artist=guest)
+        dookie = [Song.objects.create(artist=band, title=t) for t in ["Basket Case", "Welcome to Paradise"]]
+        later = Song.objects.create(artist=band, title="Holiday")
         for i, song in enumerate(dookie + [later], start=1):
             SetlistSong.objects.create(setlist=setlist, song=song, position=i)
         page = self.client.get(self.event.get_absolute_url()).content.decode()
@@ -2391,11 +2298,30 @@ class LineupSetlistTests(BaseTestCase):
         self.assertEqual(resp.context["pending"], [])
         self.assertEqual(resp.context["top_album"], {"title": "Dookie", "year": 1994, "n": 2})
         self.assertContains(resp, "Most played album")
+        self.assertEqual([(a["title"], a["n"], a["pct"]) for a in resp.context["timeline"]],
+                         [("American Idiot", 1, 50), ("Dookie", 2, 100)])  # newest first by default
+        by_count = self.client.get(url + "?sort=count").context["timeline"]
+        self.assertEqual([a["title"] for a in by_count], ["Dookie", "American Idiot"])
+        self.assertNotContains(resp, "Edit album")  # admins only
+
+    def test_admin_can_fix_a_songs_album(self):
+        from events.models import Song
+        song = Song.objects.create(artist=Artist.objects.create(name="Band"), title="Tune",
+                                   album_title="Wrong", album_mbid="abc")
+        edit = reverse("events:song_album_edit", args=[song.pk])
+        self.client.force_login(self.user)
+        self.assertEqual(self.client.post(edit, {"album_title": "Right"}).status_code, 403)
+        self.user.is_superuser = True
+        self.user.save()
+        self.client.post(edit, {"album_title": " Right  Album ", "album_year": "2001"})
+        song.refresh_from_db()
+        self.assertEqual((song.album_title, song.album_year, song.album_mbid), ("Right Album", 2001, ""))
+        self.assertIsNotNone(song.album_checked_at)
 
     def test_busy_musicbrainz_leaves_song_unchecked(self):
         from unittest import mock
         from events.models import Song
-        song = Song.objects.create(performer=Performer.objects.create(name="X"), title="Y")
+        song = Song.objects.create(artist=Artist.objects.create(name="X"), title="Y")
         with mock.patch("events.musicbrainz.song_album", side_effect=OSError("busy")):
             self.assertEqual(self.client.post(reverse("events:song_album_lookup", args=[song.pk])).status_code, 503)
         song.refresh_from_db()
@@ -2405,9 +2331,9 @@ class LineupSetlistTests(BaseTestCase):
 class MusicOnlySetlistTests(BaseTestCase):
     def test_non_music_events_have_no_setlists(self):
         play = Event.objects.create(title="Hamlet", event_type=EventType.THEATER, date=date(2020, 1, 1))
-        actor = Performer.objects.create(name="Actor")
-        EventPerformer.objects.create(event=play, performer=actor, role="cast")
-        Setlist.objects.create(event=play, performer=actor)
+        actor = Artist.objects.create(name="Actor")
+        EventArtist.objects.create(event=play, artist=actor, role="cast")
+        Setlist.objects.create(event=play, artist=actor)
         self.client.force_login(self.user)
         page = self.client.get(play.get_absolute_url())
         self.assertNotContains(page, "Setlist")
@@ -2416,27 +2342,35 @@ class MusicOnlySetlistTests(BaseTestCase):
 
 
 class FestivalAddArtistsTests(BaseTestCase):
-    def test_suggests_acts_from_same_venue_or_city_that_day(self):
+    def test_suggests_setlistfm_acts_from_that_city_and_day(self):
         fest = Event.objects.create(title="Lolla", event_type=EventType.FESTIVAL, venue=self.venue, date=date(2024, 3, 15),
                                     created_by=self.user)
-        other_venue = Venue.objects.create(name="Movistar Arena", city="Santiago")
-        far = Venue.objects.create(name="Somewhere", city="Valparaíso")
-        here = Performer.objects.create(name="Same venue band")
-        town = Performer.objects.create(name="Same city band")
-        away = Performer.objects.create(name="Other city band")
-        late = Performer.objects.create(name="Other day band")
-        for performer, venue, when in [(here, self.venue, fest.date), (town, other_venue, fest.date),
-                                       (away, far, fest.date), (late, self.venue, date(2024, 3, 16))]:
-            e = Event.objects.create(title=performer.name, venue=venue, date=when)
-            EventPerformer.objects.create(event=e, performer=performer)
+        EventArtist.objects.create(event=fest, artist=Artist.objects.create(name="Already On"))
+        results = [
+            {"artist": {"name": "Same Venue Band", "mbid": ""}, "venue": {"name": "Teatro Caupolicán"}},
+            {"artist": {"name": "City Band", "mbid": ""}, "venue": {"name": "Movistar Arena"}},
+            {"artist": {"name": "Already On", "mbid": ""}, "venue": {"name": "Teatro Caupolicán"}},
+            {"artist": {"name": "same venue band", "mbid": ""}, "venue": {"name": "Teatro Caupolicán"}},
+        ]
         self.client.force_login(self.user)
-        self.assertContains(self.client.get(fest.get_absolute_url()), reverse("events:festival_add_artists", args=[fest.pk]))
         url = reverse("events:festival_add_artists", args=[fest.pk])
-        names = [c.performer.name for c in self.client.get(url).context["candidates"]]
-        self.assertEqual(names, ["Same city band", "Same venue band"])
-        self.client.post(url, {f"add_{here.pk}": "1"})
-        self.assertTrue(fest.eventperformer_set.filter(performer=here).exists())
-        self.assertFalse(fest.eventperformer_set.filter(performer=town).exists())
+        self.assertContains(self.client.get(fest.get_absolute_url()), url)
+        with mock.patch("events.views.search_setlists", return_value=results) as search:
+            page = self.client.get(url)
+            self.assertEqual(search.call_args.kwargs, {"on_date": fest.date, "page": 1, "city": "Santiago"})
+            self.assertEqual([c["name"] for c in page.context["candidates"]], ["Same Venue Band", "City Band"])
+            self.assertTrue(page.context["candidates"][0]["same_venue"])
+            key = page.context["candidates"][0]["key"]
+            self.client.post(url, {f"add_{key}": "1"})
+        self.assertTrue(fest.eventartist_set.filter(artist__name="Same Venue Band", role="support").exists())
+        self.assertFalse(fest.eventartist_set.filter(artist__name="City Band").exists())
+
+    def test_setlistfm_error_is_shown(self):
+        fest = Event.objects.create(title="Lolla", event_type=EventType.FESTIVAL, venue=self.venue, date=date(2024, 3, 15),
+                                    created_by=self.user)
+        self.client.force_login(self.user)
+        with mock.patch("events.views.search_setlists", side_effect=SetlistFmError("Setlist.fm error 403")):
+            self.assertContains(self.client.get(reverse("events:festival_add_artists", args=[fest.pk])), "Setlist.fm error 403")
 
 
 class EditFormPhotoTests(BaseTestCase):
@@ -2449,27 +2383,94 @@ class EditFormPhotoTests(BaseTestCase):
         self.assertContains(page, 'src="https://img.example/poster.jpg"')
 
 
+class ArtistSongStatsTests(BaseTestCase):
+    def test_most_played_songs_and_albums_all_and_seen_by(self):
+        from events.models import ActLog, SetlistSong, Song
+        band = Artist.objects.create(name="Band")
+        hit = Song.objects.create(artist=band, title="Hit", album_title="First", album_year=2000)
+        deep = Song.objects.create(artist=band, title="Deep cut", album_title="Second", album_year=2005)
+        shows = []
+        for i, songs in enumerate([[hit, deep], [hit], [hit]]):
+            e = Event.objects.create(title=f"Show {i}", date=date(2020, 1, i + 1))
+            EventArtist.objects.create(event=e, artist=band)
+            sl = Setlist.objects.create(event=e, artist=band)
+            for pos, song in enumerate(songs, start=1):
+                SetlistSong.objects.create(setlist=sl, song=song, position=pos)
+            shows.append(e)
+        log = Log.objects.create(user=self.user, event=shows[0])
+        ActLog.objects.get_or_create(log=log, artist=band)
+        page = self.client.get(band.get_absolute_url())
+        self.assertEqual([(s["song__title"], s["n"]) for s in page.context["top_songs"]], [("Hit", 3), ("Deep cut", 1)])
+        self.assertEqual(page.context["top_albums"][0]["song__album_title"], "First")
+        self.assertContains(page, reverse("events:artist_songs", args=[band.pk]))
+        mine = self.client.get(band.get_absolute_url() + "?seen_by=ana")
+        self.assertEqual([(s["song__title"], s["n"]) for s in mine.context["top_songs"]], [("Deep cut", 1), ("Hit", 1)])
+        full = self.client.get(reverse("events:artist_songs", args=[band.pk]) + "?tab=albums&seen_by=ana")
+        self.assertEqual(full.context["shows"], 1)
+        self.assertEqual([a["song__album_title"] for a in full.context["albums"]], ["Second", "First"])
+
+
+class FestivalPhotoPickerTests(BaseTestCase):
+    def test_picked_photo_can_go_to_every_day_of_the_festival(self):
+        fest = Production.objects.create(title="Lolla", event_type=EventType.FESTIVAL)
+        days = [Event.objects.create(title="Lolla", event_type=EventType.FESTIVAL, production=fest,
+                                     date=date(2024, 3, d), created_by=self.user) for d in (15, 16, 17)]
+        next_year = Event.objects.create(title="Lolla", event_type=EventType.FESTIVAL, production=fest,
+                                         date=date(2025, 3, 15), created_by=self.user)
+        self.client.force_login(self.user)
+        url = reverse("events:event_photo", args=[days[0].pk])
+        with mock.patch("events.image_search.find_candidates", return_value=([], [])):
+            self.assertContains(self.client.get(url), "Use this photo for every day of Lolla in 2024 (2 other days)")
+        self.client.post(url, {"url": "https://img.example/one.jpg"})
+        days[1].refresh_from_db()
+        self.assertEqual(days[1].image_url, "")  # toggle off: only this day
+        self.client.post(url, {"url": "https://img.example/all.jpg", "all_days": "1"})
+        for d in days[1:]:
+            d.refresh_from_db()
+            self.assertEqual(d.image_url, "https://img.example/all.jpg")
+        next_year.refresh_from_db()
+        self.assertEqual(next_year.image_url, "")
+
+    def test_no_toggle_for_regular_events(self):
+        self.event.created_by = self.user
+        self.event.save()
+        self.client.force_login(self.user)
+        with mock.patch("events.image_search.find_candidates", return_value=([], [])):
+            self.assertNotContains(self.client.get(reverse("events:event_photo", args=[self.event.pk])), "photo-all-days")
+
+
+class ProductionThumbnailTests(BaseTestCase):
+    def test_each_date_shows_a_thumbnail_or_a_no_photo_marker(self):
+        fest = Production.objects.create(title="Lolla", event_type=EventType.FESTIVAL)
+        Event.objects.create(title="Lolla", event_type=EventType.FESTIVAL, production=fest, date=date(2024, 3, 15),
+                             image_url="https://img.example/day1.jpg")
+        Event.objects.create(title="Lolla", event_type=EventType.FESTIVAL, production=fest, date=date(2024, 3, 16))
+        page = self.client.get(fest.get_absolute_url())
+        self.assertContains(page, 'src="https://img.example/day1.jpg"')
+        self.assertContains(page, "No photo", count=1)
+
+
 class TheaterCreditsTests(BaseTestCase):
     def test_author_and_director_are_credits_not_acts(self):
         play = Event.objects.create(title="", event_type=EventType.THEATER, date=date(2020, 1, 1))
-        author = Performer.objects.create(name="William Shakespeare")
-        director = Performer.objects.create(name="La Directora")
-        actor = Performer.objects.create(name="Compañía Teatro")
-        EventPerformer.objects.create(event=play, performer=author, role="author", billing_order=1)
-        EventPerformer.objects.create(event=play, performer=director, role="director", billing_order=2)
-        EventPerformer.objects.create(event=play, performer=actor, role="cast", billing_order=3)
+        author = Artist.objects.create(name="William Shakespeare")
+        director = Artist.objects.create(name="La Directora")
+        actor = Artist.objects.create(name="Compañía Teatro")
+        EventArtist.objects.create(event=play, artist=author, role="author", billing_order=1)
+        EventArtist.objects.create(event=play, artist=director, role="director", billing_order=2)
+        EventArtist.objects.create(event=play, artist=actor, role="cast", billing_order=3)
         play.refresh_from_db()
         self.assertEqual(play.title, "Compañía Teatro")  # credits never become the title
 
         log = Log.objects.create(user=self.user, event=play)
-        self.assertEqual(list(log.acts.values_list("performer__name", flat=True)), ["Compañía Teatro"])
+        self.assertEqual(list(log.acts.values_list("artist__name", flat=True)), ["Compañía Teatro"])
 
         self.client.force_login(self.user)
         page = self.client.get(play.get_absolute_url())
         self.assertContains(page, "Written by")
         self.assertContains(page, "Directed by")
         self.assertContains(page, ">Cast<")
-        self.assertEqual([r["link"].performer.name for r in page.context["act_rows"]], ["Compañía Teatro"])
+        self.assertEqual([r["link"].artist.name for r in page.context["act_rows"]], ["Compañía Teatro"])
 
 
 class ImageFitTests(BaseTestCase):
@@ -2542,8 +2543,8 @@ class FestivalPhotoForAllDaysTests(BaseTestCase):
         self.client.post(reverse("events:event_edit", args=[days[0].pk]), {
             "title": "", "event_type": "festival", "date": "2024-03-15", "production": str(fest.pk),
             "venue": str(days[0].venue_id), "image_url": "https://img.example/lolla.jpg", "photo_for_all_days": "on",
-            "eventperformer_set-TOTAL_FORMS": "0", "eventperformer_set-INITIAL_FORMS": "0",
-            "eventperformer_set-MIN_NUM_FORMS": "0", "eventperformer_set-MAX_NUM_FORMS": "1000",
+            "eventartist_set-TOTAL_FORMS": "0", "eventartist_set-INITIAL_FORMS": "0",
+            "eventartist_set-MIN_NUM_FORMS": "0", "eventartist_set-MAX_NUM_FORMS": "1000",
         })
         for d in days:
             d.refresh_from_db()
@@ -2561,18 +2562,18 @@ class FestivalPhotoForAllDaysTests(BaseTestCase):
 class FirstActIsHeadlinerTests(BaseTestCase):
     def test_first_act_saved_as_headliner(self):
         self.client.force_login(self.user)
-        a, b = Performer.objects.create(name="Was support"), Performer.objects.create(name="Other")
+        a, b = Artist.objects.create(name="Was support"), Artist.objects.create(name="Other")
         self.client.post(reverse("events:event_create"), {
             "title": "", "event_type": "music", "date": "2020-02-02",
-            "eventperformer_set-TOTAL_FORMS": "2", "eventperformer_set-INITIAL_FORMS": "0",
-            "eventperformer_set-MIN_NUM_FORMS": "0", "eventperformer_set-MAX_NUM_FORMS": "1000",
-            "eventperformer_set-0-performer": str(a.pk), "eventperformer_set-0-role": "support",
-            "eventperformer_set-0-billing_order": "1",
-            "eventperformer_set-1-performer": str(b.pk), "eventperformer_set-1-role": "support",
-            "eventperformer_set-1-billing_order": "2",
+            "eventartist_set-TOTAL_FORMS": "2", "eventartist_set-INITIAL_FORMS": "0",
+            "eventartist_set-MIN_NUM_FORMS": "0", "eventartist_set-MAX_NUM_FORMS": "1000",
+            "eventartist_set-0-artist": str(a.pk), "eventartist_set-0-role": "support",
+            "eventartist_set-0-billing_order": "1",
+            "eventartist_set-1-artist": str(b.pk), "eventartist_set-1-role": "support",
+            "eventartist_set-1-billing_order": "2",
         })
-        event = Event.objects.get(performers=a)
-        roles = dict(event.eventperformer_set.values_list("performer__name", "role"))
+        event = Event.objects.get(artists=a)
+        roles = dict(event.eventartist_set.values_list("artist__name", "role"))
         self.assertEqual(roles, {"Was support": "headliner", "Other": "support"})
         self.assertEqual(event.title, "Was support")
 
@@ -2593,17 +2594,17 @@ class EventVideoTests(BaseTestCase):
     def test_add_list_limit_and_remove(self, _):
         from .models import EventVideo
 
-        act = Performer.objects.create(name="Green Day")
-        EventPerformer.objects.create(event=self.event, performer=act)
+        act = Artist.objects.create(name="Green Day")
+        EventArtist.objects.create(event=self.event, artist=act)
         self.client.force_login(self.user)
         add = reverse("events:video_add", args=[self.event.pk])
-        self.client.post(add, {"url": "https://youtu.be/AAAAAAAAAAA", "performer": str(act.pk)})
+        self.client.post(add, {"url": "https://youtu.be/AAAAAAAAAAA", "artist": str(act.pk)})
         self.client.post(add, {"url": "https://youtu.be/AAAAAAAAAAA"})  # duplicate ignored
         self.client.post(add, {"url": "not a link"})
         for i in range(5):
             self.client.post(add, {"url": f"https://youtu.be/BBBBBBBBBB{i}"})
         self.assertEqual(EventVideo.objects.count(), 6)
-        self.assertEqual(EventVideo.objects.get(youtube_id="AAAAAAAAAAA").performer, act)
+        self.assertEqual(EventVideo.objects.get(youtube_id="AAAAAAAAAAA").artist, act)
 
         page = self.client.get(self.event.get_absolute_url())
         self.assertEqual(len(page.context["latest_videos"]), 4)

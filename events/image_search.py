@@ -163,18 +163,16 @@ def commons_images(query: str) -> list[Candidate]:
     return results
 
 
-MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August",
-          "September", "October", "November", "December"]
 
 
 def default_query(event) -> str:
-    """“Paul McCartney Estadio Nacional 20 March 2019”: the event's name, venue and date."""
+    """“Paul McCartney Chile 2019”: the event's name, the venue's country and the year."""
     bits = [event.title]
-    if event.venue_id:
-        bits.append(event.venue.name or event.venue.city)
+    if event.venue_id and event.venue.country:
+        bits.append(event.venue.country.name)
     if event.date:
-        bits.append(f"{event.date.day} {MONTHS[event.date.month - 1]} {event.date.year}")
-    return " ".join(b for b in bits if b)
+        bits.append(str(event.date.year))
+    return " ".join(str(b) for b in bits if b)
 
 
 def google_images_url(query: str) -> str:

@@ -18,7 +18,7 @@
             <li>its place in {{ impact.lists }} list{{ impact.lists|pluralize }}</li>
             <li>{{ impact.want_to_go }} “Want to go” save{{ impact.want_to_go|pluralize }} and {{ impact.favorites }} favourite{{ impact.favorites|pluralize }}</li>
           </ul>
-          <p class="small text-warning">This cannot be undone. Performers, venues and productions are kept.</p>
+          <p class="small text-warning">This cannot be undone. Artists, venues and productions are kept.</p>
           <form method="post" class="d-flex gap-2">
             {% csrf_token %}
             <button class="btn btn-danger" type="submit">Delete event</button>

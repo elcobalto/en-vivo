@@ -12,7 +12,7 @@ from django.urls import reverse
 from django.views.decorators.http import require_GET, require_POST
 
 from . import google_places, image_search, setlistfm_events
-from .models import Event, Log, Performer, Setlist, Venue, add_all_acts
+from .models import Event, Log, Artist, Setlist, Venue, add_all_acts
 from .roles import can_edit_event, home_place, is_admin
 from .setlistfm import SetlistFmError, _as_list, parse_event_date, search_setlists
 
@@ -189,6 +189,12 @@ def _photo_picker(request, *, obj, default_query: str, artist: str, context: dic
         obj.image_url = url
         obj.save(update_fields=["image_url", "updated_at"])
         messages.success(request, "Photo updated.")
+        if isinstance(obj, Event) and request.POST.get("all_days"):
+            from .merge import share_photo_with_festival_days
+
+            n = share_photo_with_festival_days(request.user, obj)
+            messages.info(request, f"Photo also used for {n} other day{'s' if n != 1 else ''}"
+                                   f" of {obj.production.title} {obj.date.year}.")
         return redirect(obj)
 
     query = (request.GET.get("q") or default_query).strip()[:200]
@@ -216,6 +222,8 @@ def _photo_picker(request, *, obj, default_query: str, artist: str, context: dic
 @login_required
 def event_photo(request: HttpRequest, pk: int) -> HttpResponse:
     """Show image matches for an event and save the one the person picks."""
+    from .merge import festival_days_for_photo
+
     event = get_object_or_404(Event.objects.select_related("venue"), pk=pk)
     if not can_edit_event(request.user, event):
         raise PermissionDenied
@@ -224,6 +232,7 @@ def event_photo(request: HttpRequest, pk: int) -> HttpResponse:
         request, obj=event, default_query=image_search.default_query(event),
         artist=headliner.name if headliner else "",
         context={"subject_title": event.title, "back_url": event.get_absolute_url(),
+                 "festival_days": festival_days_for_photo(event),
                  "edit_url": reverse("events:event_edit", args=[event.pk]),
                  "hint": "Pick the image that fits best: a poster, the artist, or the show itself."},
     )
@@ -234,10 +243,10 @@ def production_photo(request: HttpRequest, pk: int) -> HttpResponse:
     """Festivals and tours: anyone logged in adds a missing photo; changing it is for admins."""
     from .models import Production
 
-    production = get_object_or_404(Production.objects.select_related("performer"), pk=pk)
+    production = get_object_or_404(Production.objects.select_related("artist"), pk=pk)
     if production.image_url and not is_admin(request.user):
         raise PermissionDenied
-    artist = production.performer.name if production.performer_id else ""
+    artist = production.artist.name if production.artist_id else ""
     query = " ".join(b for b in [production.title, artist, "poster"] if b)
     return _photo_picker(
         request, obj=production, default_query=query, artist="",
@@ -248,15 +257,15 @@ def production_photo(request: HttpRequest, pk: int) -> HttpResponse:
 
 
 @login_required
-def performer_photo(request: HttpRequest, pk: int) -> HttpResponse:
+def artist_photo(request: HttpRequest, pk: int) -> HttpResponse:
     """Anyone logged in can add a photo to an artist without one; changing it is for admins."""
-    performer = get_object_or_404(Performer, pk=pk)
-    if performer.image_url and not is_admin(request.user):
+    artist = get_object_or_404(Artist, pk=pk)
+    if artist.image_url and not is_admin(request.user):
         raise PermissionDenied
     return _photo_picker(
-        request, obj=performer, default_query=performer.name, artist=performer.name,
-        context={"subject_title": performer.name, "back_url": performer.get_absolute_url(),
-                 "edit_url": reverse("events:performer_edit", args=[performer.pk]) if is_admin(request.user) else "",
+        request, obj=artist, default_query=artist.name, artist=artist.name,
+        context={"subject_title": artist.name, "back_url": artist.get_absolute_url(),
+                 "edit_url": reverse("events:artist_edit", args=[artist.pk]) if is_admin(request.user) else "",
                  "hint": "Pick a photo of the artist. It's also used for their events that have no photo."},
     )
 
@@ -275,14 +284,14 @@ def video_add(request: HttpRequest, pk: int) -> HttpResponse:
     if not vid:
         messages.error(request, "That doesn't look like a YouTube link.")
         return redirect("events:event_videos", pk=event.pk)
-    performer_id = (request.POST.get("performer") or "").strip()
-    performer = None
-    if performer_id.isdigit():
-        performer = event.performers.filter(pk=int(performer_id)).first()
+    artist_id = (request.POST.get("artist") or "").strip()
+    artist = None
+    if artist_id.isdigit():
+        artist = event.artists.filter(pk=int(artist_id)).first()
     if EventVideo.objects.filter(event=event, youtube_id=vid).exists():
         messages.info(request, "That video is already on this event.")
     else:
-        EventVideo.objects.create(event=event, performer=performer, youtube_id=vid,
+        EventVideo.objects.create(event=event, artist=artist, youtube_id=vid,
                                   title=video_title(vid), added_by=request.user)
         messages.success(request, "Video added.")
     return redirect("events:event_videos", pk=event.pk)
