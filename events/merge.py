@@ -271,8 +271,9 @@ def headliner_shows_for_photo(event: Event):
 
 
 def photo_siblings(event: Event) -> dict | None:
-    """Other events that should usually get the same photo, for the "use it for…" option (on by default):
-    {"events", "count", "unit" ("day"/"show"), "label"}; None when there are none."""
+    """Other events that should usually get the same photo, for the "use it for…" option:
+    {"events", "count", "unit" ("day"/"show"), "label", "own_photos"}; None when there are none.
+    ``own_photos``: how many of them have a photo of their own that isn't this event's."""
     if not event.pk:
         return None
     days = festival_days_for_photo(event)
@@ -291,7 +292,8 @@ def photo_siblings(event: Event) -> dict | None:
         unit = "show"
     if not count:
         return None
-    return {"events": events, "count": count, "unit": unit, "label": label}
+    own_photos = events.exclude(image_url="").exclude(image_url=event.image_url).count()
+    return {"events": events, "count": count, "unit": unit, "label": label, "own_photos": own_photos}
 
 
 def share_photo(user, event: Event) -> tuple[int, str]:

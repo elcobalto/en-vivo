@@ -34,7 +34,7 @@
             </div>
             {% elif field.name == 'photo_for_all_days' %}
             <div class="col-12">
-              <div class="form-check">{{ field }} <label class="form-check-label" for="{{ field.id_for_label }}">{{ field.label }}</label></div>
+              <div class="form-check">{{ field }} <label class="form-check-label" for="{{ field.id_for_label }}">{{ field.label }}</label>{% if field.help_text %}<div class="form-text">{{ field.help_text }}</div>{% endif %}</div>
             </div>
             {% elif field.name == 'image_display' %}
             <div class="col-12 col-md-6">

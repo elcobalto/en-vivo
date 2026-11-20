@@ -647,9 +647,8 @@ def event_form(request: HttpRequest, pk: int | None = None) -> HttpResponse:
                 first.role = EventArtist.Role.HEADLINER
                 first.save(update_fields=["role"])
             merged = merge_into_same_festival_day(saved)
-            # Only when the photo changed, so saving other edits doesn't overwrite the other events' photos.
-            photo_changed = {"image_url", "image_display"} & set(form.changed_data)
-            if not merged and photo_changed and form.cleaned_data.get("photo_for_all_days") and saved.image_url:
+            # Whenever the box is ticked (it starts unticked when another show has a different photo of its own).
+            if not merged and form.cleaned_data.get("photo_for_all_days") and saved.image_url:
                 updated, unit = share_photo(request.user, saved)
                 if updated:
                     messages.info(request, shared_photo_message(updated, unit))
