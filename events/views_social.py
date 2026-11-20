@@ -126,7 +126,8 @@ def _local_foreign_artists(owner) -> dict:
 
 def profile(request: HttpRequest, username: str) -> HttpResponse:
     owner = _owner(username)
-    favorites = FavoriteEvent.objects.filter(user=owner).select_related("event", "event__venue")
+    favorites = FavoriteEvent.objects.filter(user=owner).select_related("event", "event__venue", "first_act",
+                                                                         "second_act")
     # Recently attended: the shows the person went to most recently (by show date, not log date).
     recent = (
         Log.objects.filter(user=owner).select_related("event", "event__venue")
@@ -206,7 +207,9 @@ def user_reviews(request: HttpRequest, username: str) -> HttpResponse:
 def profile_edit(request: HttpRequest) -> HttpResponse:
     prof = get_profile(request.user)
     current = list(FavoriteEvent.objects.filter(user=request.user).order_by("position"))
-    initial = {f"slot_{i}": fav.event for i, fav in enumerate(current, start=1)}
+    initial = {}
+    for i, fav in enumerate(current, start=1):
+        initial.update({f"slot_{i}": fav.event, f"slot_{i}_act_1": fav.first_act_id, f"slot_{i}_act_2": fav.second_act_id})
 
     form = ProfileForm(request.POST or None, instance=prof)
     favorites_form = FavoritesForm(request.POST or None, initial=initial, user=request.user)
@@ -217,8 +220,9 @@ def profile_edit(request: HttpRequest) -> HttpResponse:
             FavoriteEvent.objects.filter(user=request.user).delete()
             FavoriteEvent.objects.bulk_create(
                 [
-                    FavoriteEvent(user=request.user, event=event, position=i)
-                    for i, event in enumerate(favorites_form.ordered_events(), start=1)
+                    FavoriteEvent(user=request.user, event=event, position=i,
+                                  first_act=(acts + [None, None])[0], second_act=(acts + [None, None])[1])
+                    for i, (event, acts) in enumerate(favorites_form.ordered_favorites(), start=1)
                 ]
             )
         messages.success(request, "Profile saved.")

@@ -427,6 +427,62 @@ class ProfileTests(SocialBase):
         self.assertFalse(FavoriteEvent.objects.exists())
 
 
+class FestivalFavoriteActsTests(BaseTestCase):
+    def setUp(self):
+        super().setUp()
+        self.lolla = Event.objects.create(title="Lollapalooza Chile", event_type=EventType.FESTIVAL,
+                                          date=date(2013, 4, 7))
+        self.acts = {}
+        for order, (name, role) in enumerate([("Pearl Jam", "headliner"), ("The Black Keys", "headliner"),
+                                              ("Alabama Shakes", "support"), ("Foals", "support")], start=1):
+            self.acts[name] = Artist.objects.create(name=name)
+            EventArtist.objects.create(event=self.lolla, artist=self.acts[name], role=role, billing_order=order)
+        self.other_fest = Event.objects.create(title="Primavera", event_type=EventType.FESTIVAL, date=date(2014, 5, 1))
+        self.stranger = Artist.objects.create(name="Not At Lolla")
+        EventArtist.objects.create(event=self.other_fest, artist=self.stranger)
+        for e in [self.lolla, self.other_fest, self.event]:
+            Log.objects.create(user=self.user, event=e)
+        self.client.force_login(self.user)
+
+    def _save(self, **slots):
+        return self.client.post(reverse("events:profile_edit"), {"username": "ana", **slots})
+
+    def test_pick_two_acts_for_a_festival_favourite(self):
+        page = self.client.get(reverse("events:profile_edit"))
+        lineups = page.context["favorites_form"].lineups
+        self.assertEqual([a["name"] for a in lineups[self.lolla.pk]],
+                         ["Pearl Jam", "The Black Keys", "Alabama Shakes", "Foals"])
+        self.assertNotIn(self.event.pk, lineups)  # not a festival: no act dropdowns
+        self.assertContains(page, 'id="favorite-lineups"')
+        self._save(slot_1=self.lolla.pk, slot_1_act_1=self.acts["Foals"].pk,
+                   slot_1_act_2=self.acts["Alabama Shakes"].pk, slot_2=self.event.pk)
+        fav = FavoriteEvent.objects.get(user=self.user, event=self.lolla)
+        self.assertEqual((fav.first_act, fav.second_act), (self.acts["Foals"], self.acts["Alabama Shakes"]))
+        profile = self.client.get(reverse("events:profile", args=["ana"]))
+        self.assertContains(profile, "Foals · Alabama Shakes</div>")
+        # Only "Recently attended" still shows the headliners; the favourite card shows the picks.
+        self.assertContains(profile, "Pearl Jam · The Black Keys", count=1)
+        # The edit page remembers them.
+        form = self.client.get(reverse("events:profile_edit")).context["favorites_form"]
+        self.assertEqual(form["slot_1_act_1"].value(), self.acts["Foals"].pk)
+
+    def test_without_picks_the_card_shows_the_headliners(self):
+        self._save(slot_1=self.lolla.pk)
+        self.assertContains(self.client.get(reverse("events:profile", args=["ana"])), "Pearl Jam · The Black Keys</div>")
+
+    def test_acts_not_on_that_festival_or_repeated_are_dropped(self):
+        self._save(slot_1=self.lolla.pk, slot_1_act_1=self.stranger.pk, slot_1_act_2=self.acts["Foals"].pk,
+                   slot_2=self.event.pk, slot_2_act_1=self.acts["Foals"].pk,
+                   slot_3=self.other_fest.pk, slot_3_act_1=self.stranger.pk, slot_3_act_2=self.stranger.pk)
+        favs = {f.event_id: f for f in FavoriteEvent.objects.filter(user=self.user)}
+        # The act from another festival is dropped, so Foals moves up.
+        self.assertEqual((favs[self.lolla.pk].first_act, favs[self.lolla.pk].second_act), (self.acts["Foals"], None))
+        self.assertIsNone(favs[self.event.pk].first_act)  # concerts don't pick acts
+        self.assertEqual((favs[self.other_fest.pk].first_act, favs[self.other_fest.pk].second_act),
+                         (self.stranger, None))
+        self.assertEqual(favs[self.lolla.pk].chosen_acts, ["Foals"])
+
+
 class FollowTests(SocialBase):
     def test_follow_unfollow_and_no_self_follow(self):
         self.client.force_login(self.bob)

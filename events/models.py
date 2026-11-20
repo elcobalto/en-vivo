@@ -652,6 +652,9 @@ class FavoriteEvent(models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="favorite_events")
     event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name="favorited_by")
     position = models.PositiveSmallIntegerField()
+    # Festivals only: up to two acts from its lineup to show on the card instead of its headliners.
+    first_act = models.ForeignKey(Artist, on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
+    second_act = models.ForeignKey(Artist, on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
 
     class Meta:
         constraints = [
@@ -662,6 +665,13 @@ class FavoriteEvent(models.Model):
 
     def __str__(self) -> str:
         return f"{self.user} ♥ {self.event}"
+
+    @property
+    def chosen_acts(self) -> list[str]:
+        """The names of the acts picked for this festival favourite's card (none for other events)."""
+        if self.event.event_type != EventType.FESTIVAL:
+            return []
+        return [act.name for act in (self.first_act, self.second_act) if act is not None]
 
 
 class Follow(models.Model):

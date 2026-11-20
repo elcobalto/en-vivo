@@ -5,6 +5,7 @@ from django.forms import inlineformset_factory
 from django_countries import countries
 
 from .models import (
+    CREDIT_ROLES,
     Comment,
     Event,
     EventType,
@@ -370,17 +371,39 @@ class EventChoiceField(forms.ModelChoiceField):
 
 
 class FavoritesForm(BootstrapMixin, forms.Form):
-    """Four optional slots for a user's favourite events."""
+    """Four optional slots for a user's favourite events. A festival slot can also pick up to two acts from
+    its lineup (``slot_N_act_1`` / ``slot_N_act_2``) to show on the card instead of the headliners."""
+
+    ACTS = 2
 
     def __init__(self, *args, events=None, user=None, **kwargs):
         super().__init__(*args, **kwargs)
         if events is None:
             events = favorite_choices(user)
+        # Every festival you could pick, with its lineup: the act dropdowns are filled from this.
+        festivals = events.filter(event_type=EventType.FESTIVAL)
+        links = (EventArtist.objects.filter(event__in=festivals).exclude(role__in=CREDIT_ROLES)
+                 .select_related("artist").order_by("billing_order", "artist__name"))
+        self.lineups: dict[int, list[dict]] = {}
+        for link in links:
+            self.lineups.setdefault(link.event_id, []).append({"id": link.artist_id, "name": link.artist.name})
+        acts = Artist.objects.filter(pk__in={a["id"] for lineup in self.lineups.values() for a in lineup})
         for i in range(1, FavoriteEvent.MAX + 1):
             self.fields[f"slot_{i}"] = EventChoiceField(
                 queryset=events, required=False, label=f"Favourite {i}", empty_label="—"
             )
-            self.fields[f"slot_{i}"].widget.attrs["class"] = "form-select"
+            self.fields[f"slot_{i}"].widget.attrs.update({"class": "form-select", "data-favorite-slot": i})
+            for n in range(1, self.ACTS + 1):
+                field = forms.ModelChoiceField(queryset=acts, required=False, label=f"Act {n}",
+                                               empty_label="Headliners" if n == 1 else "—")
+                field.widget.attrs.update({"class": "form-select form-select-sm", "data-favorite-act": i})
+                self.fields[f"slot_{i}_act_{n}"] = field
+
+    def slots(self) -> list[dict]:
+        """For the template: each slot's event field and its act fields."""
+        return [{"number": i, "event": self[f"slot_{i}"],
+                 "acts": [self[f"slot_{i}_act_{n}"] for n in range(1, self.ACTS + 1)]}
+                for i in range(1, FavoriteEvent.MAX + 1)]
 
     def clean(self):
         cleaned = super().clean()
@@ -388,11 +411,25 @@ class FavoritesForm(BootstrapMixin, forms.Form):
         picked = [e.pk for e in chosen if e]
         if len(picked) != len(set(picked)):
             raise forms.ValidationError("Each favourite must be a different event.")
+        for i, event in enumerate(chosen, start=1):
+            lineup = {a["id"] for a in self.lineups.get(event.pk, [])} if event else set()
+            for n in range(1, self.ACTS + 1):
+                act = cleaned.get(f"slot_{i}_act_{n}")
+                if act is not None and act.pk not in lineup:  # another festival's act, or not a festival
+                    cleaned[f"slot_{i}_act_{n}"] = None
+            if cleaned.get(f"slot_{i}_act_1") == cleaned.get(f"slot_{i}_act_2"):
+                cleaned[f"slot_{i}_act_2"] = None
         return cleaned
 
-    def ordered_events(self) -> list:
-        return [self.cleaned_data.get(f"slot_{i}") for i in range(1, FavoriteEvent.MAX + 1)
-                if self.cleaned_data.get(f"slot_{i}")]
+    def ordered_favorites(self) -> list[tuple]:
+        """[(event, [acts])] in slot order, empty slots skipped."""
+        result = []
+        for i in range(1, FavoriteEvent.MAX + 1):
+            event = self.cleaned_data.get(f"slot_{i}")
+            if event:
+                acts = [self.cleaned_data.get(f"slot_{i}_act_{n}") for n in range(1, self.ACTS + 1)]
+                result.append((event, [a for a in acts if a is not None]))
+        return result
 
 
 class CommentForm(BootstrapMixin, forms.ModelForm):
