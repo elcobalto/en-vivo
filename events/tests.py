@@ -2189,12 +2189,14 @@ class YearHistogramTests(BaseTestCase):
 
 
 class FestivalCardTests(BaseTestCase):
-    def test_festival_cards_show_the_first_two_acts(self):
+    def test_festival_cards_show_the_headliners(self):
         fest = Event.objects.create(title="Lollapalooza Chile", event_type=EventType.FESTIVAL, date=date(2013, 4, 7))
-        for order, name in enumerate(["Pearl Jam", "The Black Keys", "Deadmau5"], start=1):
-            EventArtist.objects.create(event=fest, artist=Artist.objects.create(name=name), billing_order=order)
+        for order, (name, role) in enumerate([("Pearl Jam", "headliner"), ("The Black Keys", "headliner"),
+                                              ("Deadmau5", "support")], start=1):
+            EventArtist.objects.create(event=fest, artist=Artist.objects.create(name=name), role=role,
+                                       billing_order=order)
         EventArtist.objects.create(event=self.event, artist=Artist.objects.create(name="Green Day"))
-        self.assertEqual(fest.card_lineup, ["Pearl Jam", "The Black Keys"])
+        self.assertEqual(fest.card_lineup, ["Pearl Jam", "The Black Keys"])  # support acts aren't headliners
         self.assertEqual(self.event.card_lineup, [])  # concerts already say who in the title
         Log.objects.create(user=self.user, event=fest)
         page = self.client.get(reverse("events:profile", args=["ana"]))
@@ -2455,7 +2457,7 @@ class LineupSetlistTests(BaseTestCase):
 
     def test_busy_musicbrainz_leaves_song_unchecked(self):
         from unittest import mock
-        from events.models import Song
+        from events.models import SetlistSong, Song
         song = Song.objects.create(artist=Artist.objects.create(name="X"), title="Y")
         with mock.patch("events.musicbrainz.song_album", side_effect=OSError("busy")):
             self.assertEqual(self.client.post(reverse("events:song_album_lookup", args=[song.pk])).status_code, 503)
@@ -2917,7 +2919,7 @@ class AlbumMeasureToggleTests(BaseTestCase):
 
 class ManageSongsTests(BaseTestCase):
     def test_admins_fix_songs_grouped_by_album_newest_first_no_album_last(self):
-        from events.models import Song
+        from events.models import SetlistSong, Song
         band = Artist.objects.create(name="Band")
         Song.objects.create(artist=band, title="Old one", album_title="Debut", album_year=1990)
         Song.objects.create(artist=band, title="New one", album_title="Latest", album_year=2020)
@@ -3000,7 +3002,7 @@ class CoversAndBandsTests(BaseTestCase):
     def test_band_songs_get_the_band_chart_and_other_covers_a_covers_row(self):
         page = self.client.get(self.paul.get_absolute_url())
         own = [(r["title"], r["n"]) for r in page.context["album_chart"]]
-        self.assertEqual(own, [("Band on the Run", 1), ("Covers", 1)])
+        self.assertEqual(own, [("Band on the Run", 1), ("No album covers", 1)])
         self.assertEqual(page.context["album_chart"][-1]["tracks"][0]["by"], "Jimi Hendrix")
         [chart] = page.context["band_charts"]
         self.assertEqual(chart["band"], self.beatles)
@@ -3011,11 +3013,27 @@ class CoversAndBandsTests(BaseTestCase):
         self.assertContains(self.client.get(self.beatles.get_absolute_url()), "Members: ")
         self.assertTrue(next(r for r in chart["rows"] if r["title"] == "Hey Jude").get("is_top"))  # green in band chart
 
+    def test_covers_recorded_on_the_artists_album_count_there_in_italics(self):
+        from events.models import SetlistSong, Song
+        Album.objects.create(artist=self.paul, title="Run Devil Run", year=1999)
+        sl = self.event.setlists.get(artist=self.paul)
+        song = Song.objects.create(artist=self.paul, title="Lonesome Town", cover_of_name="Ricky Nelson",
+                                   album_title="Run Devil Run", album_year=1999)
+        SetlistSong.objects.create(setlist=sl, song=song, position=9)
+        page = self.client.get(self.paul.get_absolute_url())
+        rows = {r["title"]: r for r in page.context["album_chart"]}
+        self.assertEqual(rows["Run Devil Run"]["n"], 1)
+        self.assertEqual(rows["Run Devil Run"]["tracks"][0]["by"], "Ricky Nelson")
+        self.assertEqual([t["title"] for t in rows["No album covers"]["tracks"]], ["Foxy Lady"])
+        self.assertContains(page, '<span class="fst-italic" title="Cover of Ricky Nelson">Lonesome Town')
+        setlist_page = self.client.get(reverse("events:act_setlist", args=[self.event.pk, self.paul.pk]))
+        self.assertIn("Run Devil Run", [r["title"] for r in setlist_page.context["timeline"] if r["n"]])
+
     def test_setlist_page_has_the_band_chart_too(self):
         page = self.client.get(reverse("events:act_setlist", args=[self.event.pk, self.paul.pk]))
         self.assertEqual(page.context["top_albums"][0]["title"], "Band on the Run")
         self.assertEqual(page.context["band_charts"][0]["band"], self.beatles)
-        self.assertEqual(page.context["timeline"][-1]["title"], "Covers")
+        self.assertEqual(page.context["timeline"][-1]["title"], "No album covers")
 
     def test_cover_lookups_use_the_original_artist_and_file_albums_under_it(self):
         song = self.paul.songs.get(title="Something")

@@ -356,10 +356,11 @@ class Event(TimestampedModel):
 
     @property
     def card_lineup(self) -> list[str]:
-        """Festival cards show the top of the bill: the first two acts (headliners are always billed first)."""
+        """Festival cards show the headliners (the acts billed as Headliner), in billing order."""
         if self.event_type != EventType.FESTIVAL or not self.pk:
             return []
-        return list(self.acts_on_stage().order_by("billing_order", "pk").values_list("artist__name", flat=True)[:2])
+        return list(self.eventartist_set.filter(role=EventArtist.Role.HEADLINER)
+                    .order_by("billing_order", "pk").values_list("artist__name", flat=True))
 
     def order_bill(self) -> None:
         """Headliners are always billed above everyone else on stage; credits (authors, directors) go last.

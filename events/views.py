@@ -345,7 +345,8 @@ def _artist_plays(artist: Artist, events, *, skip_empty: bool = False, sort: str
     Each song's ``of`` counts only the shows since it came out (shows in or after its album's year,
     plus undated shows), so a new song isn't measured against shows from before it existed.
     Returns (songs, own album rows, [{"band", "rows"}] for bands the artist was in, number of shows).
-    Covers of those bands go to the band's chart; other covers to a "Covers" row.
+    Covers filed under the artist's own albums count there; covers of those bands go to the band's chart;
+    other covers to a "No album covers" row.
     """
     plays = SetlistSong.objects.filter(setlist__artist=artist, setlist__event__in=events, is_tape=False)
     show_years = list(

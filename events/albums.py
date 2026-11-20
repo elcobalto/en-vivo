@@ -17,7 +17,7 @@ def album_rows(artist: Artist, played: dict, *, skip_empty: bool = False, sort: 
     saved albums released after it are left out: they didn't exist yet at that show. ``no_album``
     ({"n", "songs", "tracks"} for played songs filed under no album) adds a last "No album" row.
     ``by`` picks what the bars and the "count" sort measure: "n" (plays) or "songs" (different songs).
-    ``covers`` (same shape as ``no_album``, tracks carry "by") adds a last "Covers" row.
+    ``covers`` (same shape as ``no_album``, tracks carry "by") adds a last "No album covers" row.
     """
     rows = {normalize_name(a["title"]): dict(a) for a in played.values()}
     saved = Album.objects.filter(artist=artist)
@@ -38,7 +38,7 @@ def album_rows(artist: Artist, played: dict, *, skip_empty: bool = False, sort: 
     if no_album and no_album["n"]:
         result.append({"title": "No album", "year": None, "is_none": True, **no_album})
     if covers and covers["n"]:
-        result.append({"title": "Covers", "year": None, "is_none": True, "is_covers": True, **covers})
+        result.append({"title": "No album covers", "year": None, "is_none": True, "is_covers": True, **covers})
     peak = max((r[by] for r in result), default=0)
     for r in result:
         r["pct"] = round(r[by] / peak * 100) if peak else 0
@@ -47,7 +47,7 @@ def album_rows(artist: Artist, played: dict, *, skip_empty: bool = False, sort: 
 
 def top_albums(rows: list[dict], by: str = "n") -> list[dict]:
     """Every album tied for the most plays (``by="n"``) or the most different songs (``by="songs"``), oldest
-    first, and marks them ``is_top`` (the green bar). "No album" and "Covers" never count."""
+    first, and marks them ``is_top`` (the green bar). "No album" and "No album covers" never count."""
     played = [r for r in rows if r["n"] and not r.get("is_none")]
     if not played:
         return []
@@ -93,14 +93,18 @@ def split_plays(artist: Artist, songs: list[dict]) -> tuple[list[dict], dict, di
     """Split played songs into the artist's own, per band they were in, and other covers.
 
     ``songs`` are dicts with "title", "album_title", "album_year", "cover_of", "n" (plays) and maybe "of".
-    Returns (own songs, {band: [songs]}, covers row {"n", "songs", "tracks"}).
+    A cover filed under one of the artist's own albums (they recorded it) counts with that album, marked
+    ``is_cover``. Returns (own songs, {band: [songs]}, "No album covers" row {"n", "songs", "tracks"}).
     """
     bands = {normalize_name(b.name): b for b in artist.member_of.all()}
+    own_albums = {normalize_name(title) for title in artist.albums.values_list("title", flat=True)}
     own, by_band = [], {}
     covers = {"n": 0, "songs": 0, "tracks": []}
     for song in songs:
         cover = normalize_name(song["cover_of"])
-        if cover and cover in bands:
+        if cover and song["album_title"] and normalize_name(song["album_title"]) in own_albums:
+            own.append({**song, "is_cover": True})
+        elif cover and cover in bands:
             by_band.setdefault(bands[cover], []).append(song)
         elif cover:
             covers["n"] += song["n"]
@@ -118,6 +122,8 @@ def played_by_album(songs: list[dict]) -> tuple[dict, dict]:
     no_album = {"n": 0, "songs": 0, "tracks": []}
     for song in songs:
         track = {"title": song["title"], "n": song["n"], "of": song.get("of")}
+        if song.get("is_cover"):  # a cover the artist recorded on this album: shown in italics
+            track.update(is_cover=True, by=song["cover_of"])
         if not song["album_title"]:
             row = no_album
         else:

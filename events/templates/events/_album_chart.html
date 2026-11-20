@@ -59,7 +59,7 @@ With unit="play" each row shows plays / different songs, and album_by ("n" or "s
           <ul class="list-unstyled small album-tracks mb-2">
             {% for t in a.tracks %}
               <li class="d-flex justify-content-between gap-2">
-                <span>{{ t.title }}{% if t.by %} <span class="text-body-secondary">· {{ t.by }}</span>{% endif %}</span>
+                <span{% if t.is_cover %} class="fst-italic" title="Cover of {{ t.by }}"{% endif %}>{{ t.title }}{% if t.by %} <span class="text-body-secondary">· {{ t.by }}</span>{% endif %}</span>
                 {% if t.of %}<span class="text-body-secondary text-nowrap" title="Played at {{ t.n }} of the {{ t.of }} show{{ t.of|pluralize }} since it came out">{{ t.n }} / {{ t.of }}</span>{% endif %}
               </li>
             {% endfor %}
