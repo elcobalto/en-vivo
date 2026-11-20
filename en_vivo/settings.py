@@ -107,6 +107,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     # Spanish for visitors; each signed-in user's own language from their profile.
     'events.languages.ProfileLanguageMiddleware',
+    'events.setlistfm_quota.CurrentUserMiddleware',  # who each setlist.fm call is for
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'allauth.account.middleware.AccountMiddleware',
@@ -255,6 +256,22 @@ SETLISTFM_API_BASE_URL = os.environ.get("SETLISTFM_API_BASE_URL", "https://api.s
 SETLISTFM_API_KEY = os.environ.get("SETLISTFM_API_KEY", "")
 SETLISTFM_SSL_VERIFY = os.environ.get("SETLISTFM_SSL_VERIFY", "1")
 SETLISTFM_BYPASS_PROXY = os.environ.get("SETLISTFM_BYPASS_PROXY", "1")
+# setlist.fm allows 2 requests/second and 1440/day per API key. We stay a bit under both
+# (see events/setlistfm_quota.py and the admins' page at /setlistfm/usage/).
+SETLISTFM_MIN_INTERVAL = float(os.environ.get("SETLISTFM_MIN_INTERVAL", "0.6"))  # seconds between calls
+SETLISTFM_DAILY_BUDGET = int(os.environ.get("SETLISTFM_DAILY_BUDGET", "1400"))  # calls per rolling 24 h
+# Multi-setlist imports stop while fewer than this many calls are left, so everyone else keeps searching.
+SETLISTFM_BULK_RESERVE = int(os.environ.get("SETLISTFM_BULK_RESERVE", "300"))
+SETLISTFM_USER_DAILY_LIMIT = int(os.environ.get("SETLISTFM_USER_DAILY_LIMIT", "60"))  # per non-admin, 24 h
+
+# Shared by all web workers (rate limits, setlist.fm responses): a table made by `createcachetable`.
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.db.DatabaseCache",
+        "LOCATION": "django_cache",
+        "OPTIONS": {"MAX_ENTRIES": 5000},
+    }
+}
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field

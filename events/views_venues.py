@@ -12,7 +12,7 @@ from django.urls import reverse
 from django.utils.translation import gettext, ngettext
 from django.views.decorators.http import require_GET, require_POST
 
-from . import google_places, image_search, setlistfm_events
+from . import google_places, image_search, setlistfm_events, setlistfm_quota
 from .models import Event, Log, Artist, Setlist, Venue, add_all_acts
 from .roles import can_edit_event, home_place, is_admin
 from .setlistfm import SetlistFmError, _as_list, parse_event_date, search_setlists
@@ -180,6 +180,7 @@ def setlistfm_shows(request: HttpRequest) -> HttpResponse:
         "events/setlistfm_shows.html",
         {"f": filters, "page": page, "results": results, "error": error, "searched": searched,
          "max_imports": max_setlist_imports(request.user),
+         "api_remaining": setlistfm_quota.remaining() if is_admin(request.user) else None,
          # The profile setting picks whether "I attended these shows" starts ticked.
          "attended_default": get_profile(request.user).import_as_attended},
     )

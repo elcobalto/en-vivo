@@ -3773,3 +3773,119 @@ class LanguageTests(DjangoTestCase):
         languages = dict(Profile.objects.filter(pk__in=profiles.values()).values_list("pk", "language"))
         self.assertEqual({name: languages[pk] for name, pk in profiles.items()},
                          {"chile": "es", "usa": "en", "none": "es"})
+
+
+# --------------------------------------------------------------------------- setlist.fm rate limits
+
+from events import setlistfm as _sfm  # noqa: E402
+from events import setlistfm_quota  # noqa: E402
+from .models import SetlistFmCall  # noqa: E402
+
+
+class _FakeResponse:
+    status = 200
+
+    def __init__(self, payload):
+        self.payload = payload
+
+    def read(self):
+        return json.dumps(self.payload).encode()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+
+@override_settings(SETLISTFM_API_KEY="test-key", SETLISTFM_MIN_INTERVAL=0, SETLISTFM_DAILY_BUDGET=20,
+                   SETLISTFM_BULK_RESERVE=5, SETLISTFM_USER_DAILY_LIMIT=3)
+class SetlistFmQuotaTests(BaseTestCase):
+    def setUp(self):
+        super().setUp()
+        from django.core.cache import cache
+
+        cache.clear()
+        self.opened = []
+
+        def fake_open(req, timeout=None):
+            self.opened.append(req.full_url)
+            if "/search/" in req.full_url:
+                return _FakeResponse({"setlist": [_setlist(), _setlist(id="43b8e1c8", eventDate="21-03-2019")]})
+            return _FakeResponse(_setlist(id=req.full_url.rsplit("/", 1)[1]))
+
+        opener = mock.Mock(open=fake_open)
+        patcher = mock.patch("events.setlistfm.build_opener", return_value=opener)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def _fill(self, n, **fields):
+        from django.utils import timezone
+
+        SetlistFmCall.objects.bulk_create(
+            [SetlistFmCall(created_at=timezone.now(), endpoint="search", status=200, **fields) for _ in range(n)])
+
+    def test_calls_are_logged_and_search_results_are_cached(self):
+        _sfm.search_setlists(artist_name="Paul McCartney")
+        _sfm.search_setlists(artist_name="Paul McCartney")  # same search: cached
+        _sfm.get_setlist("43b8e1c8")  # came with the search: cached
+        self.assertEqual(len(self.opened), 1)
+        call = SetlistFmCall.objects.get()
+        self.assertEqual((call.endpoint, call.status, call.bulk), ("search", 200, False))
+        _sfm.get_setlist("99999999")
+        self.assertEqual(SetlistFmCall.objects.filter(endpoint="setlist").count(), 1)
+
+    def test_calls_are_spaced(self):
+        with override_settings(SETLISTFM_MIN_INTERVAL=0.3), mock.patch("events.setlistfm_quota.time.sleep") as sleep:
+            _sfm.get_setlist("a1")
+            _sfm.get_setlist("a2")
+        self.assertEqual(sleep.call_count, 1)
+        self.assertLessEqual(sleep.call_args[0][0], 0.3)
+
+    def test_daily_budget_stops_every_call(self):
+        self._fill(20)
+        with self.assertRaises(_sfm.SetlistFmQuotaError):
+            _sfm.get_setlist("a1")
+        self.assertEqual(self.opened, [])
+
+    def test_bulk_import_stops_at_the_reserve_but_single_calls_go_on(self):
+        self._fill(14)  # 6 left, reserve is 5
+        results = setlistfm_events_import(["b1", "b2", "b3"], self.user)
+        self.assertEqual([bool(r[1]) for r in results], [True, False])  # stopped, third never tried
+        self.assertIn("Bulk imports are paused", results[1][2])
+        self.assertTrue(SetlistFmCall.objects.filter(bulk=True).exists())
+        _sfm.get_setlist("b9")  # a single call still works
+
+    def test_each_non_admin_has_a_daily_cap(self):
+        self._fill(3, user=self.user)
+        token = setlistfm_quota._current_user.set(self.user)
+        try:
+            with self.assertRaises(_sfm.SetlistFmQuotaError):
+                _sfm.get_setlist("c1")
+        finally:
+            setlistfm_quota._current_user.reset(token)
+
+    def test_requests_from_views_are_attributed(self):
+        self.client.force_login(self.user)
+        self.client.get(reverse("events:setlistfm_shows"), {"artist": "Paul McCartney"})
+        self.assertEqual(SetlistFmCall.objects.get().user, self.user)
+
+    def test_usage_page_is_for_admins(self):
+        self.client.force_login(self.user)
+        self.assertEqual(self.client.get(reverse("events:setlistfm_usage")).status_code, 403)
+        boss = get_user_model().objects.create_superuser("boss", "boss@example.com", "pw-test-999")
+        self._fill(4, user=self.user)
+        self._fill(1, bulk=True)
+        self.client.force_login(boss)
+        page = self.client.get(reverse("events:setlistfm_usage"))
+        self.assertContains(page, "setlist.fm API usage")
+        self.assertEqual(page.context["u"].used, 5)
+        self.assertEqual(page.context["u"].remaining, 15)
+        self.assertEqual(page.context["u"].by_user[0][:2], (self.user, 4))
+        self.assertContains(self.client.get(reverse("events:setlistfm_shows")), "15 setlist.fm requests left today")
+
+
+def setlistfm_events_import(ids, user):
+    from events import setlistfm_events as module
+
+    return module.import_many(ids, user)

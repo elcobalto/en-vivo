@@ -6,6 +6,7 @@ own catalog. It never creates events or venues.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import ssl
 from datetime import date, datetime
@@ -15,6 +16,7 @@ from urllib.parse import quote, urlencode
 from urllib.request import HTTPSHandler, ProxyHandler, Request, build_opener
 
 from django.conf import settings
+from django.core.cache import cache
 from django.db import transaction
 from django.utils.translation import gettext
 
@@ -25,6 +27,20 @@ FALSY = {"0", "false", "no", "off"}
 
 class SetlistFmError(Exception):
     pass
+
+
+class SetlistFmQuotaError(SetlistFmError):
+    """We held back a request so En Vivo stays inside setlist.fm's rate limits."""
+
+
+# Answers are reused for a while, so paging back, the page after an import and importing a setlist
+# straight from search results don't cost another request.
+SEARCH_CACHE_SECONDS = 60 * 15
+SETLIST_CACHE_SECONDS = 60 * 60
+
+
+def _setlist_cache_key(setlist_id: str) -> str:
+    return f"setlistfm:setlist:{hashlib.sha1(setlist_id.encode()).hexdigest()}"
 
 
 def _ssl_context() -> ssl.SSLContext:
@@ -41,7 +57,9 @@ def _ssl_context() -> ssl.SSLContext:
         return ssl.create_default_context()
 
 
-def _request_json(path: str, query: dict[str, str] | None = None) -> dict[str, Any]:
+def _request_json(path: str, query: dict[str, str] | None = None, *, endpoint: str) -> dict[str, Any]:
+    from . import setlistfm_quota
+
     api_key = getattr(settings, "SETLISTFM_API_KEY", "")
     if not api_key:
         raise SetlistFmError("Missing SETLISTFM_API_KEY. Add it to your .env file.")
@@ -66,18 +84,25 @@ def _request_json(path: str, query: dict[str, str] | None = None) -> dict[str, A
     if str(getattr(settings, "SETLISTFM_BYPASS_PROXY", "1")).strip().lower() not in FALSY:
         handlers.insert(0, ProxyHandler({}))
 
+    call = setlistfm_quota.reserve_call(endpoint)
     try:
         with build_opener(*handlers).open(req, timeout=20) as resp:
+            setlistfm_quota.finish_call(call, resp.status)
             return json.loads(resp.read().decode("utf-8"))
     except HTTPError as e:
+        setlistfm_quota.finish_call(call, e.code)
         if e.code == 404:
             return {}
+        if e.code == 429:
+            raise SetlistFmQuotaError(gettext("setlist.fm is getting too many requests from En Vivo. "
+                                              "Please try again in a minute.")) from e
         try:
             body = e.read().decode("utf-8")
         except Exception:
             body = ""
         raise SetlistFmError(gettext("Setlist.fm error %(code)s: %(message)s") % {"code": e.code, "message": body or e.reason}) from e
     except URLError as e:
+        setlistfm_quota.finish_call(call, 0)
         raise SetlistFmError(gettext("Setlist.fm request failed: %(reason)s") % {"reason": e.reason}) from e
 
 
@@ -103,13 +128,33 @@ def search_setlists(
     }
     if on_date:
         query["date"] = on_date.strftime("%d-%m-%Y")
-    return _request_json("/rest/1.0/search/setlists", query).get("setlist") or []
+    query = {k: v for k, v in query.items() if v}
+    from . import setlistfm_quota
+
+    key = "setlistfm:search:" + hashlib.sha1(json.dumps(query, sort_keys=True).encode()).hexdigest()
+    results = cache.get(key)
+    if results is not None:
+        setlistfm_quota.count_cache_hit()
+        return results
+    results = _request_json("/rest/1.0/search/setlists", query, endpoint="search").get("setlist") or []
+    cache.set(key, results, SEARCH_CACHE_SECONDS)
+    # Search results are whole setlists: importing one of them needs no further request.
+    cache.set_many({_setlist_cache_key(r["id"]): r for r in results if r.get("id")}, SETLIST_CACHE_SECONDS)
+    return results
 
 
 def get_setlist(setlist_id: str) -> dict[str, Any]:
-    payload = _request_json(f"/rest/1.0/setlist/{quote(setlist_id, safe='')}")
+    from . import setlistfm_quota
+
+    key = _setlist_cache_key(setlist_id)
+    payload = cache.get(key)
+    if payload:
+        setlistfm_quota.count_cache_hit()
+        return payload
+    payload = _request_json(f"/rest/1.0/setlist/{quote(setlist_id, safe='')}", endpoint="setlist")
     if not payload:
         raise SetlistFmError(gettext("Setlist not found on setlist.fm."))
+    cache.set(key, payload, SETLIST_CACHE_SECONDS)
     return payload
 
 

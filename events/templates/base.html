@@ -106,7 +106,8 @@
           </form>
           <div class="d-flex gap-2 text-nowrap">
             {% if user.is_authenticated %}
-              {% if user|is_admin %}{% open_feedback_count as open_feedback %}<a class="btn btn-sm btn-outline-info" href="{% url 'events:feedback_inbox' %}" title="{% translate 'Bug reports and ideas from beta users' %}">{% translate "Feedback" %}{% if open_feedback %} <span class="badge text-bg-info">{{ open_feedback }}</span>{% endif %}</a>{% endif %}
+              {% if user|is_admin %}{% open_feedback_count as open_feedback %}<a class="btn btn-sm btn-outline-info" href="{% url 'events:feedback_inbox' %}" title="{% translate 'Bug reports and ideas from beta users' %}">{% translate "Feedback" %}{% if open_feedback %} <span class="badge text-bg-info">{{ open_feedback }}</span>{% endif %}</a>
+                <a class="btn btn-sm btn-outline-secondary" href="{% url 'events:setlistfm_usage' %}" title="{% translate 'How much of the setlist.fm API limit we have used' %}">{% translate "API" %}</a>{% endif %}
               <a class="btn btn-sm btn-outline-warning" href="{% url 'events:setlistfm_shows' %}" title="{% translate 'Create events from setlist.fm' %}">{% translate "+ From setlist.fm" %}</a>
               <a class="btn btn-sm btn-success" href="{% url 'events:event_create' %}">{% translate "+ Event" %}</a>
               <a class="btn btn-sm btn-outline-light d-flex align-items-center gap-2" href="{% url 'events:profile' user.get_username %}">{% avatar user 20 %}{{ user|display_name }}</a>

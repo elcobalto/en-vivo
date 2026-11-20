@@ -8,8 +8,8 @@ duplicate venues, tours, artists or events.
 from __future__ import annotations
 
 import logging
-import time
 import uuid
+from contextlib import nullcontext
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 from typing import Any
@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 from . import google_places
 from .models import Event, EventArtist, EventType, Production, Setlist, Venue, production_named
-from .setlistfm import SetlistFmError, get_setlist, import_setlist, parse_event_date
+from .setlistfm import SetlistFmError, SetlistFmQuotaError, get_setlist, import_setlist, parse_event_date
 
 
 @dataclass
@@ -146,18 +146,23 @@ def create_event_from_setlist(payload: dict[str, Any], user=None) -> ImportResul
     return ImportResult(event, created=created)
 
 
-def import_many(setlist_ids: list[str], user=None, pause: float = 0.6) -> list[tuple[str, ImportResult | None, str]]:
-    """Import several setlists; setlist.fm allows about 2 requests per second."""
+def import_many(setlist_ids: list[str], user=None) -> list[tuple[str, ImportResult | None, str]]:
+    """Import several setlists. ``setlistfm_quota`` paces the requests (and setlists from a recent search
+    need none); a multi-setlist import stops when the day's setlist.fm budget runs low."""
+    from . import setlistfm_quota
+
     results = []
-    for i, setlist_id in enumerate(setlist_ids):
-        if i and pause:
-            time.sleep(pause)
-        try:
-            results.append((setlist_id, create_event_from_setlist(get_setlist(setlist_id), user), ""))
-        except SetlistFmError as e:
-            results.append((setlist_id, None, str(e)))
-        except Exception:  # never turn one bad setlist into a 500 for the whole import
-            logger.exception("Importing setlist %s failed", setlist_id)
-            results.append((setlist_id, None,
-                            gettext("Something went wrong importing this setlist. Nothing was saved for it.")))
+    with (setlistfm_quota.bulk() if len(setlist_ids) > 1 else nullcontext()):
+        for setlist_id in setlist_ids:
+            try:
+                results.append((setlist_id, create_event_from_setlist(get_setlist(setlist_id), user), ""))
+            except SetlistFmQuotaError as e:  # the rest would be refused too
+                results.append((setlist_id, None, str(e)))
+                break
+            except SetlistFmError as e:
+                results.append((setlist_id, None, str(e)))
+            except Exception:  # never turn one bad setlist into a 500 for the whole import
+                logger.exception("Importing setlist %s failed", setlist_id)
+                results.append((setlist_id, None,
+                                gettext("Something went wrong importing this setlist. Nothing was saved for it.")))
     return results

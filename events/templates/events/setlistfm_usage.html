@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block title %}{% translate "setlist.fm API usage" %} · En Vivo{% endblock %}
+
+{% block content %}
+  <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+    <h1 class="h4 m-0">{% translate "setlist.fm API usage" %}</h1>
+    <a class="btn btn-sm btn-outline-secondary" href="{{ request.get_full_path }}">{% translate "Refresh" %}</a>
+  </div>
+  <p class="small text-body-secondary mb-3">
+    {% blocktranslate trimmed with limit=u.limit budget=u.budget %}
+      setlist.fm allows 2 requests per second and {{ limit }} per day. En Vivo spaces its requests and stops at
+      {{ budget }} in any 24 hours, so it never reaches the limit.
+    {% endblocktranslate %}
+  </p>
+
+  <div class="card mb-3"><div class="card-body">
+    <div class="d-flex flex-wrap align-items-baseline justify-content-between gap-2 mb-2">
+      <div><span class="h3 m-0">{{ u.used }}</span> <span class="text-body-secondary">/ {{ u.budget }} {% translate "in the last 24 hours" %}</span></div>
+      <div class="small text-body-secondary">{% blocktranslate with n=u.remaining %}{{ n }} left{% endblocktranslate %}</div>
+    </div>
+    <div class="progress" role="progressbar" aria-valuenow="{{ u.percent }}" aria-valuemin="0" aria-valuemax="100" style="height: 12px">
+      <div class="progress-bar {% if u.remaining == 0 %}bg-danger{% elif u.bulk_paused %}bg-warning{% else %}bg-success{% endif %}" style="width: {{ u.percent }}%"></div>
+    </div>
+    {% if u.remaining == 0 %}
+      <div class="alert alert-danger small mt-3 mb-0">{% translate "The budget is used up: setlist.fm searches and imports are paused until older requests leave the 24-hour window." %}</div>
+    {% elif u.bulk_paused %}
+      <div class="alert alert-warning small mt-3 mb-0">{% blocktranslate with n=u.bulk_reserve %}Bulk imports are paused: they stop while {{ n }} or fewer requests are left, so single searches and imports keep working.{% endblocktranslate %}</div>
+    {% endif %}
+  </div></div>
+
+  <div class="row g-2 mb-3">
+    <div class="col-6 col-md-3"><div class="card h-100"><div class="card-body py-2">
+      <div class="small text-body-secondary">{% translate "Today (UTC)" %}</div><div class="h5 m-0">{{ u.today_utc }}</div>
+    </div></div></div>
+    <div class="col-6 col-md-3"><div class="card h-100"><div class="card-body py-2">
+      <div class="small text-body-secondary" title="{% translate 'Searches and setlists answered from our cache, without asking setlist.fm' %}">{% translate "Saved by cache today" %}</div><div class="h5 m-0">{{ u.cache_hits_today }}</div>
+    </div></div></div>
+    <div class="col-6 col-md-3"><div class="card h-100"><div class="card-body py-2">
+      <div class="small text-body-secondary">{% translate "Busiest second" %}</div><div class="h5 m-0">{{ u.peak_per_second }} <span class="small text-body-secondary">/ 2</span></div>
+    </div></div></div>
+    <div class="col-6 col-md-3"><div class="card h-100"><div class="card-body py-2">
+      <div class="small text-body-secondary">{% translate "Errors (rate limited)" %}</div><div class="h5 m-0{% if u.rate_limited %} text-danger{% endif %}">{{ u.failures }} <span class="small text-body-secondary">({{ u.rate_limited }})</span></div>
+    </div></div></div>
+  </div>
+
+  <h2 class="h6">{% translate "Last 24 hours, per hour (UTC)" %}</h2>
+  <div class="d-flex align-items-end gap-1 mb-1" style="height: 90px">
+    {% for hour, n in u.hours %}
+      <div class="flex-fill bg-success rounded-top" style="height: {% widthratio n u.hour_max 100 %}%; min-height: {% if n %}2px{% else %}0{% endif %}; opacity: .8" title="{{ hour|date:'H:i' }} · {{ n }}"></div>
+    {% endfor %}
+  </div>
+  <div class="d-flex justify-content-between small text-body-secondary mb-3"><span>{{ u.hours.0.0|date:"H:i" }}</span><span>{% translate "now" %}</span></div>
+
+  <h2 class="h6">{% translate "Last 30 days, per day (UTC)" %}</h2>
+  <div class="d-flex align-items-end gap-1 mb-1" style="height: 90px">
+    {% for day, n in u.days %}
+      <div class="flex-fill rounded-top {% if n > u.budget %}bg-danger{% else %}bg-info{% endif %}" style="height: {% widthratio n u.day_max 100 %}%; min-height: {% if n %}2px{% else %}0{% endif %}; opacity: .8" title="{{ day|date:'j M' }} · {{ n }}"></div>
+    {% endfor %}
+  </div>
+  <div class="d-flex justify-content-between small text-body-secondary mb-3"><span>{{ u.days.0.0|date:"j M" }}</span><span>{% translate "today" %}</span></div>
+
+  <div class="row g-3 mb-3">
+    <div class="col-md-4">
+      <h2 class="h6">{% translate "By request type" %}</h2>
+      <table class="table table-sm small mb-0">
+        {% for label, n in u.by_endpoint %}<tr><td>{{ label }}</td><td class="text-end">{{ n }}</td></tr>
+        {% empty %}<tr><td class="text-body-secondary">{% translate "No requests in the last 24 hours." %}</td></tr>{% endfor %}
+      </table>
+    </div>
+    <div class="col-md-8">
+      <h2 class="h6">{% translate "By person" %} <span class="small text-body-secondary fw-normal">{% blocktranslate with n=u.user_limit %}(non-admins: up to {{ n }} a day each){% endblocktranslate %}</span></h2>
+      <table class="table table-sm small mb-0">
+        <thead><tr><th>{% translate "Person" %}</th><th class="text-end">{% translate "Requests" %}</th><th class="text-end">{% translate "In bulk imports" %}</th></tr></thead>
+        {% for person, n, bulk in u.by_user %}
+          <tr><td>{% if person %}<a href="{% url 'events:profile' person.get_username %}">@{{ person.get_username }}</a>{% else %}<span class="text-body-secondary">{% translate "no one signed in" %}</span>{% endif %}</td>
+              <td class="text-end">{{ n }}</td><td class="text-end">{{ bulk }}</td></tr>
+        {% empty %}<tr><td colspan="3" class="text-body-secondary">{% translate "No requests in the last 24 hours." %}</td></tr>{% endfor %}
+      </table>
+    </div>
+  </div>
+
+  <h2 class="h6">{% translate "Latest requests" %}</h2>
+  <div class="table-responsive">
+    <table class="table table-sm small">
+      <thead><tr><th>{% translate "When (UTC)" %}</th><th>{% translate "Type" %}</th><th>{% translate "Person" %}</th><th>{% translate "Status" %}</th></tr></thead>
+      {% for call in u.recent %}
+        <tr>
+          <td class="text-nowrap">{{ call.created_at|date:"j M H:i:s" }}</td>
+          <td>{{ call.get_endpoint_display }}{% if call.bulk %} <span class="badge text-bg-secondary">{% translate "bulk" %}</span>{% endif %}</td>
+          <td>{% if call.user %}@{{ call.user.get_username }}{% else %}–{% endif %}</td>
+          <td>{% if call.status is None %}…{% elif call.status == 0 %}<span class="text-danger">{% translate "no answer" %}</span>{% elif call.status >= 400 and call.status != 404 %}<span class="text-danger">{{ call.status }}</span>{% else %}{{ call.status }}{% endif %}</td>
+        </tr>
+      {% empty %}<tr><td colspan="4" class="text-body-secondary">{% translate "No requests in the last 24 hours." %}</td></tr>{% endfor %}
+    </table>
+  </div>
+{% endblock %}

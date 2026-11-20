@@ -90,4 +90,5 @@ urlpatterns = [
     path("feedback/", views_feedback.feedback, name="feedback"),
     path("feedback/inbox/", views_feedback.feedback_inbox, name="feedback_inbox"),
     path("feedback/<int:pk>/resolve/", views_feedback.feedback_resolve, name="feedback_resolve"),
+    path("setlistfm/usage/", views_feedback.setlistfm_usage, name="setlistfm_usage"),
 ]

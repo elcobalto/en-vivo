@@ -1,4 +1,5 @@
-"""Beta feedback: anyone signed in can report a bug or send an idea; admins read them in the inbox."""
+"""Beta feedback: anyone signed in can report a bug or send an idea; admins read them in the inbox.
+Also the admins' setlist.fm API usage page."""
 from __future__ import annotations
 
 from django.contrib import messages
@@ -76,3 +77,12 @@ def feedback_resolve(request: HttpRequest, pk: int) -> HttpResponse:
     item.resolved = not item.resolved
     item.save(update_fields=["resolved", "updated_at"])
     return redirect(_safe_next(request, reverse("events:feedback_inbox")))
+
+
+@login_required
+def setlistfm_usage(request: HttpRequest) -> HttpResponse:
+    """Admins only: how much of setlist.fm's daily request limit En Vivo has used, and by whom."""
+    _require_admin(request)
+    from . import setlistfm_quota
+
+    return render(request, "events/setlistfm_usage.html", {"u": setlistfm_quota.usage()})

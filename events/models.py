@@ -806,3 +806,33 @@ class Feedback(TimestampedModel):
 
     def __str__(self) -> str:
         return f"{self.get_kind_display()} from {self.user or 'someone'}: {self.message[:40]}"
+
+
+class SetlistFmCall(models.Model):
+    """One request sent to the setlist.fm API, for the admins' usage page and the rate limits.
+
+    setlist.fm allows 2 requests per second and 1440 per day; see ``setlistfm_quota``.
+    """
+
+    class Endpoint(models.TextChoices):
+        SEARCH = "search", _("Search")
+        SETLIST = "setlist", _("Setlist")
+
+    created_at = models.DateTimeField(db_index=True)
+    endpoint = models.CharField(max_length=10, choices=Endpoint.choices)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+                             related_name="+")
+    bulk = models.BooleanField(default=False)  # part of a multi-setlist import
+    status = models.PositiveSmallIntegerField(null=True, blank=True)  # HTTP status; 0 = no answer, empty = in flight
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self) -> str:
+        return f"{self.endpoint} {self.status or '-'} at {self.created_at:%Y-%m-%d %H:%M:%S}"
+
+
+class SetlistFmThrottle(models.Model):
+    """A single row, locked around each setlist.fm call so all web workers share one request pace."""
+
+    last_call_at = models.DateTimeField(null=True, blank=True)

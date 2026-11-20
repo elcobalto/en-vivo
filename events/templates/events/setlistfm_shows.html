@@ -6,6 +6,7 @@
 {% block content %}
   <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
     <h1 class="h4 m-0">{% translate "Import shows from setlist.fm" %}</h1>
+    {% if api_remaining is not None %}<a class="small text-body-secondary" href="{% url 'events:setlistfm_usage' %}">{% blocktranslate with n=api_remaining %}{{ n }} setlist.fm requests left today{% endblocktranslate %}</a>{% endif %}
   </div>
   <p class="small text-body-secondary mb-3">
     {% blocktranslate trimmed %}
