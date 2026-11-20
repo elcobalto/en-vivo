@@ -18,6 +18,20 @@
         {% for f in formset %}{% include "events/_lineup_row.html" with f=f labels=False %}{% endfor %}
         </div>
         <template id="lineup-row-template">{% include "events/_lineup_row.html" with f=formset.empty_form labels=False %}</template>
-        <button type="button" class="btn btn-sm btn-outline-secondary" id="add-act">+ Add another act</button>
+        <div class="d-flex flex-wrap gap-2">
+          <button type="button" class="btn btn-sm btn-outline-secondary" id="add-act">+ Add another act</button>
+          <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="collapse" data-bs-target="#bulk-acts" aria-expanded="false" aria-controls="bulk-acts">Type support acts in bulk</button>
+        </div>
+        <div class="collapse" id="bulk-acts">
+          <div class="card card-body mt-2">
+            <label class="form-label small" for="bulk-acts-text">Support acts, one per line</label>
+            <textarea class="form-control form-control-sm" id="bulk-acts-text" rows="5" placeholder="Alabama Shakes&#10;Foals&#10;Two Door Cinema Club"></textarea>
+            <div class="form-text">Names can also be separated by •, · , * or ; (not commas, so “Crosby, Stills &amp; Nash” stays one act). Known artists are picked, new names become new artists when you save, and acts already in the lineup are skipped.</div>
+            <div class="d-flex align-items-center gap-2 mt-2">
+              <button type="button" class="btn btn-sm btn-success" id="bulk-acts-add">Add these acts</button>
+              <span class="small text-body-secondary" id="bulk-acts-status" aria-live="polite"></span>
+            </div>
+          </div>
+        </div>
 
         <div class="form-text">Type to search artists. A name that isn't on En Vivo yet is added as a new artist when you save.</div>

@@ -1881,6 +1881,7 @@ class LineupFormUiTests(BaseTestCase):
         self.assertIn('id="add-act"', html)
         self.assertIn('id="lineup-row-template"', html)
         self.assertIn("eventartist_set-__prefix__-artist", html)  # template row for new acts
+        self.assertIn('id="bulk-acts-text"', html)  # "Type support acts in bulk"
         self.assertNotIn("…or type a new artist", html)
         self.assertIn('type="hidden" name="eventartist_set-0-new_artist"', html)
 
@@ -2617,6 +2618,29 @@ class MusicOnlySetlistTests(BaseTestCase):
 
 
 class FestivalAddArtistsTests(BaseTestCase):
+    def test_artists_can_be_typed_instead(self):
+        fest = Event.objects.create(title="", event_type=EventType.FESTIVAL, venue=self.venue, date=None,
+                                    created_by=self.user)
+        EventArtist.objects.create(event=fest, artist=Artist.objects.create(name="Pearl Jam"))
+        foals = Artist.objects.create(name="Foals")
+        self.client.force_login(self.user)
+        url = reverse("events:festival_add_artists", args=[fest.pk])
+        self.assertContains(self.client.get(url), 'name="typed"')  # offered even without a date
+        with mock.patch("events.views.search_setlists") as search:
+            response = self.client.post(url, {"typed": "foals\nAlabama Shakes * pearl jam • Crosby, Stills & Nash\n\n",
+                                              "typed_role": "support"})
+        search.assert_not_called()
+        self.assertRedirects(response, fest.get_absolute_url(), fetch_redirect_response=False)
+        bill = list(fest.eventartist_set.order_by("billing_order").values_list("artist__name", "role"))
+        self.assertEqual(bill, [("Pearl Jam", "headliner"), ("Foals", "support"), ("Alabama Shakes", "support"),
+                                ("Crosby, Stills & Nash", "support")])
+        self.assertTrue(fest.eventartist_set.filter(artist=foals).exists())  # the known artist, not a copy
+        self.assertEqual(Artist.objects.filter(name__iexact="foals").count(), 1)
+        # As headliners they go above the support acts.
+        self.client.post(url, {"typed": "The Black Keys", "typed_role": "headliner"})
+        names = list(fest.eventartist_set.order_by("billing_order").values_list("artist__name", flat=True))
+        self.assertEqual(names[:2], ["Pearl Jam", "The Black Keys"])
+
     def test_suggests_setlistfm_acts_from_that_city_and_day(self):
         fest = Event.objects.create(title="Lolla", event_type=EventType.FESTIVAL, venue=self.venue, date=date(2024, 3, 15),
                                     created_by=self.user)

@@ -221,6 +221,43 @@
   new MutationObserver(function () { list.querySelectorAll(".lineup-row").forEach(setupSearch); })
     .observe(list, { childList: true });
 
+  // "Type support acts in bulk": one row per typed name (one per line, or split by • · * ;), as Support.
+  var bulkText = document.getElementById("bulk-acts-text");
+  var bulkAdd = document.getElementById("bulk-acts-add");
+  var bulkStatus = document.getElementById("bulk-acts-status");
+  function rowName(row) {
+    var box = row.querySelector(".artist-search");
+    var typed = row.querySelector('input[name$="-new_artist"]');
+    return ((box && box.value) || (typed && typed.value) || "").trim().toLowerCase();
+  }
+  function emptyRow() {
+    return Array.prototype.slice.call(list.querySelectorAll(".lineup-row")).find(function (r) {
+      return !rowName(r) && !r.querySelector('input[name$="-id"]').value;
+    });
+  }
+  if (bulkAdd) bulkAdd.addEventListener("click", function () {
+    var names = bulkText.value.split(/[\n\r•·*;]+/).map(function (n) { return n.trim(); }).filter(Boolean);
+    var have = {};
+    list.querySelectorAll(".lineup-row").forEach(function (r) { var n = rowName(r); if (n) have[n] = true; });
+    var added = 0, skipped = 0;
+    names.forEach(function (name) {
+      if (have[name.toLowerCase()]) { skipped++; return; }
+      have[name.toLowerCase()] = true;
+      var row = emptyRow() || addRow();
+      setupSearch(row);
+      var box = row.querySelector(".artist-search");
+      box.value = name;
+      box.dispatchEvent(new Event("change"));  // picks a known artist or marks a new one
+      var role = row.querySelector('select[name$="-role"]');
+      if (role) role.value = "support";
+      added++;
+    });
+    renumber();  // with no acts before, the first one typed heads the bill
+    bulkStatus.textContent = added + " act" + (added === 1 ? "" : "s") + " added" +
+      (skipped ? ", " + skipped + " already in the lineup" : "") + ". Save to keep them.";
+    if (added) bulkText.value = "";
+  });
+
   list.closest("form").addEventListener("submit", renumber);
   renumber();
   // Other scripts (the poster sorter) reorder rows and then call this.

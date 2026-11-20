@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from urllib.parse import quote, urlencode
 
 from django.contrib import messages
@@ -670,6 +671,35 @@ def event_form(request: HttpRequest, pk: int | None = None) -> HttpResponse:
     })
 
 
+TYPED_NAMES_SPLIT = re.compile(r"[\n\r•·*;]+")  # one per line, or poster-style separators (not commas)
+
+
+def add_typed_artists(event: Event, text: str, role: str) -> tuple[int, int]:
+    """Add the artists typed in ``text`` to the event's bill with ``role``: known artists (same name, any case)
+    are linked, other names become new artists, acts already on the bill are skipped. Returns (added, skipped)."""
+    names = [n.strip()[:200] for n in TYPED_NAMES_SPLIT.split(text or "") if n.strip()]
+    on_bill = {normalize_name(n) for n in event.eventartist_set.values_list("artist__name", flat=True)}
+    last = event.eventartist_set.aggregate(m=models.Max("billing_order"))["m"] or 0
+    added = skipped = 0
+    with transaction.atomic():
+        for name in names:
+            key = normalize_name(name)
+            if key in on_bill:
+                skipped += 1
+                continue
+            on_bill.add(key)
+            artist = Artist.objects.filter(name__iexact=name).order_by("pk").first() or Artist.objects.create(name=name)
+            added += 1
+            EventArtist.objects.create(event=event, artist=artist, role=role, billing_order=last + added)
+        event.order_bill()  # headliners go above support acts
+        first = event.acts_on_stage().order_by("billing_order", "pk").first()
+        if first and first.role != EventArtist.Role.HEADLINER:  # someone heads the bill
+            first.role = EventArtist.Role.HEADLINER
+            first.save(update_fields=["role"])
+    event.refresh_auto_title()
+    return added, skipped
+
+
 @login_required
 def festival_add_artists(request: HttpRequest, pk: int) -> HttpResponse:
     """Festival days: add the acts setlist.fm has on this date, searched by city (default), venue or tour name."""
@@ -678,6 +708,17 @@ def festival_add_artists(request: HttpRequest, pk: int) -> HttpResponse:
     event = get_object_or_404(Event.objects.select_related("venue", "production"), pk=pk)
     if event.event_type != EventType.FESTIVAL or not _can_edit(request.user, event):
         raise PermissionDenied
+    if request.method == "POST" and "typed" in request.POST:  # "Type the artists instead": no setlist.fm search
+        role = (EventArtist.Role.HEADLINER if request.POST.get("typed_role") == "headliner"
+                else EventArtist.Role.SUPPORT)
+        added, skipped = add_typed_artists(event, request.POST["typed"], role)
+        if added:
+            messages.success(request, f"Added {added} artist{'s' if added != 1 else ''} to the lineup."
+                                      + (f" {skipped} {'was' if skipped == 1 else 'were'} already on it." if skipped else ""))
+        else:
+            messages.info(request, "Nothing added: type at least one artist that isn't on the lineup yet.")
+            return redirect(request.get_full_path())
+        return redirect(event)
     on_bill = {normalize_name(n) for n in event.eventartist_set.values_list("artist__name", flat=True)}
     candidates, error = [], ""
     # How to search setlist.fm (it has no festival filter): the city, a venue name or a tour name, plus the date.
