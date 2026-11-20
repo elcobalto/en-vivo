@@ -49,7 +49,8 @@ SORTS = {
 }
 WHEN = {"": "Any time", "upcoming": "Upcoming", "past": "Past"}
 from .roles import can_delete_event, can_edit_event, home_place, is_admin
-from .albums import (album_groups, album_rows, choose_album, mark_album_choices, played_by_album, remember_album,
+from .albums import (album_colors, album_groups, album_rows, choose_album, mark_album_choices, played_by_album,
+                     remember_album,
                      split_plays, top_albums)
 from .merge import merge_into_same_festival_day, share_photo, shared_photo_message
 from .views_merge import (
@@ -357,6 +358,8 @@ def _artist_plays(artist: Artist, events, *, skip_empty: bool = False, sort: str
     for song in songs:
         released = song["song__album_year"]
         song["of"] = sum(1 for y in show_years if y is None or not released or y >= released)
+    # Most plays first; on a tie, the song that had fewer chances ranks higher (5/5 above 5/6, 5/6 above 4/4).
+    songs.sort(key=lambda s: (-s["n"], s["of"], s["song__title"].casefold()))
     plain = [{"title": s["song__title"], "album_title": s["song__album_title"], "album_year": s["song__album_year"],
               "cover_of": s["song__cover_of_name"], "n": s["n"], "of": s["of"]} for s in songs]
     own, by_band, covers = split_plays(artist, plain)
@@ -784,11 +787,17 @@ def act_setlist(request: HttpRequest, pk: int, artist_pk: int) -> HttpResponse:
     if is_admin(request.user):  # the "Edit albums" dropdowns
         album_choices = album_groups(setlist.artist, songs)
         mark_album_choices(songs, album_choices)
+    colors = album_colors(setlist.artist)  # "Colour by album": songs and their chart rows share a colour
+    for row in timeline:
+        if not row.get("is_none"):
+            row["color"] = colors.get(normalize_name(row["title"]))
     number = 0
     for entry in entries:  # songs are numbered 1, 2, 3… skipping tapes
         if not entry.is_tape:
             number += 1
         entry.number = None if entry.is_tape else number
+        album = entry.song.album_title
+        entry.album_color = colors.get(normalize_name(album)) if album and not entry.is_tape else None
     return render(request, "events/act_setlist.html", {
         "event": event, "setlist": setlist, "entries": entries, "song_count": len(played_entries),
         "top_albums": top_albums(timeline), "pending": pending, "timeline": timeline, "band_charts": band_charts,

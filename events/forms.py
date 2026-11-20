@@ -6,6 +6,7 @@ from django_countries import countries
 
 from .models import (
     CREDIT_ROLES,
+    ActLog,
     Comment,
     Event,
     EventType,
@@ -313,7 +314,8 @@ class ProfileForm(BootstrapMixin, forms.ModelForm):
 
     class Meta:
         model = Profile
-        fields = ["display_name", "location", "home_city", "home_country", "avatar_url", "bio", "thumbnail_display"]
+        fields = ["display_name", "location", "home_city", "home_country", "avatar_url", "bio", "thumbnail_display",
+                  "import_as_attended"]
         widgets = {"bio": forms.Textarea(attrs={"rows": 4})}
         labels = {"avatar_url": "Avatar image URL"}
         help_texts = {
@@ -372,7 +374,8 @@ class EventChoiceField(forms.ModelChoiceField):
 
 class FavoritesForm(BootstrapMixin, forms.Form):
     """Four optional slots for a user's favourite events. A festival slot can also pick up to two acts from
-    its lineup (``slot_N_act_1`` / ``slot_N_act_2``) to show on the card instead of the headliners."""
+    its lineup that the user saw (``slot_N_act_1`` / ``slot_N_act_2``) to show on the card instead of the
+    headliners."""
 
     ACTS = 2
 
@@ -380,14 +383,22 @@ class FavoritesForm(BootstrapMixin, forms.Form):
         super().__init__(*args, **kwargs)
         if events is None:
             events = favorite_choices(user)
-        # Every festival you could pick, with its lineup: the act dropdowns are filled from this.
+        # Every festival you could pick, with the acts you saw there (in billing order): the act dropdowns
+        # are filled from this.
         festivals = events.filter(event_type=EventType.FESTIVAL)
         links = (EventArtist.objects.filter(event__in=festivals).exclude(role__in=CREDIT_ROLES)
                  .select_related("artist").order_by("billing_order", "artist__name"))
+        seen = None
+        if user is not None:
+            seen = set(ActLog.objects.filter(log__user=user, log__event__in=festivals)
+                       .values_list("log__event_id", "artist_id"))
         self.lineups: dict[int, list[dict]] = {}
         for link in links:
-            self.lineups.setdefault(link.event_id, []).append({"id": link.artist_id, "name": link.artist.name})
-        acts = Artist.objects.filter(pk__in={a["id"] for lineup in self.lineups.values() for a in lineup})
+            if seen is None or (link.event_id, link.artist_id) in seen:
+                self.lineups.setdefault(link.event_id, []).append({"id": link.artist_id, "name": link.artist.name})
+        # Any act on these lineups is accepted; clean() drops the ones not seen at the picked festival, so a
+        # stale pick doesn't block saving the profile.
+        acts = Artist.objects.filter(pk__in={link.artist_id for link in links})
         for i in range(1, FavoriteEvent.MAX + 1):
             self.fields[f"slot_{i}"] = EventChoiceField(
                 queryset=events, required=False, label=f"Favourite {i}", empty_label="—"

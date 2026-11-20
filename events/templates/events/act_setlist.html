@@ -6,6 +6,10 @@
   <style>
     .setlist-n { min-width: 1.8rem; }
     .setlist .is-tape { color: var(--bs-secondary-color); opacity: .6; }
+    .setlist > li { border-left: 4px solid transparent; padding-left: .4rem; }
+    .color-albums .setlist > li[data-album-color] { border-left-color: var(--album-color); }
+    .color-albums .setlist > li[data-album-color] .song-album { color: var(--album-color) !important; }
+    .color-albums .album-row[data-album-color] .album-bar { background: var(--album-color); }
   </style>
   <p class="small mb-1"><a href="{{ event.get_absolute_url }}">← {{ event.title }}</a></p>
   <h1 class="h3 fw-bold mb-1"><a class="link-light" href="{{ setlist.artist.get_absolute_url }}">{{ setlist.artist.name }}</a>: setlist</h1>
@@ -13,16 +17,20 @@
     {% if event.venue %}{{ event.venue.name }}{% if event.venue.city %}, {{ event.venue.city }}{% endif %} · {% endif %}{{ event.date|date:"j F Y"|default:"Date not added" }}
   </div>
 
-  <div class="row g-4">
+  <div class="row g-4" id="setlist-page">
     <div class="col-12 col-md-7">
+      {% if entries %}<div class="form-check form-switch mb-2">
+        <input class="form-check-input" type="checkbox" role="switch" id="color-albums">
+        <label class="form-check-label small" for="color-albums">Colour by album</label>
+      </div>{% endif %}
       <ol class="list-unstyled mb-2 setlist">
         {% for entry in entries %}
           {% ifchanged entry.set_name %}{% if entry.set_name %}<li class="section-title mt-3 mb-2">{{ entry.set_name }}</li>{% endif %}{% endifchanged %}
-          <li class="d-flex gap-2 py-1{% if entry.is_tape %} is-tape{% endif %}">
+          <li class="d-flex gap-2 py-1{% if entry.is_tape %} is-tape{% endif %}"{% if entry.album_color %} data-album-color style="--album-color: {{ entry.album_color }}"{% endif %}>
             <span class="setlist-n text-body-secondary text-end">{% if entry.number %}{{ entry.number }}.{% endif %}</span>
             <span>
               {{ entry.song.title }}{% if entry.is_tape %} <span class="badge text-bg-secondary" title="Played from a recording; not counted">tape</span>{% endif %}{% if entry.note %} <span class="small text-body-secondary">({{ entry.note }})</span>{% endif %}
-              {% if not entry.is_tape %}<div class="small text-body-secondary">
+              {% if not entry.is_tape %}<div class="small text-body-secondary song-album">
                 {% if entry.song.album_title %}{{ entry.song.album_title }}{% if entry.song.album_year %} · {{ entry.song.album_year }}{% endif %}{% elif can_fix_albums and entry.song.album_checked_at %}No album{% endif %}
               </div>{% endif %}
             </span>
@@ -82,4 +90,22 @@
   {% endif %}
 
 
+{% endblock %}
+
+{% block scripts %}
+<script>
+  // "Colour by album": remembered on this device.
+  (function () {
+    var box = document.getElementById("color-albums");
+    if (!box) return;
+    var page = document.getElementById("setlist-page");
+    function apply() { page.classList.toggle("color-albums", box.checked); }
+    try { box.checked = localStorage.getItem("colorAlbums") === "1"; } catch (e) {}
+    box.addEventListener("change", function () {
+      try { localStorage.setItem("colorAlbums", box.checked ? "1" : "0"); } catch (e) {}
+      apply();
+    });
+    apply();
+  })();
+</script>
 {% endblock %}

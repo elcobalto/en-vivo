@@ -47,7 +47,7 @@ With unit="play" each row shows plays / different songs, and album_by ("n" or "s
   <div class="album-chart" role="img" aria-label="{{ unit|capfirst }}s per album: {% for a in rows %}{{ a.title }}{% if a.year %} ({{ a.year }}){% endif %} {{ a.n }}{% if not forloop.last %}, {% endif %}{% endfor %}">
     {% for a in rows %}
       <details class="album-item"{% if not a.tracks %} data-empty{% endif %}>
-        <summary class="album-row{% if not a.n %} is-empty{% endif %}{% if a.is_none %} is-none{% endif %}"{% if not a.tracks %} onclick="return false"{% endif %} title="{{ a.title }}{% if a.year %} ({{ a.year }}){% endif %}: {{ a.n }} {{ unit }}{{ a.n|pluralize }}{% if unit == 'play' %} of {{ a.songs }} song{{ a.songs|pluralize }}{% endif %}">
+        <summary class="album-row{% if not a.n %} is-empty{% endif %}{% if a.is_none %} is-none{% endif %}"{% if a.color %} data-album-color style="--album-color: {{ a.color }}"{% endif %}{% if not a.tracks %} onclick="return false"{% endif %} title="{{ a.title }}{% if a.year %} ({{ a.year }}){% endif %}: {{ a.n }} {{ unit }}{{ a.n|pluralize }}{% if unit == 'play' %} of {{ a.songs }} song{{ a.songs|pluralize }}{% endif %}">
           <span class="album-year event-date">{{ a.year|default:"—" }}</span>
           <div class="album-bar-wrap">
             <div class="album-name small text-truncate">{{ a.title }}</div>

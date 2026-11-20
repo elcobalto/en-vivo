@@ -13,7 +13,7 @@ def album_rows(artist: Artist, played: dict, *, skip_empty: bool = False, sort: 
 
     ``played`` maps album title → {"title", "year", "n", "songs"} counted from setlists (tapes left out).
     The artist's saved albums are added with 0 songs unless ``skip_empty``. ``sort`` is "newest" (default)
-    or "count"; ``pct`` is the bar width relative to the most played album. With ``released_by`` (a year),
+    or "count"; ``pct`` is the bar width relative to the most played album (the extra rows below don't count). With ``released_by`` (a year),
     saved albums released after it are left out: they didn't exist yet at that show. ``no_album``
     ({"n", "songs", "tracks"} for played songs filed under no album) adds a last "No album" row.
     ``by`` picks what the bars and the "count" sort measure: "n" (plays) or "songs" (different songs).
@@ -39,9 +39,10 @@ def album_rows(artist: Artist, played: dict, *, skip_empty: bool = False, sort: 
         result.append({"title": "No album", "year": None, "is_none": True, **no_album})
     if covers and covers["n"]:
         result.append({"title": "No album covers", "year": None, "is_none": True, "is_covers": True, **covers})
-    peak = max((r[by] for r in result), default=0)
+    # The most played album fills the bar; "No album" and "No album covers" don't set the scale (capped at full).
+    peak = max((r[by] for r in result if not r.get("is_none")), default=0) or max((r[by] for r in result), default=0)
     for r in result:
-        r["pct"] = round(r[by] / peak * 100) if peak else 0
+        r["pct"] = min(100, round(r[by] / peak * 100)) if peak else 0
     return result
 
 
@@ -199,3 +200,29 @@ def choose_album(song: Song, value: str | None, allowed: dict[int, Album]) -> bo
     song.album_title, song.album_year = title, year
     song.album_checked_at = timezone.now()  # a manual answer is never looked up again
     return True
+
+
+# --------------------------------------------------------------------------- album colours
+#
+# "Colour by album" on setlists: each of an artist's albums keeps one colour, by its place in their
+# discography (oldest first). Ten hues in a fixed order, then the same cycle in four other shades: 50 colours,
+# after which it starts over.
+
+ALBUM_HUES = [215, 140, 275, 0, 28, 50, 175, 325, 195, 90]  # blue, green, purple, red, orange, yellow, teal, pink, cyan, lime
+ALBUM_SHADES = [(70, 58), (60, 72), (75, 42), (45, 64), (85, 32)]  # (saturation %, lightness %) per round of hues
+
+
+def album_color(index: int) -> str:
+    """The colour of an artist's ``index``-th album (0 = their first)."""
+    index %= len(ALBUM_HUES) * len(ALBUM_SHADES)
+    saturation, lightness = ALBUM_SHADES[index // len(ALBUM_HUES)]
+    return f"hsl({ALBUM_HUES[index % len(ALBUM_HUES)]} {saturation}% {lightness}%)"
+
+
+def album_colors(artist: Artist) -> dict[str, str]:
+    """Normalized album title → colour, for the artist's albums in "Manage albums" (oldest first; undated last)."""
+    albums = sorted(artist.albums.all(), key=lambda a: (a.year is None, a.year or 0, a.title.casefold()))
+    colors: dict[str, str] = {}
+    for album in albums:
+        colors.setdefault(normalize_name(album.title), album_color(len(colors)))
+    return colors

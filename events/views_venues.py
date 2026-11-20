@@ -15,6 +15,7 @@ from . import google_places, image_search, setlistfm_events
 from .models import Event, Log, Artist, Setlist, Venue, add_all_acts
 from .roles import can_edit_event, home_place, is_admin
 from .setlistfm import SetlistFmError, _as_list, parse_event_date, search_setlists
+from .views_social import get_profile
 
 SEARCHES_PER_MINUTE = 60
 
@@ -171,7 +172,9 @@ def setlistfm_shows(request: HttpRequest) -> HttpResponse:
         request,
         "events/setlistfm_shows.html",
         {"f": filters, "page": page, "results": results, "error": error, "searched": searched,
-         "max_imports": MAX_IMPORTS_PER_REQUEST},
+         "max_imports": MAX_IMPORTS_PER_REQUEST,
+         # The profile setting picks whether "I attended these shows" starts ticked.
+         "attended_default": get_profile(request.user).import_as_attended},
     )
 
 

@@ -466,6 +466,16 @@ class FestivalFavoriteActsTests(BaseTestCase):
         form = self.client.get(reverse("events:profile_edit")).context["favorites_form"]
         self.assertEqual(form["slot_1_act_1"].value(), self.acts["Foals"].pk)
 
+    def test_only_acts_they_saw_can_be_picked(self):
+        log = Log.objects.get(user=self.user, event=self.lolla)
+        log.acts.filter(artist=self.acts["Foals"]).delete()  # missed Foals
+        lineups = self.client.get(reverse("events:profile_edit")).context["favorites_form"].lineups
+        self.assertEqual([a["name"] for a in lineups[self.lolla.pk]], ["Pearl Jam", "The Black Keys", "Alabama Shakes"])
+        self._save(slot_1=self.lolla.pk, slot_1_act_1=self.acts["Foals"].pk,
+                   slot_1_act_2=self.acts["Pearl Jam"].pk)
+        fav = FavoriteEvent.objects.get(user=self.user, event=self.lolla)
+        self.assertEqual((fav.first_act, fav.second_act), (self.acts["Pearl Jam"], None))
+
     def test_without_picks_the_card_shows_the_headliners(self):
         self._save(slot_1=self.lolla.pk)
         self.assertContains(self.client.get(reverse("events:profile", args=["ana"])), "Pearl Jam · The Black Keys</div>")
@@ -1030,6 +1040,27 @@ class SetlistShowPageTests(BaseTestCase):
 
         page = self.client.get(reverse("events:setlistfm_shows"), {"artist": "Paul McCartney"})
         self.assertContains(page, "Already imported")
+
+
+class ImportAsAttendedSettingTests(BaseTestCase):
+    @mock.patch("events.views_venues.search_setlists", return_value=[_setlist()])
+    def test_profile_setting_picks_whether_the_attended_box_starts_ticked(self, search):
+        from events.models import Profile
+        self.client.force_login(self.user)
+        url = reverse("events:setlistfm_shows")
+        box = 'name="attended" value="1" checked'
+        self.assertContains(self.client.get(url, {"artist": "Paul McCartney"}), box)  # on by default
+        edit = self.client.get(reverse("events:profile_edit"))
+        self.assertContains(edit, "Mark setlist.fm imports as attended")
+        self.client.post(reverse("events:profile_edit"), {"username": "ana"})  # box left unticked
+        self.assertFalse(Profile.objects.get(user=self.user).import_as_attended)
+        page = self.client.get(url, {"artist": "Paul McCartney"})
+        self.assertContains(page, 'name="attended" value="1" />')  # still there, just not ticked
+        self.assertNotContains(page, box)
+        # Ticking it on an import still adds the show to the diary.
+        with mock.patch("events.setlistfm_events.get_setlist", return_value=_setlist()):
+            self.client.post(url, {"setlist_id": ["3b8e1c4c"], "attended": "1"})
+        self.assertTrue(Log.objects.filter(user=self.user, event__title="Paul McCartney").exists())
 
 
 class GoogleOnlyLoginTests(TestCase):
@@ -3346,3 +3377,71 @@ class HomeLayoutTests(BaseTestCase):
         titles = [e.title for e in self.client.get(reverse("events:event_list") + "?sort=added").context["page"].object_list]
         self.assertEqual(titles[:2], ["Added last", "Added first"])
         self.assertTrue(older.pk < newer.pk)
+
+
+class SongRankingAndBarScaleTests(BaseTestCase):
+    def test_tied_plays_rank_the_song_with_fewer_chances_higher(self):
+        from events.models import SetlistSong, Song
+        band = Artist.objects.create(name="Los Tres")
+        Album.objects.create(artist=band, title="Old", year=2000)
+        Album.objects.create(artist=band, title="New", year=2010)
+        shows = [Event.objects.create(title=f"Show {y}", date=date(y, 1, 1)) for y in (2005, 2011, 2012, 2013, 2014, 2015)]
+        setlists = [Setlist.objects.create(event=e, artist=band) for e in shows]
+        for e in shows:
+            EventArtist.objects.create(event=e, artist=band)
+        # "Always" (old album) at 5 of 6 shows; "Fresh" (new album) at all 5 shows since it came out;
+        # "Steady" (new album) at 4 of those 5.
+        songs = {
+            "Always": (Song.objects.create(artist=band, title="Always", album_title="Old", album_year=2000), setlists[1:]),
+            "Fresh": (Song.objects.create(artist=band, title="Fresh", album_title="New", album_year=2010), setlists[1:]),
+            "Steady": (Song.objects.create(artist=band, title="Steady", album_title="New", album_year=2010), setlists[2:]),
+        }
+        for song, played_at in songs.values():
+            for sl in played_at:
+                SetlistSong.objects.create(setlist=sl, song=song, position=song.pk)
+        top = self.client.get(band.get_absolute_url()).context["top_songs"]
+        self.assertEqual([(s["song__title"], s["n"], s["of"]) for s in top],
+                         [("Fresh", 5, 5), ("Always", 5, 6), ("Steady", 4, 5)])
+
+    def test_most_played_album_fills_the_bar_whatever_no_album_and_covers_say(self):
+        from events.albums import album_rows
+        band = Artist.objects.create(name="Los Tres")
+        played = {"Hits": {"title": "Hits", "year": 1999, "n": 4, "songs": 2, "tracks": []}}
+        rows = album_rows(band, played, no_album={"n": 8, "songs": 3, "tracks": []},
+                          covers={"n": 6, "songs": 2, "tracks": []})
+        self.assertEqual([(r["title"], r["pct"]) for r in rows],
+                         [("Hits", 100), ("No album", 100), ("No album covers", 100)])
+        only_loose = album_rows(band, {}, no_album={"n": 2, "songs": 1, "tracks": []})
+        self.assertEqual(only_loose[0]["pct"], 100)  # nothing on an album: the extra rows set the scale
+
+
+class AlbumColourTests(BaseTestCase):
+    def test_palette_order_shades_and_wraparound(self):
+        from events.albums import album_color
+        self.assertEqual(album_color(0), "hsl(215 70% 58%)")  # blue
+        self.assertEqual(album_color(1), "hsl(140 70% 58%)")  # green
+        self.assertEqual(album_color(2), "hsl(275 70% 58%)")  # purple
+        self.assertEqual(album_color(3), "hsl(0 70% 58%)")  # red
+        self.assertEqual(album_color(4), "hsl(28 70% 58%)")  # orange
+        self.assertEqual(album_color(10), "hsl(215 60% 72%)")  # second round: lighter blue
+        self.assertEqual(len({album_color(i) for i in range(50)}), 50)
+        self.assertEqual(album_color(50), album_color(0))  # past 50 it starts over
+
+    def test_setlist_songs_and_chart_rows_get_their_albums_colour(self):
+        from events.models import SetlistSong, Song
+        band = Artist.objects.create(name="Los Tres")
+        Album.objects.create(artist=band, title="Second", year=1993)
+        Album.objects.create(artist=band, title="First", year=1991)
+        EventArtist.objects.create(event=self.event, artist=band)
+        sl = Setlist.objects.create(event=self.event, artist=band)
+        for i, (title, album) in enumerate([("Late", "Second"), ("Early", "First"), ("Loose", "")], start=1):
+            SetlistSong.objects.create(setlist=sl, position=i, song=Song.objects.create(
+                artist=band, title=title, album_title=album))
+        page = self.client.get(reverse("events:act_setlist", args=[self.event.pk, band.pk]))
+        colours = {e.song.title: e.album_color for e in page.context["entries"]}
+        self.assertEqual(colours, {"Late": "hsl(140 70% 58%)", "Early": "hsl(215 70% 58%)", "Loose": None})
+        rows = {r["title"]: r.get("color") for r in page.context["timeline"]}
+        self.assertEqual(rows["First"], "hsl(215 70% 58%)")
+        self.assertIsNone(rows["No album"])
+        self.assertContains(page, 'id="color-albums"')
+        self.assertContains(page, 'data-album-color style="--album-color: hsl(215 70% 58%)"')

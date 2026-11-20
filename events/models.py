@@ -628,6 +628,12 @@ class Profile(TimestampedModel):
         choices=[("", "As each event is set")] + list(Event.Thumbnail.choices),
         help_text="How photos fit the poster-shaped thumbnails when you browse.",
     )
+    # Whether "I attended these shows" starts ticked when importing from setlist.fm (it can be unticked there).
+    import_as_attended = models.BooleanField(
+        "Mark setlist.fm imports as attended", default=True,
+        help_text="Starts the \"I attended these shows\" box ticked when you import shows from setlist.fm. "
+                  "You can still untick it on each import.",
+    )
 
     def __str__(self) -> str:
         return self.name
