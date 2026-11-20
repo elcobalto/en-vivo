@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from django import forms
-from django.forms import inlineformset_factory
+from django.forms import BaseInlineFormSet, inlineformset_factory
 from django_countries import countries
 
 from .models import (
@@ -223,10 +223,28 @@ class EventArtistForm(BootstrapMixin, forms.ModelForm):
         return self.cleaned_data.get("billing_order") or 1
 
 
+class BaseEventArtistFormSet(BaseInlineFormSet):
+    """Acts added to a lineup start as Support: the rows "+ Add another act" adds (``empty_form``) and the
+    blank row of an event that already has acts. A new event's first row stays Headliner."""
+
+    def _construct_form(self, i, **kwargs):
+        form = super()._construct_form(i, **kwargs)
+        if i >= self.initial_form_count() and self.initial_form_count():
+            form.initial["role"] = EventArtist.Role.SUPPORT  # over the model's Headliner default
+        return form
+
+    @property
+    def empty_form(self):
+        form = super().empty_form
+        form.initial["role"] = EventArtist.Role.SUPPORT
+        return form
+
+
 EventArtistFormSet = inlineformset_factory(
     Event,
     EventArtist,
     form=EventArtistForm,
+    formset=BaseEventArtistFormSet,
     extra=1,
     can_delete=True,
 )

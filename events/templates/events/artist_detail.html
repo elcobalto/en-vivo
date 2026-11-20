@@ -27,6 +27,7 @@
         {% if members %}Members: {% for m in members %}<a href="{{ m.get_absolute_url }}">{{ m.name }}</a>{% if not forloop.last %}, {% endif %}{% endfor %}{% endif %}
       </div>
     {% endif %}
+    {% if user.is_authenticated %}<a class="btn btn-sm btn-outline-success mb-2" href="{% url 'events:setlistfm_shows' %}?artist={{ artist.name|urlencode }}">Import from setlist.fm</a>{% endif %}
     {% if user|is_admin %}<a class="btn btn-sm btn-outline-secondary mb-2" href="{% url 'events:artist_edit' artist.pk %}">Edit artist</a>
     <a class="btn btn-sm btn-outline-danger mb-2" href="{% url 'events:artist_delete' artist.pk %}">Delete artist</a>
     <details class="mb-2"><summary class="small text-warning">Merge a duplicate into this artist</summary>

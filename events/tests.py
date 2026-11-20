@@ -1089,6 +1089,18 @@ class ImportAsAttendedSettingTests(BaseTestCase):
         self.assertTrue(Log.objects.filter(user=self.user, event__title="Paul McCartney").exists())
 
 
+class ArtistImportButtonTests(BaseTestCase):
+    def test_artist_page_links_to_a_setlist_fm_search_for_them(self):
+        artist = Artist.objects.create(name="Los Bunkers & Friends")
+        self.assertNotContains(self.client.get(artist.get_absolute_url()), "Import from setlist.fm")  # signed out
+        self.client.force_login(self.user)
+        url = reverse("events:setlistfm_shows") + "?artist=Los%20Bunkers%20%26%20Friends"
+        self.assertContains(self.client.get(artist.get_absolute_url()), f'href="{url}"')
+        with mock.patch("events.views_venues.search_setlists", return_value=[]) as search:
+            self.client.get(url)
+        self.assertEqual(search.call_args.kwargs["artist_name"], "Los Bunkers & Friends")
+
+
 class GoogleOnlyLoginTests(TestCase):
     def test_login_page_offers_only_google(self):
         page = self.client.get(reverse("login"))
@@ -1871,6 +1883,19 @@ class LineupFormUiTests(BaseTestCase):
         self.assertIn("eventartist_set-__prefix__-artist", html)  # template row for new acts
         self.assertNotIn("…or type a new artist", html)
         self.assertIn('type="hidden" name="eventartist_set-0-new_artist"', html)
+
+    def test_added_acts_start_as_support(self):
+        self.client.force_login(self.user)
+        new = self.client.get(reverse("events:event_create")).context["formset"]
+        self.assertEqual(new.forms[0]["role"].value(), "headliner")  # a new event's first act
+        self.assertEqual(new.empty_form["role"].value(), "support")  # "+ Add another act"
+        EventArtist.objects.create(event=self.event, artist=Artist.objects.create(name="Green Day"))
+        self.event.created_by = self.user
+        self.event.save()
+        edit = self.client.get(reverse("events:event_edit", args=[self.event.pk])).context["formset"]
+        self.assertEqual(edit.forms[0]["role"].value(), "headliner")  # the act already there
+        self.assertEqual(edit.forms[-1]["role"].value(), "support")  # the blank row under it
+        self.assertEqual(edit.empty_form["role"].value(), "support")
 
     def test_rows_added_on_the_page_are_saved(self):
         self.client.force_login(self.user)
