@@ -1,0 +1,10 @@
+{# The favourites as they are saved, on the edit profile page. Needs favorites. #}
+<div id="favorites-summary">
+  {% if favorites %}
+    <ol class="small mb-0 ps-3">
+      {% for fav in favorites %}<li>{{ fav.event.title }}{% if fav.event.date %} <span class="text-body-secondary">· {{ fav.event.date|date:"j M Y" }}</span>{% endif %}{% with acts=fav.chosen_acts %}{% if acts %} <span class="text-body-secondary">· {{ acts|join:", " }}</span>{% endif %}{% endwith %}</li>{% endfor %}
+    </ol>
+  {% else %}
+    <p class="small text-body-secondary mb-0">No favourites yet.</p>
+  {% endif %}
+</div>

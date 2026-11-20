@@ -407,9 +407,12 @@ class ProfileTests(SocialBase):
             Log.objects.get_or_create(user=self.user, event=e)  # favourites come from your diary
         response = self.client.post(reverse("events:profile_edit"), {
             "username": "ana", "display_name": "Ana M", "location": "Santiago", "bio": "Front row.",
-            "slot_1": str(hamlet.pk), "slot_2": "", "slot_3": str(self.event.pk), "slot_4": "",
         })
         self.assertRedirects(response, reverse("events:profile", args=["ana"]))
+        response = self.client.post(reverse("events:favorites_edit"), {
+            "slot_1": str(hamlet.pk), "slot_2": "", "slot_3": str(self.event.pk), "slot_4": "",
+        })
+        self.assertRedirects(response, reverse("events:profile_edit"))
         self.assertEqual(
             list(FavoriteEvent.objects.filter(user=self.user).values_list("event__title", "position")),
             [("Hamlet", 1), ("Green Day in Chile", 2)],
@@ -420,8 +423,8 @@ class ProfileTests(SocialBase):
 
     def test_duplicate_favorites_rejected(self):
         self.client.force_login(self.user)
-        response = self.client.post(reverse("events:profile_edit"), {
-            "username": "ana", "slot_1": str(self.event.pk), "slot_2": str(self.event.pk),
+        response = self.client.post(reverse("events:favorites_edit"), {
+            "slot_1": str(self.event.pk), "slot_2": str(self.event.pk),
         })
         self.assertContains(response, "different event")
         self.assertFalse(FavoriteEvent.objects.exists())
@@ -445,10 +448,10 @@ class FestivalFavoriteActsTests(BaseTestCase):
         self.client.force_login(self.user)
 
     def _save(self, **slots):
-        return self.client.post(reverse("events:profile_edit"), {"username": "ana", **slots})
+        return self.client.post(reverse("events:favorites_edit"), slots)
 
     def test_pick_two_acts_for_a_festival_favourite(self):
-        page = self.client.get(reverse("events:profile_edit"))
+        page = self.client.get(reverse("events:favorites_edit"))
         lineups = page.context["favorites_form"].lineups
         self.assertEqual([a["name"] for a in lineups[self.lolla.pk]],
                          ["Pearl Jam", "The Black Keys", "Alabama Shakes", "Foals"])
@@ -463,18 +466,41 @@ class FestivalFavoriteActsTests(BaseTestCase):
         # Only "Recently attended" still shows the headliners; the favourite card shows the picks.
         self.assertContains(profile, "Pearl Jam · The Black Keys", count=1)
         # The edit page remembers them.
-        form = self.client.get(reverse("events:profile_edit")).context["favorites_form"]
+        form = self.client.get(reverse("events:favorites_edit")).context["favorites_form"]
         self.assertEqual(form["slot_1_act_1"].value(), self.acts["Foals"].pk)
+        # Its dropdown carries only that festival's acts (the script refills it for others).
+        self.assertEqual([label for _, label in form.fields["slot_1_act_1"].widget.choices],
+                         ["Headliners", "Pearl Jam", "The Black Keys", "Alabama Shakes", "Foals"])
+        self.assertEqual(len(form.fields["slot_2_act_1"].widget.choices), 1)  # a concert: none
 
     def test_only_acts_they_saw_can_be_picked(self):
         log = Log.objects.get(user=self.user, event=self.lolla)
         log.acts.filter(artist=self.acts["Foals"]).delete()  # missed Foals
-        lineups = self.client.get(reverse("events:profile_edit")).context["favorites_form"].lineups
+        lineups = self.client.get(reverse("events:favorites_edit")).context["favorites_form"].lineups
         self.assertEqual([a["name"] for a in lineups[self.lolla.pk]], ["Pearl Jam", "The Black Keys", "Alabama Shakes"])
         self._save(slot_1=self.lolla.pk, slot_1_act_1=self.acts["Foals"].pk,
                    slot_1_act_2=self.acts["Pearl Jam"].pk)
         fav = FavoriteEvent.objects.get(user=self.user, event=self.lolla)
         self.assertEqual((fav.first_act, fav.second_act), (self.acts["Pearl Jam"], None))
+
+    def test_edit_profile_loads_favourites_only_in_the_modal(self):
+        page = self.client.get(reverse("events:profile_edit"))
+        self.assertNotIn("favorites_form", page.context)
+        self.assertNotContains(page, 'name="slot_1"')
+        self.assertContains(page, 'id="favoritesModal"')
+        modal = {"HTTP_X_REQUESTED_WITH": "fetch"}
+        form = self.client.get(reverse("events:favorites_edit"), **modal)
+        self.assertContains(form, 'name="slot_1"')
+        self.assertNotContains(form, "<html")  # just the form, for the modal
+        saved = self.client.post(reverse("events:favorites_edit"), {"slot_1": self.lolla.pk,
+                                                                     "slot_1_act_1": self.acts["Foals"].pk}, **modal)
+        self.assertTrue(saved.json()["ok"])
+        self.assertIn("Lollapalooza Chile", saved.json()["summary"])
+        self.assertIn("Foals", saved.json()["summary"])
+        bad = self.client.post(reverse("events:favorites_edit"), {"slot_1": self.lolla.pk, "slot_2": self.lolla.pk},
+                               **modal)
+        self.assertFalse(bad.json()["ok"])
+        self.assertIn("different event", bad.json()["form"])
 
     def test_without_picks_the_card_shows_the_headliners(self):
         self._save(slot_1=self.lolla.pk)
@@ -1598,7 +1624,7 @@ class FavoriteChoicesTests(BaseTestCase):
         for e in [zz, aa, self.event]:
             Log.objects.create(user=self.user, event=e)
         self.client.force_login(self.user)
-        field = self.client.get(reverse("events:profile_edit")).context["favorites_form"].fields["slot_1"]
+        field = self.client.get(reverse("events:favorites_edit")).context["favorites_form"].fields["slot_1"]
         labels = [label for _, label in field.choices][1:]
         self.assertEqual(labels, ["ABBA — date not added",
                                   "Green Day in Chile — Teatro Caupolicán · 10 Nov 1992",
@@ -2742,9 +2768,11 @@ class FestivalPhotoPickerTests(BaseTestCase):
             e.refresh_from_db()
             self.assertEqual(e.image_url, "", e.title)
 
-        # The edit form offers it too, checked, but only shares when the photo changes.
+        # The edit form offers it too, ticked while the other show has no photo of its own (or this one).
         edit = reverse("events:event_edit", args=[second.pk])
-        self.assertContains(self.client.get(edit), "Use this photo for Paul McCartney&#x27;s other show in santiago")
+        page = self.client.get(edit)
+        self.assertContains(page, "Use this photo for Paul McCartney&#x27;s other show in santiago")
+        self.assertTrue(page.context["form"].fields["photo_for_all_days"].initial)
         form = {"title": "", "event_type": "music", "date": "2019-04-02", "venue": str(other_venue.pk),
                 "image_url": "https://img.example/mc.jpg", "image_display": second.image_display, "photo_for_all_days": "on",
                 "eventartist_set-TOTAL_FORMS": "1", "eventartist_set-INITIAL_FORMS": "1",
@@ -2754,9 +2782,25 @@ class FestivalPhotoPickerTests(BaseTestCase):
                 "eventartist_set-0-billing_order": "1"}
         first.image_url = "https://img.example/its-own.jpg"
         first.save()
-        self.client.post(edit, form)  # photo unchanged: the first show keeps its own
+        # The other show now has a different photo: the box starts unticked, saving keeps that photo...
+        page = self.client.get(edit)
+        self.assertFalse(page.context["form"].fields["photo_for_all_days"].initial)
+        self.assertContains(page, "Off because 1 of them has a different photo")
+        unticked = {k: v for k, v in form.items() if k != "photo_for_all_days"}
+        self.client.post(edit, unticked)
         first.refresh_from_db()
         self.assertEqual(first.image_url, "https://img.example/its-own.jpg")
+        # ...and ticking it shares this photo, even unchanged.
+        self.client.post(edit, form)
+        first.refresh_from_db()
+        self.assertEqual(first.image_url, "https://img.example/mc.jpg")
+        self.client.post(edit, {**form, "image_url": "https://img.example/new.jpg"})
+        first.refresh_from_db()
+        self.assertEqual(first.image_url, "https://img.example/new.jpg")
+
+        # A show that already had its photo: saving with the box ticked (as it starts) shares it.
+        first.image_url = ""
+        first.save()
         self.client.post(edit, {**form, "image_url": "https://img.example/new.jpg"})
         first.refresh_from_db()
         self.assertEqual(first.image_url, "https://img.example/new.jpg")

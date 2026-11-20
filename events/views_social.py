@@ -10,10 +10,10 @@ from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
-from django.db import transaction
 from django.db.models import Count, F, Max, Q
-from django.http import Http404, HttpRequest, HttpResponse
+from django.http import Http404, HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.template.loader import render_to_string
 from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_POST
@@ -203,37 +203,44 @@ def user_reviews(request: HttpRequest, username: str) -> HttpResponse:
     )
 
 
+def _favorites(user):
+    return FavoriteEvent.objects.filter(user=user).select_related("event", "event__venue", "first_act", "second_act")
+
+
 @login_required
 def profile_edit(request: HttpRequest) -> HttpResponse:
-    prof = get_profile(request.user)
-    current = list(FavoriteEvent.objects.filter(user=request.user).order_by("position"))
-    initial = {}
-    for i, fav in enumerate(current, start=1):
-        initial.update({f"slot_{i}": fav.event, f"slot_{i}_act_1": fav.first_act_id, f"slot_{i}_act_2": fav.second_act_id})
-
-    form = ProfileForm(request.POST or None, instance=prof)
-    favorites_form = FavoritesForm(request.POST or None, initial=initial, user=request.user)
-
-    if request.method == "POST" and form.is_valid() and favorites_form.is_valid():
-        with transaction.atomic():
-            form.save()
-            FavoriteEvent.objects.filter(user=request.user).delete()
-            FavoriteEvent.objects.bulk_create(
-                [
-                    FavoriteEvent(user=request.user, event=event, position=i,
-                                  first_act=(acts + [None, None])[0], second_act=(acts + [None, None])[1])
-                    for i, (event, acts) in enumerate(favorites_form.ordered_favorites(), start=1)
-                ]
-            )
+    """Profile details. Favourites are edited in a modal that loads its (heavy) form only when opened."""
+    form = ProfileForm(request.POST or None, instance=get_profile(request.user))
+    if request.method == "POST" and form.is_valid():
+        form.save()
         messages.success(request, "Profile saved.")
         # form.instance.user carries the (possibly new) username; request.user is a stale copy.
         return redirect("events:profile", username=form.instance.user.get_username())
-
     return render(
         request,
         "events/profile_edit.html",
-        {"form": form, "favorites_form": favorites_form, "welcome": request.GET.get("welcome") == "1"},
+        {"form": form, "favorites": _favorites(request.user), "welcome": request.GET.get("welcome") == "1"},
     )
+
+
+@login_required
+def favorites_edit(request: HttpRequest) -> HttpResponse:
+    """The favourites form: inside the profile page's modal (fetched, saved without leaving the page) or as
+    a page of its own without JavaScript."""
+    in_modal = request.headers.get("X-Requested-With") == "fetch"
+    form = FavoritesForm(request.POST or None, initial=FavoritesForm.initial_for(request.user), user=request.user)
+    if request.method == "POST" and form.is_valid():
+        form.save(request.user)
+        if in_modal:  # the page swaps in the new list and closes the modal
+            summary = render_to_string("events/_favorites_summary.html", {"favorites": _favorites(request.user)},
+                                       request=request)
+            return JsonResponse({"ok": True, "summary": summary})
+        messages.success(request, "Favourites saved.")
+        return redirect("events:profile_edit")
+    if in_modal:
+        html = render_to_string("events/_favorites_form.html", {"favorites_form": form}, request=request)
+        return JsonResponse({"ok": False, "form": html}) if request.method == "POST" else HttpResponse(html)
+    return render(request, "events/favorites_edit.html", {"favorites_form": form})
 
 
 def people(request: HttpRequest) -> HttpResponse:

@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load static %}
 
 {% block title %}Edit profile · En Vivo{% endblock %}
 
@@ -33,21 +34,11 @@
           {% endif %}
         {% endfor %}
 
-        <h2 class="section-title mt-4 mb-2">Favourite events</h2>
-        <p class="small text-body-secondary">Up to four, shown at the top of your profile in this order. For a festival, you can pick up to two acts to show on its card.</p>
-        {% for error in favorites_form.non_field_errors %}<div class="alert alert-danger py-2">{{ error }}</div>{% endfor %}
-        <div class="row g-3">
-          {% for slot in favorites_form.slots %}
-            <div class="col-12 col-sm-6">
-              <label class="form-label small" for="{{ slot.event.id_for_label }}">{{ slot.event.label }}</label>
-              {{ slot.event }}
-              <div class="row g-1 mt-1" data-favorite-acts="{{ slot.number }}">
-                {% for act in slot.acts %}<div class="col-6"><label class="visually-hidden" for="{{ act.id_for_label }}">{{ slot.event.label }}: {{ act.label }}</label>{{ act }}</div>{% endfor %}
-              </div>
-            </div>
-          {% endfor %}
+        <div class="d-flex justify-content-between align-items-end mt-4 mb-2">
+          <h2 class="section-title flex-grow-1 m-0">Favourite events</h2>
+          <a class="btn btn-sm btn-outline-secondary ms-2" href="{% url 'events:favorites_edit' %}" data-bs-toggle="modal" data-bs-target="#favoritesModal">Edit favourites</a>
         </div>
-        {{ favorites_form.lineups|json_script:"favorite-lineups" }}
+        {% include "events/_favorites_summary.html" %}
 
         <div class="d-flex gap-2 mt-4">
           <button class="btn btn-success" type="submit">Save profile</button>
@@ -59,27 +50,13 @@
 {% endblock %}
 
 {% block scripts %}
-<script>
-  // Festival favourites: two act dropdowns filled from the picked festival's lineup (hidden for other events).
-  (function () {
-    var lineups = JSON.parse(document.getElementById("favorite-lineups").textContent);
-    document.querySelectorAll("[data-favorite-slot]").forEach(function (eventSelect) {
-      var slot = eventSelect.dataset.favoriteSlot;
-      var box = document.querySelector('[data-favorite-acts="' + slot + '"]');
-      var selects = box.querySelectorAll("select");
-      function fill() {
-        var lineup = lineups[eventSelect.value] || [];
-        box.hidden = !lineup.length;
-        selects.forEach(function (select, n) {
-          var keep = select.value;
-          select.replaceChildren(new Option(n === 0 ? "Headliners" : "—", ""));
-          lineup.forEach(function (act) { select.add(new Option(act.name, act.id)); });
-          select.value = lineup.some(function (act) { return String(act.id) === keep; }) ? keep : "";
-        });
-      }
-      eventSelect.addEventListener("change", fill);
-      fill();
-    });
-  })();
-</script>
+<div class="modal fade" id="favoritesModal" tabindex="-1" aria-labelledby="favoritesModalTitle" aria-hidden="true" data-url="{% url 'events:favorites_edit' %}">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header"><h2 class="modal-title h5" id="favoritesModalTitle">Favourite events</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+      <div class="modal-body"></div>
+    </div>
+  </div>
+</div>
+<script src="{% static 'events/favorites-form.js' %}"></script>
 {% endblock %}

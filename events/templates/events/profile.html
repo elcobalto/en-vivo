@@ -13,7 +13,7 @@
     </div>
   {% else %}
     <p class="text-body-secondary mb-5">
-      No favourites yet.{% if user == owner %} <a href="{% url 'events:profile_edit' %}">Pick up to four</a>.{% endif %}
+      No favourites yet.{% if user == owner %} <a href="{% url 'events:favorites_edit' %}">Pick up to four</a>.{% endif %}
     </p>
   {% endif %}
 

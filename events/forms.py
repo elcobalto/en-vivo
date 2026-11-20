@@ -76,12 +76,19 @@ class EventForm(BootstrapMixin, forms.ModelForm):
         from .merge import photo_siblings
 
         siblings = photo_siblings(self.instance)
-        if siblings:  # on by default; only applied when the photo changes
+        if siblings:
             self.fields["photo_for_all_days"].label = (
                 f"Use this photo for {siblings['label']} ({siblings['count']} other {siblings['unit']}"
                 f"{'s' if siblings['count'] != 1 else ''})"
             )
-            self.fields["photo_for_all_days"].initial = True
+            # On by default, unless one of them has a different photo of its own: then saving other edits
+            # shouldn't replace it (ticking the box still does).
+            self.fields["photo_for_all_days"].initial = not siblings["own_photos"]
+            if siblings["own_photos"]:
+                n = siblings["own_photos"]
+                self.fields["photo_for_all_days"].help_text = (
+                    f"Off because {n} of them {'has' if n == 1 else 'have'} a different photo; tick it to replace "
+                    f"{'it' if n == 1 else 'them'}.")
         else:
             del self.fields["photo_for_all_days"]
         order = [n for n in self.fields if n != "photo_for_all_days"]
@@ -375,7 +382,11 @@ class EventChoiceField(forms.ModelChoiceField):
 class FavoritesForm(BootstrapMixin, forms.Form):
     """Four optional slots for a user's favourite events. A festival slot can also pick up to two acts from
     its lineup that the user saw (``slot_N_act_1`` / ``slot_N_act_2``) to show on the card instead of the
-    headliners."""
+    headliners.
+
+    The act dropdowns only carry the picked festival's acts; favorites-form.js refills them from ``lineups``
+    when another event is picked (a full list per dropdown made the page very heavy).
+    """
 
     ACTS = 2
 
@@ -383,8 +394,7 @@ class FavoritesForm(BootstrapMixin, forms.Form):
         super().__init__(*args, **kwargs)
         if events is None:
             events = favorite_choices(user)
-        # Every festival you could pick, with the acts you saw there (in billing order): the act dropdowns
-        # are filled from this.
+        # Every festival you could pick, with the acts you saw there (in billing order).
         festivals = events.filter(event_type=EventType.FESTIVAL)
         links = (EventArtist.objects.filter(event__in=festivals).exclude(role__in=CREDIT_ROLES)
                  .select_related("artist").order_by("billing_order", "artist__name"))
@@ -396,19 +406,24 @@ class FavoritesForm(BootstrapMixin, forms.Form):
         for link in links:
             if seen is None or (link.event_id, link.artist_id) in seen:
                 self.lineups.setdefault(link.event_id, []).append({"id": link.artist_id, "name": link.artist.name})
-        # Any act on these lineups is accepted; clean() drops the ones not seen at the picked festival, so a
-        # stale pick doesn't block saving the profile.
-        acts = Artist.objects.filter(pk__in={link.artist_id for link in links})
         for i in range(1, FavoriteEvent.MAX + 1):
             self.fields[f"slot_{i}"] = EventChoiceField(
                 queryset=events, required=False, label=f"Favourite {i}", empty_label="—"
             )
             self.fields[f"slot_{i}"].widget.attrs.update({"class": "form-select", "data-favorite-slot": i})
+            lineup = self.lineups.get(self._picked_event_id(i), [])
             for n in range(1, self.ACTS + 1):
-                field = forms.ModelChoiceField(queryset=acts, required=False, label=f"Act {n}",
-                                               empty_label="Headliners" if n == 1 else "—")
+                empty = "Headliners" if n == 1 else "—"
+                field = forms.CharField(required=False, label=f"Act {n}", widget=forms.Select(
+                    choices=[("", empty)] + [(str(a["id"]), a["name"]) for a in lineup]))
                 field.widget.attrs.update({"class": "form-select form-select-sm", "data-favorite-act": i})
                 self.fields[f"slot_{i}_act_{n}"] = field
+
+    def _picked_event_id(self, i: int) -> int | None:
+        """The event in slot ``i`` as submitted (or as saved, before submitting)."""
+        value = self.data.get(f"slot_{i}") if self.is_bound else self.initial.get(f"slot_{i}")
+        value = getattr(value, "pk", value)
+        return int(value) if str(value or "").isdigit() else None
 
     def slots(self) -> list[dict]:
         """For the template: each slot's event field and its act fields."""
@@ -422,14 +437,21 @@ class FavoritesForm(BootstrapMixin, forms.Form):
         picked = [e.pk for e in chosen if e]
         if len(picked) != len(set(picked)):
             raise forms.ValidationError("Each favourite must be a different event.")
+        acts = {}
         for i, event in enumerate(chosen, start=1):
             lineup = {a["id"] for a in self.lineups.get(event.pk, [])} if event else set()
+            ids = []
             for n in range(1, self.ACTS + 1):
-                act = cleaned.get(f"slot_{i}_act_{n}")
-                if act is not None and act.pk not in lineup:  # another festival's act, or not a festival
-                    cleaned[f"slot_{i}_act_{n}"] = None
-            if cleaned.get(f"slot_{i}_act_1") == cleaned.get(f"slot_{i}_act_2"):
-                cleaned[f"slot_{i}_act_2"] = None
+                value = str(cleaned.get(f"slot_{i}_act_{n}") or "")
+                # Only acts you saw at this festival; anything else (another festival's act, not a
+                # festival, picked twice) is dropped.
+                if value.isdigit() and int(value) in lineup and int(value) not in ids:
+                    ids.append(int(value))
+            acts[i] = ids
+        artists = Artist.objects.in_bulk([pk for ids in acts.values() for pk in ids])
+        for i, ids in acts.items():
+            for n in range(1, self.ACTS + 1):
+                cleaned[f"slot_{i}_act_{n}"] = artists.get(ids[n - 1]) if n <= len(ids) else None
         return cleaned
 
     def ordered_favorites(self) -> list[tuple]:
@@ -441,6 +463,27 @@ class FavoritesForm(BootstrapMixin, forms.Form):
                 acts = [self.cleaned_data.get(f"slot_{i}_act_{n}") for n in range(1, self.ACTS + 1)]
                 result.append((event, [a for a in acts if a is not None]))
         return result
+
+    def save(self, user) -> None:
+        """Replace the user's favourites with these."""
+        from django.db import transaction
+
+        with transaction.atomic():
+            FavoriteEvent.objects.filter(user=user).delete()
+            FavoriteEvent.objects.bulk_create([
+                FavoriteEvent(user=user, event=event, position=i,
+                              first_act=(acts + [None, None])[0], second_act=(acts + [None, None])[1])
+                for i, (event, acts) in enumerate(self.ordered_favorites(), start=1)
+            ])
+
+    @staticmethod
+    def initial_for(user) -> dict:
+        """The form's starting values: the user's saved favourites."""
+        initial = {}
+        for i, fav in enumerate(FavoriteEvent.objects.filter(user=user).order_by("position"), start=1):
+            initial.update({f"slot_{i}": fav.event_id, f"slot_{i}_act_1": fav.first_act_id or "",
+                            f"slot_{i}_act_2": fav.second_act_id or ""})
+        return initial
 
 
 class CommentForm(BootstrapMixin, forms.ModelForm):
