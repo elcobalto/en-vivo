@@ -15,7 +15,7 @@
   var REQUEST_MS = 25000;  // their gateway gives up at ~20s anyway
   var LICENCES = {
     "by": "CC BY", "by-sa": "CC BY-SA", "by-nd": "CC BY-ND", "by-nc": "CC BY-NC",
-    "by-nc-sa": "CC BY-NC-SA", "by-nc-nd": "CC BY-NC-ND", "cc0": "CC0", "pdm": "Public domain"
+    "by-nc-sa": "CC BY-NC-SA", "by-nc-nd": "CC BY-NC-ND", "cc0": "CC0", "pdm": gettext("Public domain")
   };
 
   // Openverse needs every word to match, so "Paul McCartney Chile 2019" often finds nothing:
@@ -65,7 +65,7 @@
     var who = credit(item);
     if (/^https:\/\//.test(item.foreign_landing_url || "")) {
       link.href = item.foreign_landing_url;
-      link.textContent = who || "source";
+      link.textContent = who || gettext("source");
       link.hidden = false;
       text.hidden = true;
     } else {
@@ -83,7 +83,7 @@
     var queries = attempts(root.dataset.query || "", root.dataset.artist || "");
     var started = Date.now();
     var slow = setTimeout(function () {
-      status.textContent = "Still looking… Openverse can take a while for a search nobody has made before.";
+      status.textContent = gettext("Still looking… Openverse can take a while for a search nobody has made before.");
     }, 5000);
 
     function finish(text) {
@@ -97,8 +97,8 @@
     function tryNext(i, retry) {
       if (i >= queries.length || ((i > 0 || retry) && Date.now() - started > BUDGET_MS)) {
         finish(failed
-          ? "Openverse isn't answering right now; reload the page in a moment to try again."
-          : "No openly licensed photos found. Try a shorter search, like just the artist's name.");
+          ? gettext("Openverse isn't answering right now; reload the page in a moment to try again.")
+          : gettext("No openly licensed photos found. Try a shorter search, like just the artist's name."));
         return;
       }
       var controller = window.AbortController ? new AbortController() : null;
@@ -110,11 +110,12 @@
         failed = false;
         items.forEach(function (item) { grid.appendChild(card(template, item)); });
         var plain = function (q) { return q.replace(/"/g, ""); };
-        finish(i ? "Nothing for “" + plain(queries[0]) + "”, so these are for “" + plain(queries[i]) + "”." : "");
+        finish(i ? interpolate(gettext("Nothing for “%(first)s”, so these are for “%(used)s”."),
+                               {first: plain(queries[0]), used: plain(queries[i])}, true) : "");
       }).catch(function (error) {
         clearTimeout(timer);
         if (error && error.message === "limit") {
-          finish("Openverse has reached its free limit for today; try again tomorrow.");
+          finish(gettext("Openverse has reached its free limit for today; try again tomorrow."));
           return;
         }
         failed = true;

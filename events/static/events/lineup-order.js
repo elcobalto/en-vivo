@@ -185,14 +185,14 @@
     box.className = "form-control form-control-sm artist-search";
     box.setAttribute("list", "artist-search-options");
     box.setAttribute("autocomplete", "off");
-    box.placeholder = "Search artists…";
-    box.setAttribute("aria-label", "Artist");
+    box.placeholder = gettext("Search artists…");
+    box.setAttribute("aria-label", gettext("Artist"));
     box.value = select.value ? select.options[select.selectedIndex].text : (typed ? typed.value : "");
     select.classList.add("d-none");
     select.parentNode.insertBefore(box, select);
     var note = document.createElement("div");
     note.className = "small text-success artist-new-note" + (typed && typed.value && !select.value ? "" : " d-none");
-    note.textContent = "New artist: created when you save.";
+    note.textContent = gettext("New artist: created when you save.");
     box.parentNode.appendChild(note);
     // Rows that already show the "new artist" label from the old box switch to the search box instead.
     var pick = row.querySelector(".artist-pick"), label = row.querySelector(".new-artist-label");
@@ -253,8 +253,12 @@
       added++;
     });
     renumber();  // with no acts before, the first one typed heads the bill
-    bulkStatus.textContent = added + " act" + (added === 1 ? "" : "s") + " added" +
-      (skipped ? ", " + skipped + " already in the lineup" : "") + ". Save to keep them.";
+    bulkStatus.textContent = (skipped
+      ? interpolate(ngettext("%(added)s act added, %(skipped)s already in the lineup. Save to keep them.",
+                             "%(added)s acts added, %(skipped)s already in the lineup. Save to keep them.", added),
+                    {added: added, skipped: skipped}, true)
+      : interpolate(ngettext("%(added)s act added. Save to keep them.", "%(added)s acts added. Save to keep them.", added),
+                    {added: added}, true));
     if (added) bulkText.value = "";
   });
 

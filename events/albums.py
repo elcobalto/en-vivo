@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from django.utils import timezone
+from django.utils.translation import gettext
 
 from .models import Album, Artist, Song, normalize_name
 
@@ -36,9 +37,10 @@ def album_rows(artist: Artist, played: dict, *, skip_empty: bool = False, sort: 
     else:
         result.sort(key=lambda r: (-(r["year"] or 0), r["title"].casefold()))
     if no_album and no_album["n"]:
-        result.append({"title": "No album", "year": None, "is_none": True, **no_album})
+        result.append({"title": gettext("No album"), "year": None, "is_none": True, **no_album})
     if covers and covers["n"]:
-        result.append({"title": "No album covers", "year": None, "is_none": True, "is_covers": True, **covers})
+        result.append({"title": gettext("No album covers"), "year": None, "is_none": True, "is_covers": True,
+                       **covers})
     # The most played album fills the bar; "No album" and "No album covers" don't set the scale (capped at full).
     peak = max((r[by] for r in result if not r.get("is_none")), default=0) or max((r[by] for r in result), default=0)
     for r in result:

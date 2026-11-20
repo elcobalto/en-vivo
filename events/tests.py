@@ -5,8 +5,14 @@ from datetime import date
 from unittest import mock
 
 from django.contrib.auth import get_user_model
-from django.test import TestCase, override_settings
+from django.test import TestCase as DjangoTestCase, override_settings
 from django.urls import reverse
+
+
+@override_settings(LANGUAGE_CODE="en")
+class TestCase(DjangoTestCase):
+    """Most tests below check English wording, so they run with English as the site language (new profiles
+    without a country follow it too). The Spanish default and the language switch are tested in LanguageTests."""
 
 # Tests never call MusicBrainz for real (the real function is kept for the tests that need it).
 from events import musicbrainz as _musicbrainz  # noqa: E402
@@ -3139,7 +3145,7 @@ class ManageSongsTests(BaseTestCase):
         page = self.client.get(band.get_absolute_url())
         self.assertEqual(page.context["pending"], [unchecked.pk])
         self.assertContains(page, "Find albums on MusicBrainz")
-        self.assertContains(page, "1 song hasn&#x27;t been looked up yet.")
+        self.assertContains(page, "1 song hasn't been looked up yet.")
 
     def test_event_cards_open_the_artists_setlist_when_there_is_one(self):
         band = Artist.objects.create(name="Band")
@@ -3644,3 +3650,126 @@ class UserAdminTests(BaseTestCase):
         page = self.client.get(reverse("admin:auth_user_changelist"))
         self.assertContains(page, "Created at")
         self.assertEqual([u.username for u in page.context["cl"].result_list], ["boss", "ana"])
+
+
+# --------------------------------------------------------------------------- languages
+
+import importlib  # noqa: E402
+
+from django.apps import apps as django_apps  # noqa: E402
+
+from .languages import language_for_country, language_from_locale  # noqa: E402
+
+
+@override_settings(ALLOWED_HOSTS=["testserver"])
+class LanguageTests(DjangoTestCase):
+    """The site is Spanish by default; each profile picks Spanish or English, starting from its country."""
+
+    def setUp(self):
+        self.user = get_user_model().objects.create_user("ana", password="pw-test-123")
+        self.event = Event.objects.create(title="Lollapalooza Chile", event_type=EventType.FESTIVAL,
+                                          date=date(2024, 3, 15))
+
+    def test_visitors_see_spanish_whatever_their_browser_says(self):
+        page = self.client.get(reverse("events:home"), HTTP_ACCEPT_LANGUAGE="en-US,en;q=0.9")
+        self.assertContains(page, '<html lang="es"')
+        self.assertContains(page, "Lleva el registro de los shows que has visto.")
+        self.assertContains(page, "Iniciar sesión")
+        self.assertNotContains(page, "Track the shows you've seen.")
+        self.assertEqual(page["Content-Language"], "es")
+
+    def test_dates_use_spanish_month_names(self):
+        page = self.client.get(self.event.get_absolute_url())
+        self.assertContains(page, "15 de marzo de 2024")
+        self.assertContains(page, "Festival")
+
+    def test_choice_labels_and_messages_are_spanish(self):
+        self.client.force_login(self.user)
+        page = self.client.get(reverse("events:event_list"))
+        self.assertContains(page, "Música")
+        self.assertContains(page, "Fecha más reciente primero")
+        page = self.client.post(reverse("events:want_to_go_toggle", args=[self.event.pk]), follow=True)
+        self.assertContains(page, "Quiero ir es solo para eventos próximos.")
+
+    def test_javascript_catalog_follows_the_page_language(self):
+        self.assertContains(self.client.get(reverse("javascript-catalog")), "Cabezas de cartel")
+        self.user.profile.language = "en"
+        self.user.profile.save()
+        self.client.force_login(self.user)
+        self.assertNotContains(self.client.get(reverse("javascript-catalog")), "Cabezas de cartel")
+
+    def test_english_profile_sees_english(self):
+        self.user.profile.language = "en"
+        self.user.profile.save()
+        self.client.force_login(self.user)
+        page = self.client.get(reverse("events:home"))
+        self.assertContains(page, '<html lang="en"')
+        self.assertContains(page, "Track the shows you've seen.")
+        self.assertContains(self.client.get(self.event.get_absolute_url()), "15 March 2024")
+
+    def test_switching_language_on_the_profile(self):
+        self.client.force_login(self.user)
+        self.assertEqual(self.user.profile.language, "es")
+        edit = self.client.get(reverse("events:profile_edit"))
+        self.assertContains(edit, "Idioma")
+        self.assertContains(edit, '<option value="en">English</option>')
+        page = self.client.post(reverse("events:profile_edit"), {"username": "ana", "language": "en"}, follow=True)
+        self.user.profile.refresh_from_db()
+        self.assertEqual(self.user.profile.language, "en")
+        self.assertContains(page, "Profile saved.")
+        self.assertContains(page, "Edit profile")
+        page = self.client.post(reverse("events:profile_edit"), {"username": "ana", "language": "es"}, follow=True)
+        self.assertContains(page, "Perfil guardado.")
+        self.assertContains(page, "Editar perfil")
+
+    def test_profile_form_without_language_keeps_it(self):
+        self.user.profile.language = "en"
+        self.user.profile.save()
+        self.client.force_login(self.user)
+        self.client.post(reverse("events:profile_edit"), {"username": "ana", "home_country": "AR"})
+        self.user.profile.refresh_from_db()
+        self.assertEqual((self.user.profile.home_country.code, self.user.profile.language), ("AR", "en"))
+
+    def test_language_for_country(self):
+        for country, language in [("CL", "es"), ("AR", "es"), ("MX", "es"), ("ES", "es"), ("BR", "es"),
+                                  ("US", "en"), ("GB", "en"), ("FR", "en"), ("", "es")]:
+            with self.subTest(country=country):
+                self.assertEqual(language_for_country(country), language)
+
+    def test_new_profiles_start_in_their_countrys_language(self):
+        User = get_user_model()
+        self.assertEqual(self.user.profile.language, "es")  # no country yet
+        for username, country, language in [("cl", "CL", "es"), ("us", "US", "en"), ("es", "ES", "es")]:
+            with self.subTest(country=country):
+                user = User.objects.create_user(username, password="pw-test-123")
+                Profile.objects.filter(user=user).delete()
+                self.assertEqual(Profile.objects.create(user=user, home_country=country).language, language)
+
+    def test_google_sign_up_picks_the_language_from_the_account(self):
+        def sign_up(username, extra_data):
+            user = get_user_model().objects.create_user(username, password="pw-test-123")
+            fill_profile_from_social(user, SimpleNamespace(account=SimpleNamespace(extra_data=extra_data)))
+            user.profile.refresh_from_db()
+            return user.profile.language
+
+        self.assertEqual(language_from_locale("en-CL"), "es")
+        self.assertEqual(sign_up("en_us", {"locale": "en-US"}), "en")
+        self.assertEqual(sign_up("es_419", {"locale": "es-419"}), "es")
+        self.assertEqual(sign_up("en_only", {"locale": "en"}), "en")
+        self.assertEqual(sign_up("gb", {"country": "GB", "locale": "es"}), "en")  # the country decides
+        self.assertEqual(sign_up("nothing", {"name": "Someone"}), "es")
+        self.assertEqual(sign_up("french", {"locale": "fr"}), "es")  # not a site language: the default
+
+    def test_existing_profiles_get_spanish_unless_their_country_speaks_something_else(self):
+        migration = importlib.import_module("events.migrations.0035_profile_language")
+        User = get_user_model()
+        profiles = {}
+        for username, country in [("chile", "CL"), ("usa", "US"), ("none", "")]:
+            user = User.objects.create_user(username, password="pw-test-123")
+            Profile.objects.filter(user=user).update(home_country=country)
+            profiles[username] = user.profile.pk
+        Profile.objects.update(language="")
+        migration.set_languages(django_apps, None)
+        languages = dict(Profile.objects.filter(pk__in=profiles.values()).values_list("pk", "language"))
+        self.assertEqual({name: languages[pk] for name, pk in profiles.items()},
+                         {"chile": "es", "usa": "en", "none": "es"})

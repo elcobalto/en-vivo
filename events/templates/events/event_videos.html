@@ -1,15 +1,15 @@
 {% extends "base.html" %}
-{% load event_extras %}
+{% load i18n event_extras %}
 
-{% block title %}Videos · {{ event.title }} · En Vivo{% endblock %}
+{% block title %}{% translate "Videos" %} · {{ event.title }} · En Vivo{% endblock %}
 
 {% block content %}
   <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
     <div>
-      <h1 class="h4 m-0">Videos of {{ event.title }}</h1>
-      <div class="small text-body-secondary">{% if event.venue %}{{ event.venue.name }} · {% endif %}<span class="event-date">{{ event.date|date:"j M Y"|default:"no date" }}</span></div>
+      <h1 class="h4 m-0">{% blocktranslate with title=event.title %}Videos of {{ title }}{% endblocktranslate %}</h1>
+      <div class="small text-body-secondary">{% if event.venue %}{{ event.venue.name }} · {% endif %}<span class="event-date">{% if event.date %}{{ event.date|date:"j M Y" }}{% else %}{% translate "no date" %}{% endif %}</span></div>
     </div>
-    <a class="btn btn-sm btn-outline-secondary" href="{{ event.get_absolute_url }}">Back to event</a>
+    <a class="btn btn-sm btn-outline-secondary" href="{{ event.get_absolute_url }}">{% translate "Back to event" %}</a>
   </div>
       {% for label, artist, videos in video_groups %}
         <div class="small fw-semibold mb-1">{% if artist %}<a href="{{ artist.get_absolute_url }}">{{ label }}</a>{% else %}{{ label }}{% endif %}</div>
@@ -17,15 +17,15 @@
           {% for v in videos %}
             <div class="col">
               <div class="ratio ratio-16x9 rounded overflow-hidden">
-                <iframe src="{{ v.embed_url }}" title="{{ v.title|default:'YouTube video' }}" loading="lazy"
+                <iframe src="{{ v.embed_url }}" title="{% if v.title %}{{ v.title }}{% else %}{% translate 'YouTube video' %}{% endif %}" loading="lazy"
                         allow="accelerometer; encrypted-media; gyroscope; picture-in-picture; fullscreen" allowfullscreen
                         referrerpolicy="strict-origin-when-cross-origin"></iframe>
               </div>
               <div class="small d-flex justify-content-between gap-2 mt-1">
-                <a class="text-truncate" href="{{ v.watch_url }}" target="_blank" rel="noreferrer">{{ v.title|default:"Watch on YouTube" }}</a>
+                <a class="text-truncate" href="{{ v.watch_url }}" target="_blank" rel="noreferrer">{% if v.title %}{{ v.title }}{% else %}{% translate "Watch on YouTube" %}{% endif %}</a>
                 {% if user.is_authenticated and user.pk == v.added_by_id or user|is_admin %}
                   <form method="post" action="{% url 'events:video_remove' event.pk v.pk %}">
-                    {% csrf_token %}<button class="btn btn-link btn-sm text-danger p-0" type="submit" title="Remove video" aria-label="Remove video">×</button>
+                    {% csrf_token %}<button class="btn btn-link btn-sm text-danger p-0" type="submit" title="{% translate 'Remove video' %}" aria-label="{% translate 'Remove video' %}">×</button>
                   </form>
                 {% endif %}
               </div>
@@ -33,18 +33,18 @@
           {% endfor %}
         </div>
       {% empty %}
-        <p class="small text-body-secondary">No videos yet.</p>
+        <p class="small text-body-secondary">{% translate "No videos yet." %}</p>
       {% endfor %}
       {% if user.is_authenticated %}
         <form method="post" action="{% url 'events:video_add' event.pk %}" class="d-flex flex-wrap gap-2 mb-2">
           {% csrf_token %}
           <input class="form-control form-control-sm" style="max-width:22rem" type="url" name="url" required
-                 placeholder="Paste a YouTube link" aria-label="YouTube link" />
-          <select class="form-select form-select-sm w-auto" name="artist" aria-label="Who's in the video">
-            <option value="">Whole event</option>
+                 placeholder="{% translate 'Paste a YouTube link' %}" aria-label="{% translate 'YouTube link' %}" />
+          <select class="form-select form-select-sm w-auto" name="artist" aria-label="{% translate "Who's in the video" %}">
+            <option value="">{% translate "Whole event" %}</option>
             {% for link in acts %}<option value="{{ link.artist_id }}">{{ link.artist.name }}</option>{% endfor %}
           </select>
-          <button class="btn btn-sm btn-outline-light" type="submit">Add video</button>
+          <button class="btn btn-sm btn-outline-light" type="submit">{% translate "Add video" %}</button>
         </form>
       {% endif %}
 

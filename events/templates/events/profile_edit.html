@@ -1,17 +1,17 @@
 {% extends "base.html" %}
-{% load static %}
+{% load i18n static %}
 
-{% block title %}Edit profile · En Vivo{% endblock %}
+{% block title %}{% translate "Edit profile" %} · En Vivo{% endblock %}
 
 {% block content %}
   <div class="row justify-content-center">
     <div class="col-12 col-md-9 col-lg-7">
       {% if welcome %}
         <div class="alert alert-success">
-          <strong>Welcome to En Vivo!</strong> Choose your username. You can change it, and everything else here, any time.
+          <strong>{% translate "Welcome to En Vivo!" %}</strong> {% translate "Choose your username. You can change it, and everything else here, any time." %}
         </div>
       {% endif %}
-      <h1 class="h4 mb-3">{% if welcome %}Set up your profile{% else %}Edit profile{% endif %}</h1>
+      <h1 class="h4 mb-3">{% if welcome %}{% translate "Set up your profile" %}{% else %}{% translate "Edit profile" %}{% endif %}</h1>
       <form method="post" class="card"><div class="card-body">
         {% csrf_token %}
         {% for field in form %}
@@ -35,14 +35,14 @@
         {% endfor %}
 
         <div class="d-flex justify-content-between align-items-end mt-4 mb-2">
-          <h2 class="section-title flex-grow-1 m-0">Favourite events</h2>
-          <a class="btn btn-sm btn-outline-secondary ms-2" href="{% url 'events:favorites_edit' %}" data-bs-toggle="modal" data-bs-target="#favoritesModal">Edit favourites</a>
+          <h2 class="section-title flex-grow-1 m-0">{% translate "Favourite events" %}</h2>
+          <a class="btn btn-sm btn-outline-secondary ms-2" href="{% url 'events:favorites_edit' %}" data-bs-toggle="modal" data-bs-target="#favoritesModal">{% translate "Edit favourites" %}</a>
         </div>
         {% include "events/_favorites_summary.html" %}
 
         <div class="d-flex gap-2 mt-4">
-          <button class="btn btn-success" type="submit">Save profile</button>
-          <a class="btn btn-outline-secondary" href="{% url 'events:profile' user.get_username %}">Cancel</a>
+          <button class="btn btn-success" type="submit">{% translate "Save profile" %}</button>
+          <a class="btn btn-outline-secondary" href="{% url 'events:profile' user.get_username %}">{% translate "Cancel" %}</a>
         </div>
       </div></form>
     </div>
@@ -53,7 +53,7 @@
 <div class="modal fade" id="favoritesModal" tabindex="-1" aria-labelledby="favoritesModalTitle" aria-hidden="true" data-url="{% url 'events:favorites_edit' %}">
   <div class="modal-dialog modal-lg modal-dialog-scrollable">
     <div class="modal-content">
-      <div class="modal-header"><h2 class="modal-title h5" id="favoritesModalTitle">Favourite events</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+      <div class="modal-header"><h2 class="modal-title h5" id="favoritesModalTitle">{% translate "Favourite events" %}</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{% translate 'Close' %}"></button></div>
       <div class="modal-body"></div>
     </div>
   </div>

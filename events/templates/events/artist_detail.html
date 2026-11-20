@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load event_extras %}
+{% load i18n event_extras %}
 
 {% block title %}{{ artist.name }} · En Vivo{% endblock %}
 
@@ -8,11 +8,11 @@
   <div style="width:180px" class="flex-shrink-0">
     {% if artist.image_url %}
       <img class="event-photo" src="{{ artist.image_url }}" alt="{{ artist.name }}" referrerpolicy="no-referrer" />
-      {% if user|is_admin %}<a class="btn btn-sm btn-outline-secondary w-100 mt-2" href="{% url 'events:artist_photo' artist.pk %}">Change photo</a>{% endif %}
+      {% if user|is_admin %}<a class="btn btn-sm btn-outline-secondary w-100 mt-2" href="{% url 'events:artist_photo' artist.pk %}">{% translate "Change photo" %}</a>{% endif %}
     {% else %}
       <div class="poster position-relative">
         {% if user.is_authenticated %}
-          <a class="poster-placeholder text-decoration-none flex-column gap-1" href="{% url 'events:artist_photo' artist.pk %}"><span class="fs-4">＋</span><span>Find photo</span></a>
+          <a class="poster-placeholder text-decoration-none flex-column gap-1" href="{% url 'events:artist_photo' artist.pk %}"><span class="fs-4">＋</span><span>{% translate "Find photo" %}</span></a>
         {% else %}<div class="poster-placeholder">{{ artist.get_kind_display }}</div>{% endif %}
       </div>
     {% endif %}
@@ -22,34 +22,35 @@
     <h1 class="h3 fw-bold">{{ artist.name }}</h1>
     {% if member_of or members %}
       <div class="small mb-2">
-        {% if member_of %}Member of {% for b in member_of %}<a href="{{ b.get_absolute_url }}">{{ b.name }}</a>{% if not forloop.last %}, {% endif %}{% endfor %}{% endif %}
+        {% if member_of %}{% translate "Member of" %} {% for b in member_of %}<a href="{{ b.get_absolute_url }}">{{ b.name }}</a>{% if not forloop.last %}, {% endif %}{% endfor %}{% endif %}
         {% if member_of and members %} · {% endif %}
-        {% if members %}Members: {% for m in members %}<a href="{{ m.get_absolute_url }}">{{ m.name }}</a>{% if not forloop.last %}, {% endif %}{% endfor %}{% endif %}
+        {% if members %}{% translate "Members:" %} {% for m in members %}<a href="{{ m.get_absolute_url }}">{{ m.name }}</a>{% if not forloop.last %}, {% endif %}{% endfor %}{% endif %}
       </div>
     {% endif %}
-    {% if user.is_authenticated %}<a class="btn btn-sm btn-outline-success mb-2" href="{% url 'events:setlistfm_shows' %}?artist={{ artist.name|urlencode }}">Import from setlist.fm</a>{% endif %}
-    {% if user|is_admin %}<a class="btn btn-sm btn-outline-secondary mb-2" href="{% url 'events:artist_edit' artist.pk %}">Edit artist</a>
-    <a class="btn btn-sm btn-outline-danger mb-2" href="{% url 'events:artist_delete' artist.pk %}">Delete artist</a>
-    <details class="mb-2"><summary class="small text-warning">Merge a duplicate into this artist</summary>
+    {% if user.is_authenticated %}<a class="btn btn-sm btn-outline-success mb-2" href="{% url 'events:setlistfm_shows' %}?artist={{ artist.name|urlencode }}">{% translate "Import from setlist.fm" %}</a>{% endif %}
+    {% if user|is_admin %}<a class="btn btn-sm btn-outline-secondary mb-2" href="{% url 'events:artist_edit' artist.pk %}">{% translate "Edit artist" %}</a>
+    <a class="btn btn-sm btn-outline-danger mb-2" href="{% url 'events:artist_delete' artist.pk %}">{% translate "Delete artist" %}</a>
+    <details class="mb-2"><summary class="small text-warning">{% translate "Merge a duplicate into this artist" %}</summary>
       <form method="post" action="{% url 'events:artist_merge' artist.pk %}" class="d-flex flex-wrap gap-2 mt-2"
-            onsubmit="return confirm('Merge the selected artist into {{ artist.name|escapejs }}? Its events, setlists and ratings move here and it is deleted.');">
+            {% blocktranslate with name=artist.name asvar merge_confirm %}Merge the selected artist into {{ name }}? Its events, setlists and ratings move here and it is deleted.{% endblocktranslate %}
+            onsubmit="return confirm('{{ merge_confirm|escapejs }}');">
         {% csrf_token %}
-        <select class="form-select form-select-sm" style="max-width:20rem" name="other" required aria-label="Duplicate artist">
-          <option value="">Choose the duplicate…</option>
-          {% if merge_similar %}<optgroup label="Similar names">{% for p in merge_similar %}<option value="{{ p.pk }}">{{ p.name }}</option>{% endfor %}</optgroup>{% endif %}
-          {% if merge_rest %}<optgroup label="All artists">{% for p in merge_rest %}<option value="{{ p.pk }}">{{ p.name }}</option>{% endfor %}</optgroup>{% endif %}
+        <select class="form-select form-select-sm" style="max-width:20rem" name="other" required aria-label="{% translate 'Duplicate artist' %}">
+          <option value="">{% translate "Choose the duplicate…" %}</option>
+          {% if merge_similar %}<optgroup label="{% translate 'Similar names' %}">{% for p in merge_similar %}<option value="{{ p.pk }}">{{ p.name }}</option>{% endfor %}</optgroup>{% endif %}
+          {% if merge_rest %}<optgroup label="{% translate 'All artists' %}">{% for p in merge_rest %}<option value="{{ p.pk }}">{{ p.name }}</option>{% endfor %}</optgroup>{% endif %}
         </select>
-        <button class="btn btn-sm btn-warning" type="submit">Merge into {{ artist.name }}</button>
+        <button class="btn btn-sm btn-warning" type="submit">{% blocktranslate with name=artist.name %}Merge into {{ name }}{% endblocktranslate %}</button>
       </form>
     </details>{% endif %}
-    {% if avg_rating %}<div><span class="stars">{{ avg_rating|stars }}</span> <span class="small text-body-secondary">{{ avg_rating|avg_stars }} average from {{ log_count }} time{{ log_count|pluralize }} seen</span></div>{% endif %}
-    <div class="my-2" style="max-width:24rem">{% rating_histogram act_logs "Ratings of this act" True %}</div>
+    {% if avg_rating %}<div><span class="stars">{{ avg_rating|stars }}</span> <span class="small text-body-secondary">{% blocktranslate count counter=log_count with average=avg_rating|avg_stars %}{{ average }} average from {{ counter }} time seen{% plural %}{{ average }} average from {{ counter }} times seen{% endblocktranslate %}</span></div>{% endif %}
+    <div class="my-2" style="max-width:24rem">{% rating_histogram act_logs _("Ratings of this act") True %}</div>
     {% if artist.bio %}<p class="mt-2">{{ artist.bio|linebreaksbr }}</p>{% endif %}
   </div>
   {% if tours %}
     {# Beside the profile (top right) instead of below it, so the header doesn't leave empty space. #}
     <div class="artist-tours flex-shrink-0">
-      <h2 class="section-title mb-2">Tours</h2>
+      <h2 class="section-title mb-2">{% translate "Tours" %}</h2>
       <ul class="list-unstyled mb-0">{% for t in tours %}<li class="py-1"><a href="{{ t.get_absolute_url }}">{{ t.title }}</a></li>{% endfor %}</ul>
     </div>
   {% endif %}
@@ -62,22 +63,26 @@
   {% if user.is_authenticated %}
     {# Only the shows the signed-in user logged (and saw this act at): songs, albums and events all follow. #}
     <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
-      <div class="btn-group btn-group-sm" role="group" aria-label="Which shows">
-        <a class="btn btn-outline-secondary{% if not seen_by %} active{% endif %}" href="{{ all_shows_url }}"{% if not seen_by %} aria-current="page"{% endif %}>All shows</a>
+      <div class="btn-group btn-group-sm" role="group" aria-label="{% translate 'Which shows' %}">
+        <a class="btn btn-outline-secondary{% if not seen_by %} active{% endif %}" href="{{ all_shows_url }}"{% if not seen_by %} aria-current="page"{% endif %}>{% translate "All shows" %}</a>
         {% if my_show_count %}
-          <a class="btn btn-outline-secondary{% if seen_by == user %} active{% endif %}" href="{{ my_shows_url }}"{% if seen_by == user %} aria-current="page"{% endif %}>Shows I saw ({{ my_show_count }})</a>
+          <a class="btn btn-outline-secondary{% if seen_by == user %} active{% endif %}" href="{{ my_shows_url }}"{% if seen_by == user %} aria-current="page"{% endif %}>{% blocktranslate with n=my_show_count %}Shows I saw ({{ n }}){% endblocktranslate %}</a>
         {% else %}
-          <span class="btn btn-outline-secondary disabled" aria-disabled="true">Shows I saw (0)</span>
+          <span class="btn btn-outline-secondary disabled" aria-disabled="true">{% blocktranslate with n=0 %}Shows I saw ({{ n }}){% endblocktranslate %}</span>
         {% endif %}
       </div>
-      {% if not my_show_count %}<span class="small text-body-secondary">Log a show of theirs to see only what you heard.</span>{% endif %}
+      {% if not my_show_count %}<span class="small text-body-secondary">{% translate "Log a show of theirs to see only what you heard." %}</span>{% endif %}
     </div>
   {% endif %}
   {% if seen_by and seen_by != user %}
     <div class="alert alert-secondary d-flex flex-wrap justify-content-between align-items-center gap-2 py-2">
-      <span><a href="{% url 'events:profile' seen_by.get_username %}">@{{ seen_by.get_username }}</a> has seen {{ artist.name }}
-        <strong>{{ events|length }} time{{ events|length|pluralize }}</strong></span>
-      <a class="small" href="{{ request.path }}">Show all events</a>
+      {% url 'events:profile' seen_by.get_username as seen_by_url %}
+      <span>{% blocktranslate trimmed count counter=events|length with username=seen_by.get_username name=artist.name %}
+        <a href="{{ seen_by_url }}">@{{ username }}</a> has seen {{ name }} <strong>{{ counter }} time</strong>
+      {% plural %}
+        <a href="{{ seen_by_url }}">@{{ username }}</a> has seen {{ name }} <strong>{{ counter }} times</strong>
+      {% endblocktranslate %}</span>
+      <a class="small" href="{{ request.path }}">{% translate "Show all events" %}</a>
     </div>
   {% endif %}
   {% if top_songs or album_chart or can_fix_albums or pending %}
@@ -85,38 +90,38 @@
     <div class="row g-4 mb-4">
       <div class="col-12 col-md-6">
         <div class="d-flex justify-content-between align-items-end mb-2">
-          <h2 class="section-title flex-grow-1 m-0">Most played songs{% if seen_by == user %} you heard{% elif seen_by %} they heard{% endif %}</h2>
-          {% if top_songs %}<a class="small ms-2 text-nowrap" href="{% url 'events:artist_songs' artist.pk %}{% if seen_by %}?seen_by={{ seen_q }}{% endif %}">All songs →</a>{% endif %}
+          <h2 class="section-title flex-grow-1 m-0">{% if seen_by == user %}{% translate "Most played songs you heard" %}{% elif seen_by %}{% translate "Most played songs they heard" %}{% else %}{% translate "Most played songs" %}{% endif %}</h2>
+          {% if top_songs %}<a class="small ms-2 text-nowrap" href="{% url 'events:artist_songs' artist.pk %}{% if seen_by %}?seen_by={{ seen_q }}{% endif %}">{% translate "All songs →" %}</a>{% endif %}
         </div>
         <ol class="list-unstyled mb-0">
           {% for s in top_songs %}
             <li class="d-flex justify-content-between gap-2 py-1 border-bottom border-secondary-subtle">
               <span class="text-truncate">{{ s.song__title }}{% if s.song__album_title %} <span class="small text-body-secondary">{{ s.song__album_title }}</span>{% endif %}</span>
-              <span class="small text-body-secondary text-nowrap"><span title="Played at {{ s.n }} of the {{ s.of }} show{{ s.of|pluralize }} since it came out">{{ s.n }} / {{ s.of }}</span></span>
+              <span class="small text-body-secondary text-nowrap"><span title="{% blocktranslate count counter=s.of with n=s.n %}Played at {{ n }} of the {{ counter }} show since it came out{% plural %}Played at {{ n }} of the {{ counter }} shows since it came out{% endblocktranslate %}">{{ s.n }} / {{ s.of }}</span></span>
             </li>
-          {% empty %}<li class="small text-body-secondary">No setlists yet.</li>{% endfor %}
+          {% empty %}<li class="small text-body-secondary">{% translate "No setlists yet." %}</li>{% endfor %}
         </ol>
       </div>
       <div class="col-12 col-md-6">
         <div class="d-flex justify-content-between align-items-end mb-2">
-          <h2 class="section-title flex-grow-1 m-0">Albums{% if seen_by == user %} you heard{% elif seen_by %} they heard{% endif %}</h2>
-          {% if album_chart %}<a class="small ms-2 text-nowrap" href="{% url 'events:artist_songs' artist.pk %}?tab=albums{% if seen_by %}&seen_by={{ seen_q }}{% endif %}">All albums →</a>{% endif %}
+          <h2 class="section-title flex-grow-1 m-0">{% if seen_by == user %}{% translate "Albums you heard" %}{% elif seen_by %}{% translate "Albums they heard" %}{% else %}{% translate "Albums" %}{% endif %}</h2>
+          {% if album_chart %}<a class="small ms-2 text-nowrap" href="{% url 'events:artist_songs' artist.pk %}?tab=albums{% if seen_by %}&seen_by={{ seen_q }}{% endif %}">{% translate "All albums →" %}</a>{% endif %}
         </div>
-        {% if top_albums %}<div class="small text-body-secondary mb-2">{% if album_by == "songs" %}Most songs played{% else %}Most played{% endif %}{% if top_albums|length > 1 %} (tied){% endif %}: {% for a in top_albums %}<strong class="text-body">{{ a.title }}</strong>{% if a.year %} ({{ a.year }}){% endif %}{% if not forloop.last %}, {% endif %}{% endfor %} · {% with t=top_albums.0 %}{% if album_by == "songs" %}{{ t.songs }} song{{ t.songs|pluralize }}{% else %}{{ t.n }} play{{ t.n|pluralize }}{% endif %}{% endwith %}{% if top_albums|length > 1 %} each{% endif %}</div>{% endif %}
+        {% if top_albums %}<div class="small text-body-secondary mb-2">{% if album_by == "songs" %}{% if top_albums|length > 1 %}{% translate "Most songs played (tied):" %}{% else %}{% translate "Most songs played:" %}{% endif %}{% else %}{% if top_albums|length > 1 %}{% translate "Most played (tied):" %}{% else %}{% translate "Most played:" %}{% endif %}{% endif %} {% for a in top_albums %}<strong class="text-body">{{ a.title }}</strong>{% if a.year %} ({{ a.year }}){% endif %}{% if not forloop.last %}, {% endif %}{% endfor %} · {% with t=top_albums.0 %}{% if album_by == "songs" %}{% if top_albums|length > 1 %}{% blocktranslate count counter=t.songs %}{{ counter }} song each{% plural %}{{ counter }} songs each{% endblocktranslate %}{% else %}{% blocktranslate count counter=t.songs %}{{ counter }} song{% plural %}{{ counter }} songs{% endblocktranslate %}{% endif %}{% else %}{% if top_albums|length > 1 %}{% blocktranslate count counter=t.n %}{{ counter }} play each{% plural %}{{ counter }} plays each{% endblocktranslate %}{% else %}{% blocktranslate count counter=t.n %}{{ counter }} play{% plural %}{{ counter }} plays{% endblocktranslate %}{% endif %}{% endif %}{% endwith %}</div>{% endif %}
         {% if album_chart or skip_empty %}
           {% include "events/_album_chart.html" with rows=album_chart unit="play" keep=album_keep %}
         {% for chart in band_charts %}
           <div class="mt-3">
-            <div class="small text-body-secondary mb-1">As a member of <a href="{{ chart.band.get_absolute_url }}">{{ chart.band.name }}</a></div>
+            <div class="small text-body-secondary mb-1">{% translate "As a member of" %} <a href="{{ chart.band.get_absolute_url }}">{{ chart.band.name }}</a></div>
             {% include "events/_album_chart.html" with rows=chart.rows top=None unit="play" keep=None hide_controls=True %}
           </div>
         {% endfor %}
         {% else %}
-          <p class="small text-body-secondary mb-0">No albums yet. They're found when setlist pages are opened{% if can_fix_albums %}, or add them below{% endif %}.</p>
+          <p class="small text-body-secondary mb-0">{% if can_fix_albums %}{% translate "No albums yet. They're found when setlist pages are opened, or add them below." %}{% else %}{% translate "No albums yet. They're found when setlist pages are opened." %}{% endif %}</p>
         {% endif %}
         {% include "events/_album_lookup.html" %}
-        {% if can_fix_albums %}<button class="btn btn-sm btn-outline-secondary mt-2" type="button" data-bs-toggle="modal" data-bs-target="#artistAlbumsModal">Manage albums</button>
-        <a class="btn btn-sm btn-outline-secondary mt-2" href="{% url 'events:artist_songs_manage' artist.pk %}">Manage songs</a>{% endif %}
+        {% if can_fix_albums %}<button class="btn btn-sm btn-outline-secondary mt-2" type="button" data-bs-toggle="modal" data-bs-target="#artistAlbumsModal">{% translate "Manage albums" %}</button>
+        <a class="btn btn-sm btn-outline-secondary mt-2" href="{% url 'events:artist_songs_manage' artist.pk %}">{% translate "Manage songs" %}</a>{% endif %}
       </div>
     </div>
     {% endwith %}
@@ -125,25 +130,25 @@
   {% if can_fix_albums %}
   <div class="modal fade" id="artistAlbumsModal" tabindex="-1" aria-labelledby="artistAlbumsTitle" aria-hidden="true">
     <div class="modal-dialog modal-dialog-scrollable"><div class="modal-content">
-      <div class="modal-header"><h2 class="modal-title h5" id="artistAlbumsTitle">{{ artist.name }}'s albums</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+      <div class="modal-header"><h2 class="modal-title h5" id="artistAlbumsTitle">{% blocktranslate with name=artist.name %}{{ name }}'s albums{% endblocktranslate %}</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{% translate 'Close' %}"></button></div>
       <div class="modal-body">
-        <p class="small text-body-secondary">Albums listed here show in the charts even when no song from them was played.</p>
+        <p class="small text-body-secondary">{% translate "Albums listed here show in the charts even when no song from them was played." %}</p>
         <ul class="list-unstyled mb-3">
           {% for album in artist_albums %}
             <li class="d-flex justify-content-between align-items-center py-1 border-bottom border-secondary-subtle">
               <span>{{ album.title }}{% if album.year %} <span class="small text-body-secondary">{{ album.year }}</span>{% endif %}</span>
-              <form method="post" action="{% url 'events:artist_albums_edit' artist.pk %}" data-confirm="Remove {{ album.title }} from {{ artist.name }}'s albums? Songs keep their album name.">
+              <form method="post" action="{% url 'events:artist_albums_edit' artist.pk %}" data-confirm="{% blocktranslate with album=album.title name=artist.name %}Remove {{ album }} from {{ name }}'s albums? Songs keep their album name.{% endblocktranslate %}">
                 {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}#manage-albums"><input type="hidden" name="delete" value="{{ album.pk }}">
-                <button class="btn btn-link btn-sm text-danger p-0" type="submit">Remove</button>
+                <button class="btn btn-link btn-sm text-danger p-0" type="submit">{% translate "Remove" %}</button>
               </form>
             </li>
-          {% empty %}<li class="small text-body-secondary">No albums yet.</li>{% endfor %}
+          {% empty %}<li class="small text-body-secondary">{% translate "No albums yet." %}</li>{% endfor %}
         </ul>
         <form method="post" action="{% url 'events:artist_albums_edit' artist.pk %}" class="row g-2 align-items-end">
           {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}#manage-albums">
-          <div class="col-8"><label class="form-label small" for="new-album-title">Add an album</label><input class="form-control form-control-sm" id="new-album-title" name="title" maxlength="240" required placeholder="Album title"></div>
-          <div class="col-4"><label class="form-label small" for="new-album-year">Year</label><input class="form-control form-control-sm" id="new-album-year" name="year" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" placeholder="e.g. 1994"></div>
-          <div class="col-12 text-end"><button class="btn btn-sm btn-success" type="submit">Add album</button></div>
+          <div class="col-8"><label class="form-label small" for="new-album-title">{% translate "Add an album" %}</label><input class="form-control form-control-sm" id="new-album-title" name="title" maxlength="240" required placeholder="{% translate 'Album title' %}"></div>
+          <div class="col-4"><label class="form-label small" for="new-album-year">{% translate "Year" %}</label><input class="form-control form-control-sm" id="new-album-year" name="year" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" placeholder="{% translate 'e.g. 1994' %}"></div>
+          <div class="col-12 text-end"><button class="btn btn-sm btn-success" type="submit">{% translate "Add album" %}</button></div>
         </form>
       </div>
     </div></div>
@@ -162,7 +167,7 @@
   </script>
   {% endif %}
 
-  <h2 class="section-title mb-3">Events{% if seen_by == user %} you saw{% elif seen_by %} they saw{% endif %}</h2>
+  <h2 class="section-title mb-3">{% if seen_by == user %}{% translate "Events you saw" %}{% elif seen_by %}{% translate "Events they saw" %}{% else %}{% translate "Events" %}{% endif %}</h2>
   {% if events %}
     <div class="row row-cols-2 row-cols-sm-3 row-cols-lg-6 g-3">
       {% for event in events %}<div class="col">
@@ -171,6 +176,6 @@
       </div>{% endfor %}
     </div>
   {% else %}
-    <p class="text-body-secondary">No events yet.</p>
+    <p class="text-body-secondary">{% translate "No events yet." %}</p>
   {% endif %}
 {% endblock %}

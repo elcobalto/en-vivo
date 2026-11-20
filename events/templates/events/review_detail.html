@@ -1,7 +1,7 @@
 {% extends "base.html" %}
-{% load event_extras social %}
+{% load i18n event_extras social %}
 
-{% block title %}{{ log.user|display_name }}'s review of {{ log.event.title }} · En Vivo{% endblock %}
+{% block title %}{% blocktranslate with name=log.user|display_name title=log.event.title %}{{ name }}'s review of {{ title }}{% endblocktranslate %} · En Vivo{% endblock %}
 
 {% block content %}
   <div class="row g-4">
@@ -13,7 +13,7 @@
     <div class="col-12 col-md-8">
       <div class="d-flex align-items-center gap-2 mb-2">
         {% avatar log.user 28 %}
-        <span class="small">Review by <a class="fw-semibold" href="{% url 'events:profile' log.user.get_username %}">{{ log.user|display_name }}</a></span>
+        <span class="small">{% translate "Review by" %} <a class="fw-semibold" href="{% url 'events:profile' log.user.get_username %}">{{ log.user|display_name }}</a></span>
       </div>
       <h1 class="h4 fw-bold mb-0"><a class="text-decoration-none" href="{{ log.event.get_absolute_url }}">{{ log.event.title }}</a></h1>
       <div class="small text-body-secondary mb-2">
@@ -21,20 +21,20 @@
       </div>
       <div class="mb-3">
         {% if log.rating %}<span class="stars fs-5">{{ log.rating|stars }}</span>{% endif %}
-        {% if log.liked %}<span class="liked ms-1 fs-5" title="Liked">♥</span>{% endif %}
+        {% if log.liked %}<span class="liked ms-1 fs-5" title="{% translate 'Liked' %}">♥</span>{% endif %}
       </div>
       {% if log.review %}
         {% if log.contains_spoilers %}
-          <details><summary class="text-warning">This review contains spoilers</summary><div class="mt-2 fs-6">{{ log.review|linebreaksbr }}</div></details>
+          <details><summary class="text-warning">{% translate "This review contains spoilers" %}</summary><div class="mt-2 fs-6">{{ log.review|linebreaksbr }}</div></details>
         {% else %}
           <div class="fs-6">{{ log.review|linebreaksbr }}</div>
         {% endif %}
       {% else %}
-        <p class="text-body-secondary">No written review.</p>
+        <p class="text-body-secondary">{% translate "No written review." %}</p>
       {% endif %}
 
       {% if acts or missed %}
-        <h2 class="section-title mt-4 mb-2">Acts seen</h2>
+        <h2 class="section-title mt-4 mb-2">{% translate "Acts seen" %}</h2>
         <ul class="list-unstyled mb-0">
           {% for act in acts %}
             <li class="d-flex align-items-baseline gap-2 py-1">
@@ -44,31 +44,31 @@
             </li>
           {% endfor %}
         </ul>
-        {% if missed %}<div class="small text-body-secondary mt-1">Didn't see: {% for link in missed %}{{ link.artist.name }}{% if not forloop.last %}, {% endif %}{% endfor %}</div>{% endif %}
+        {% if missed %}<div class="small text-body-secondary mt-1">{% translate "Didn't see:" %} {% for link in missed %}{{ link.artist.name }}{% if not forloop.last %}, {% endif %}{% endfor %}</div>{% endif %}
       {% endif %}
 
       <div class="d-flex align-items-center gap-3 mt-3">
         {% if user.is_authenticated %}
           <form method="post" action="{% url 'events:review_like_toggle' log.pk %}">
             {% csrf_token %}
-            <button class="btn btn-sm {% if liked %}btn-danger{% else %}btn-outline-danger{% endif %}" type="submit">♥ {% if liked %}Liked{% else %}Like review{% endif %}</button>
+            <button class="btn btn-sm {% if liked %}btn-danger{% else %}btn-outline-danger{% endif %}" type="submit">♥ {% if liked %}{% translate "Liked" %}{% else %}{% translate "Like review" %}{% endif %}</button>
           </form>
         {% endif %}
-        <span class="small text-body-secondary">{{ log.like_count }} like{{ log.like_count|pluralize }}</span>
+        <span class="small text-body-secondary">{% blocktranslate count counter=log.like_count %}{{ counter }} like{% plural %}{{ counter }} likes{% endblocktranslate %}</span>
         {% if likers %}<span class="d-flex gap-1">{% for u in likers %}<a href="{% url 'events:profile' u.get_username %}" title="{{ u|display_name }}">{% avatar u 22 %}</a>{% endfor %}</span>{% endif %}
       </div>
 
-      <h2 class="section-title mt-5 mb-1">{{ log.comment_count }} repl{{ log.comment_count|pluralize:"y,ies" }}</h2>
+      <h2 class="section-title mt-5 mb-1">{% blocktranslate count counter=log.comment_count %}{{ counter }} reply{% plural %}{{ counter }} replies{% endblocktranslate %}</h2>
       {% for comment in comments %}
         <div class="d-flex gap-2 py-3 border-bottom border-secondary-subtle">
           {% avatar comment.user 28 %}
           <div class="flex-grow-1">
-            <div class="small"><a class="fw-semibold" href="{% url 'events:profile' comment.user.get_username %}">{{ comment.user|display_name }}</a> <span class="text-body-secondary">· {{ comment.created_at|timesince }} ago</span></div>
+            <div class="small"><a class="fw-semibold" href="{% url 'events:profile' comment.user.get_username %}">{{ comment.user|display_name }}</a> <span class="text-body-secondary">· {% blocktranslate with time=comment.created_at|timesince %}{{ time }} ago{% endblocktranslate %}</span></div>
             <div>{{ comment.body|linebreaksbr }}</div>
           </div>
           {% if user.pk == comment.user_id or user.pk == log.user_id %}
             <form method="post" action="{% url 'events:comment_delete' log.pk comment.pk %}">
-              {% csrf_token %}<button class="btn btn-sm btn-link text-danger p-0" type="submit" title="Delete reply" aria-label="Delete reply">×</button>
+              {% csrf_token %}<button class="btn btn-sm btn-link text-danger p-0" type="submit" title="{% translate 'Delete reply' %}" aria-label="{% translate 'Delete reply' %}">×</button>
             </form>
           {% endif %}
         </div>
@@ -78,10 +78,10 @@
         <form method="post" action="{% url 'events:comment_add' log.pk %}" class="mt-3">
           {% csrf_token %}
           {{ comment_form.body }}
-          <button class="btn btn-sm btn-success mt-2" type="submit">Post reply</button>
+          <button class="btn btn-sm btn-success mt-2" type="submit">{% translate "Post reply" %}</button>
         </form>
       {% else %}
-        <p class="small mt-3"><a href="{% url 'login' %}?next={{ request.path|urlencode }}">Log in</a> to reply.</p>
+        {% url 'login' as login_url %}{% with next=request.path|urlencode %}<p class="small mt-3">{% blocktranslate %}<a href="{{ login_url }}?next={{ next }}">Log in</a> to reply.{% endblocktranslate %}</p>{% endwith %}
       {% endif %}
     </div>
   </div>

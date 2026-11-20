@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load event_extras %}
+{% load i18n event_extras %}
 
 {% block title %}{{ event.title }} · En Vivo{% endblock %}
 
@@ -21,14 +21,14 @@
     <div class="event-photo">
       {% if event.display_image %}
         {# Full photo in its own proportions (cards elsewhere crop to a uniform poster shape). #}
-        <a href="{{ event.display_image }}" target="_blank" rel="noreferrer" title="Open full size">
+        <a href="{{ event.display_image }}" target="_blank" rel="noreferrer" title="{% translate 'Open full size' %}">
           <img class="event-photo" src="{{ event.display_image }}" alt="{{ event.title }}" referrerpolicy="no-referrer" />
         </a>
       {% else %}
         <div class="poster position-relative">
           {% if can_edit %}
             <a class="poster-placeholder text-decoration-none flex-column gap-1" href="{% url 'events:event_photo' event.pk %}">
-              <span class="fs-4">＋</span><span>Find photo</span>
+              <span class="fs-4">＋</span><span>{% translate "Find photo" %}</span>
             </a>
           {% else %}<div class="poster-placeholder">{{ event.get_event_type_display }}</div>{% endif %}
         </div>
@@ -42,23 +42,23 @@
         {% if event.venue %}
           <a class="link-secondary link-underline-opacity-0 link-underline-opacity-75-hover" href="{{ event.venue.get_absolute_url }}">{{ event.venue.name }}</a>{% if event.venue.city %}, {{ event.venue.city }}{% endif %}
         {% else %}
-          <span class="fst-italic opacity-50">Venue not added</span>
+          <span class="fst-italic opacity-50">{% translate "Venue not added" %}</span>
         {% endif %}
         <span class="opacity-50 mx-1">·</span>
         {% if event.date %}
-          {{ event.date|date:"j F Y" }}
+          {{ event.date|date:_("j F Y") }}
         {% else %}
-          <span class="fst-italic opacity-50">Date not added</span>
+          <span class="fst-italic opacity-50">{% translate "Date not added" %}</span>
         {% endif %}
         {% if can_edit and not event.venue or can_edit and not event.date %}
-          <a class="small ms-2" href="{% url 'events:event_edit' event.pk %}">Add {% if not event.venue %}venue{% if not event.date %} &amp; date{% endif %}{% else %}date{% endif %}</a>
+          <a class="small ms-2" href="{% url 'events:event_edit' event.pk %}">{% if not event.venue %}{% if not event.date %}{% translate "Add venue &amp; date" %}{% else %}{% translate "Add venue" %}{% endif %}{% else %}{% translate "Add date" %}{% endif %}</a>
         {% endif %}
       </div>
-      {% if event.play %}<p class="small mb-2">Staging of <a href="{{ event.play.get_absolute_url }}">{{ event.play.title }}</a></p>{% endif %}
-      <h2 class="section-title mt-3 mb-2">{% if event.event_type == "theater" %}Cast{% else %}Lineup{% endif %}</h2>
+      {% if event.play %}<p class="small mb-2">{% translate "Staging of" %} <a href="{{ event.play.get_absolute_url }}">{{ event.play.title }}</a></p>{% endif %}
+      <h2 class="section-title mt-3 mb-2">{% if event.event_type == "theater" %}{% translate "Cast" %}{% else %}{% translate "Lineup" %}{% endif %}</h2>
       {% if credits %}
         <p class="small mb-2">
-          {% for link in credits %}{% if link.role == "author" %}Written by{% else %}Directed by{% endif %}
+          {% for link in credits %}{% if link.role == "author" %}{% translate "Written by" %}{% else %}{% translate "Directed by" %}{% endif %}
             <a href="{{ link.artist.get_absolute_url }}">{{ link.artist.name }}</a>{% if not forloop.last %} · {% endif %}{% endfor %}
         </p>
       {% endif %}
@@ -69,56 +69,56 @@
             <li class="d-flex align-items-baseline gap-2 py-1 border-bottom border-secondary-subtle">
               <span class="event-date" style="min-width:3.2rem">{% if link.start_time %}{{ link.start_time|time:"H:i" }}{% endif %}</span>
               <span class="flex-grow-1"><a href="{{ link.artist.get_absolute_url }}">{{ link.artist.name }}</a> <span class="small text-body-secondary">{{ link.get_role_display }}{% if link.production %} · <a class="link-secondary" href="{{ link.production.get_absolute_url }}">{{ link.production.title }}</a>{% endif %}</span></span>
-              {% for setlist in row.setlists %}<a class="small text-nowrap" href="{% url 'events:act_setlist' event.pk link.artist_id %}">Setlist · {{ setlist.song_count }} song{{ setlist.song_count|pluralize }} →</a>{% endfor %}
-              {% if row.avg %}<span class="stars small" title="Average from {{ row.seen_by }} who saw them">{{ row.avg|stars }}</span>{% endif %}
+              {% for setlist in row.setlists %}<a class="small text-nowrap" href="{% url 'events:act_setlist' event.pk link.artist_id %}">{% blocktranslate count counter=setlist.song_count %}Setlist · {{ counter }} song →{% plural %}Setlist · {{ counter }} songs →{% endblocktranslate %}</a>{% endfor %}
+              {% if row.avg %}<span class="stars small" title="{% blocktranslate count counter=row.seen_by %}Average from {{ counter }} who saw them{% plural %}Average from {{ counter }} who saw them{% endblocktranslate %}">{{ row.avg|stars }}</span>{% endif %}
             </li>
           {% endwith %}{% endfor %}
         </ul>
       {% else %}
-        {% if not credits %}<p class="small text-body-secondary">No artists added yet.</p>{% endif %}
+        {% if not credits %}<p class="small text-body-secondary">{% translate "No artists added yet." %}</p>{% endif %}
       {% endif %}
-      {% if event.event_type == "festival" and can_edit %}<a class="small" href="{% url 'events:festival_add_artists' event.pk %}">+ Add artists who played {% if event.venue %}here{% else %}this festival{% endif %} that day</a>{% endif %}
+      {% if event.event_type == "festival" and can_edit %}<a class="small" href="{% url 'events:festival_add_artists' event.pk %}">{% if event.venue %}{% translate "+ Add artists who played here that day" %}{% else %}{% translate "+ Add artists who played this festival that day" %}{% endif %}</a>{% endif %}
     </div>
 
     <div class="event-rest">
       {% if event.production %}
-        <p class="small">Part of the festival <a class="fw-semibold" href="{{ event.production.get_absolute_url }}">{{ event.production.title }}</a></p>
+        <p class="small">{% translate "Part of the festival" %} <a class="fw-semibold" href="{{ event.production.get_absolute_url }}">{{ event.production.title }}</a></p>
       {% endif %}
       {% if event.description %}<p>{{ event.description|linebreaksbr }}</p>{% endif %}
 
       {% if other_setlists %}
-        <p class="small">Other setlists:
+        <p class="small">{% translate "Other setlists:" %}
           {% for setlist in other_setlists %}<a href="{% url 'events:act_setlist' event.pk setlist.artist_id %}">{{ setlist.artist.name }}</a>{% if not forloop.last %} · {% endif %}{% endfor %}
         </p>
       {% endif %}
 
       <div class="d-flex justify-content-between align-items-end mt-4 mb-2" id="videos">
-        <h2 class="section-title flex-grow-1 m-0">Videos</h2>
-        {% if video_count > latest_videos|length %}<a class="small ms-2" href="{% url 'events:event_videos' event.pk %}">See all {{ video_count }} videos →</a>
-        {% elif user.is_authenticated %}<a class="small ms-2" href="{% url 'events:event_videos' event.pk %}">{% if video_count %}All videos · add one{% else %}Add a video{% endif %} →</a>{% endif %}
+        <h2 class="section-title flex-grow-1 m-0">{% translate "Videos" %}</h2>
+        {% if video_count > latest_videos|length %}<a class="small ms-2" href="{% url 'events:event_videos' event.pk %}">{% blocktranslate %}See all {{ video_count }} videos →{% endblocktranslate %}</a>
+        {% elif user.is_authenticated %}<a class="small ms-2" href="{% url 'events:event_videos' event.pk %}">{% if video_count %}{% translate "All videos · add one →" %}{% else %}{% translate "Add a video →" %}{% endif %}</a>{% endif %}
       </div>
       {% if latest_videos %}
         <div class="row row-cols-1 row-cols-md-2 g-2 mb-3">
           {% for v in latest_videos %}
             <div class="col">
               <div class="ratio ratio-16x9 rounded overflow-hidden">
-                <iframe src="{{ v.embed_url }}" title="{{ v.title|default:'YouTube video' }}" loading="lazy"
+                <iframe src="{{ v.embed_url }}" title="{% if v.title %}{{ v.title }}{% else %}{% translate 'YouTube video' %}{% endif %}" loading="lazy"
                         allow="accelerometer; encrypted-media; gyroscope; picture-in-picture; fullscreen" allowfullscreen
                         referrerpolicy="strict-origin-when-cross-origin"></iframe>
               </div>
               <div class="small text-truncate mt-1">
-                <span class="text-body-secondary">{% if v.artist %}{{ v.artist.name }}{% else %}Whole event{% endif %} ·</span>
-                <a href="{{ v.watch_url }}" target="_blank" rel="noreferrer">{{ v.title|default:"Watch on YouTube" }}</a>
+                <span class="text-body-secondary">{% if v.artist %}{{ v.artist.name }}{% else %}{% translate "Whole event" %}{% endif %} ·</span>
+                <a href="{{ v.watch_url }}" target="_blank" rel="noreferrer">{% if v.title %}{{ v.title }}{% else %}{% translate "Watch on YouTube" %}{% endif %}</a>
               </div>
             </div>
           {% endfor %}
         </div>
       {% else %}
-        <p class="small text-body-secondary">No videos yet.</p>
+        <p class="small text-body-secondary">{% translate "No videos yet." %}</p>
       {% endif %}
 
-      <h2 class="section-title mt-4 mb-1">Reviews</h2>
-      {% for log in reviews %}{% include "events/_review.html" %}{% empty %}<p class="small text-body-secondary mt-2">No reviews yet.</p>{% endfor %}
+      <h2 class="section-title mt-4 mb-1">{% translate "Reviews" %}</h2>
+      {% for log in reviews %}{% include "events/_review.html" %}{% empty %}<p class="small text-body-secondary mt-2">{% translate "No reviews yet." %}</p>{% endfor %}
     </div>
 
     <div class="event-side">
@@ -128,82 +128,82 @@
             <div class="display-6 fw-bold">{{ event.avg_rating|avg_stars }}</div>
             <div class="stars">{{ event.avg_rating|stars }}</div>
           {% else %}
-            <div class="text-body-secondary small">No ratings yet</div>
+            <div class="text-body-secondary small">{% translate "No ratings yet" %}</div>
           {% endif %}
-          <div class="small text-body-secondary mt-1">{{ event.log_count }} log{{ event.log_count|pluralize }}</div>
-          <div class="mt-3 text-start">{% rating_histogram event.logs.all %}</div>
+          <div class="small text-body-secondary mt-1">{% blocktranslate count counter=event.log_count %}{{ counter }} log{% plural %}{{ counter }} logs{% endblocktranslate %}</div>
+          <div class="mt-3 text-start">{% rating_histogram event.logs.all _("Ratings") %}</div>
         </div>
       </div>
 
       {# Every action lives here; each one opens a modal before anything changes. #}
       <div class="card mb-3"><div class="card-body d-grid gap-2">
         {% if not event.has_happened %}
-          <div class="small text-body-secondary">Coming up: you can log and rate it from <span class="event-date">{{ event.date|date:"j M Y" }}</span>.</div>
+          <div class="small text-body-secondary">{% blocktranslate with date=event.date|date:"j M Y" %}Coming up: you can log and rate it from <span class="event-date">{{ date }}</span>.{% endblocktranslate %}</div>
           {% if my_log %}
-            <form method="post" action="{% url 'events:log_delete' event.pk %}" class="d-grid" data-confirm="Remove your early log of {{ event.title }}?" data-confirm-button="Remove" data-confirm-danger>
-              {% csrf_token %}<button class="btn btn-sm btn-outline-danger" type="submit">Remove your early log</button>
+            <form method="post" action="{% url 'events:log_delete' event.pk %}" class="d-grid" data-confirm="{% blocktranslate with title=event.title %}Remove your early log of {{ title }}?{% endblocktranslate %}" data-confirm-button="{% translate 'Remove' %}" data-confirm-danger>
+              {% csrf_token %}<button class="btn btn-sm btn-outline-danger" type="submit">{% translate "Remove your early log" %}</button>
             </form>
           {% endif %}
         {% elif user.is_authenticated %}
-          <button class="btn btn-success" type="button" data-bs-toggle="modal" data-bs-target="#logModal">{% if my_log %}✓ Logged · edit your log{% else %}Log{% endif %}</button>
+          <button class="btn btn-success" type="button" data-bs-toggle="modal" data-bs-target="#logModal">{% if my_log %}{% translate "✓ Logged · edit your log" %}{% else %}{% translate "Log" %}{% endif %}</button>
           {% if my_log %}
-            <form method="post" action="{% url 'events:log_delete' event.pk %}" class="d-grid" data-confirm="Remove {{ event.title }} from your diary? Your rating and review are deleted." data-confirm-button="Remove" data-confirm-danger>
-              {% csrf_token %}<button class="btn btn-sm btn-outline-danger" type="submit">Remove from diary</button>
+            <form method="post" action="{% url 'events:log_delete' event.pk %}" class="d-grid" data-confirm="{% blocktranslate with title=event.title %}Remove {{ title }} from your diary? Your rating and review are deleted.{% endblocktranslate %}" data-confirm-button="{% translate 'Remove' %}" data-confirm-danger>
+              {% csrf_token %}<button class="btn btn-sm btn-outline-danger" type="submit">{% translate "Remove from diary" %}</button>
             </form>
           {% endif %}
         {% else %}
-          <a class="btn btn-success" href="{% url 'login' %}?next={{ request.path|urlencode }}">Login to log this</a>
+          <a class="btn btn-success" href="{% url 'login' %}?next={{ request.path|urlencode }}">{% translate "Login to log this" %}</a>
         {% endif %}
 
         {% if user.is_authenticated %}
           {% if event.is_upcoming or wanted %}
             <form method="post" action="{% url 'events:want_to_go_toggle' event.pk %}" class="d-grid"
-                  data-confirm="{% if wanted %}Remove {{ event.title }} from your Want to go?{% else %}Add {{ event.title }} to your Want to go?{% endif %}">
+                  data-confirm="{% if wanted %}{% blocktranslate with title=event.title %}Remove {{ title }} from your Want to go?{% endblocktranslate %}{% else %}{% blocktranslate with title=event.title %}Add {{ title }} to your Want to go?{% endblocktranslate %}{% endif %}">
               {% csrf_token %}
-              <button class="btn btn-sm {% if wanted %}btn-info{% else %}btn-outline-info{% endif %}" type="submit">{% if not event.is_upcoming %}Remove from Want to go{% elif wanted %}✓ In your Want to go{% else %}+ Want to go{% endif %}</button>
+              <button class="btn btn-sm {% if wanted %}btn-info{% else %}btn-outline-info{% endif %}" type="submit">{% if not event.is_upcoming %}{% translate "Remove from Want to go" %}{% elif wanted %}{% translate "✓ In your Want to go" %}{% else %}{% translate "+ Want to go" %}{% endif %}</button>
             </form>
           {% endif %}
-          <button class="btn btn-sm btn-outline-light" type="button" data-bs-toggle="modal" data-bs-target="#listModal">Add to a list</button>
-          {% if event.is_music %}<a class="btn btn-sm btn-outline-secondary" href="{% url 'events:setlist_search' event.pk %}">Import setlist from setlist.fm</a>{% endif %}
+          <button class="btn btn-sm btn-outline-light" type="button" data-bs-toggle="modal" data-bs-target="#listModal">{% translate "Add to a list" %}</button>
+          {% if event.is_music %}<a class="btn btn-sm btn-outline-secondary" href="{% url 'events:setlist_search' event.pk %}">{% translate "Import setlist from setlist.fm" %}</a>{% endif %}
         {% endif %}
 
         {% if can_edit or can_make_festival or user|is_admin or can_delete %}<hr class="my-1">{% endif %}
         {% if can_edit %}
-          <a class="btn btn-sm {% if event.display_image %}btn-outline-secondary{% else %}btn-outline-warning{% endif %}" href="{% url 'events:event_photo' event.pk %}">{% if event.display_image %}Change photo{% else %}Find photo{% endif %}</a>
-          <a class="btn btn-sm btn-outline-secondary" href="{% url 'events:event_edit' event.pk %}">Edit event</a>
+          <a class="btn btn-sm {% if event.display_image %}btn-outline-secondary{% else %}btn-outline-warning{% endif %}" href="{% url 'events:event_photo' event.pk %}">{% if event.display_image %}{% translate "Change photo" %}{% else %}{% translate "Find photo" %}{% endif %}</a>
+          <a class="btn btn-sm btn-outline-secondary" href="{% url 'events:event_edit' event.pk %}">{% translate "Edit event" %}</a>
         {% endif %}
-        {% if can_make_festival %}<button class="btn btn-sm btn-outline-warning" type="button" data-bs-toggle="modal" data-bs-target="#festivalModal">Turn into festival</button>{% endif %}
-        {% if user|is_admin %}<button class="btn btn-sm btn-outline-warning" type="button" data-bs-toggle="modal" data-bs-target="#mergeModal">Merge a duplicate</button>{% endif %}
-        {% if can_delete %}<a class="btn btn-sm btn-outline-danger" href="{% url 'events:event_delete' event.pk %}">Delete event</a>{% endif %}
+        {% if can_make_festival %}<button class="btn btn-sm btn-outline-warning" type="button" data-bs-toggle="modal" data-bs-target="#festivalModal">{% translate "Turn into festival" %}</button>{% endif %}
+        {% if user|is_admin %}<button class="btn btn-sm btn-outline-warning" type="button" data-bs-toggle="modal" data-bs-target="#mergeModal">{% translate "Merge a duplicate" %}</button>{% endif %}
+        {% if can_delete %}<a class="btn btn-sm btn-outline-danger" href="{% url 'events:event_delete' event.pk %}">{% translate "Delete event" %}</a>{% endif %}
       </div></div>
 
       {% if festivals_same_day %}
         <div class="card border-warning mb-3"><div class="card-body py-3">
-          <div class="small text-warning mb-2">Admin</div>
+          <div class="small text-warning mb-2">{% translate "Admin" %}</div>
           {% for f in festivals_same_day %}
             <form method="post" action="{% url 'events:add_to_festival' event.pk %}" class="mb-2"
-                  data-confirm="Add {{ event.title|escapejs }} to {{ f.title|escapejs }}? This event merges into the festival day.">
+                  data-confirm="{% blocktranslate with title=event.title festival=f.title %}Add {{ title }} to {{ festival }}? This event merges into the festival day.{% endblocktranslate %}">
               {% csrf_token %}<input type="hidden" name="festival" value="{{ f.pk }}" />
-              <button class="btn btn-sm btn-warning" type="submit">Add to {{ f.title }}</button>
-              <span class="small text-body-secondary ms-1">{{ f.venue.name }}, same day</span>
+              <button class="btn btn-sm btn-warning" type="submit">{% blocktranslate with festival=f.title %}Add to {{ festival }}{% endblocktranslate %}</button>
+              <span class="small text-body-secondary ms-1">{% blocktranslate with venue=f.venue.name %}{{ venue }}, same day{% endblocktranslate %}</span>
             </form>
           {% endfor %}
         </div></div>
       {% endif %}
       {% if festival_suggestion %}
         <div class="card border-info mb-3"><div class="card-body py-3">
-          <div class="fw-semibold mb-1">Other festival days at {{ event.venue.name }}</div>
+          <div class="fw-semibold mb-1">{% blocktranslate with venue=event.venue.name %}Other festival days at {{ venue }}{% endblocktranslate %}</div>
           <p class="small mb-2">
             {% for d in festival_suggestion.days %}<a href="{{ d.get_absolute_url }}">{{ d.title }}</a> (<span class="event-date">{{ d.date|date:"j M" }}</span>){% if not forloop.last %}, {% endif %}{% endfor %}.
-            Same festival?
+            {% translate "Same festival?" %}
           </p>
-          <form method="post" action="{% url 'events:festival_group' event.pk %}" class="d-flex flex-wrap gap-2" data-confirm="Group these days as one festival?">
+          <form method="post" action="{% url 'events:festival_group' event.pk %}" class="d-flex flex-wrap gap-2" data-confirm="{% translate 'Group these days as one festival?' %}">
             {% csrf_token %}
             {% if festival_suggestion.existing %}
-              <button class="btn btn-sm btn-info" type="submit">Add them to “{{ festival_suggestion.existing.title }}”</button>
+              <button class="btn btn-sm btn-info" type="submit">{% blocktranslate with festival=festival_suggestion.existing.title %}Add them to “{{ festival }}”{% endblocktranslate %}</button>
             {% else %}
-              <input class="form-control form-control-sm" name="name" value="{{ festival_suggestion.name }}" aria-label="Festival name" placeholder="Festival name, e.g. Lollapalooza Chile" />
-              <button class="btn btn-sm btn-info" type="submit">Group as one festival</button>
+              <input class="form-control form-control-sm" name="name" value="{{ festival_suggestion.name }}" aria-label="{% translate 'Festival name' %}" placeholder="{% translate 'Festival name, e.g. Lollapalooza Chile' %}" />
+              <button class="btn btn-sm btn-info" type="submit">{% translate "Group as one festival" %}</button>
             {% endif %}
           </form>
         </div></div>
@@ -211,36 +211,37 @@
       {% for s in slot_suggestions %}
         <div class="card border-info mb-3">
           <div class="card-body py-3">
-            <div class="fw-semibold mb-1">Same venue, same day</div>
+            <div class="fw-semibold mb-1">{% translate "Same venue, same day" %}</div>
             <p class="small mb-2">
-              <a href="{{ s.other.get_absolute_url }}">{{ s.other.title }}</a> is also at {{ event.venue.name }} on
-              <span class="event-date">{{ event.date|date:"j M Y" }}</span>{% with acts=s.other.eventartist_set.all %}{% if acts %}
+              {% with other_url=s.other.get_absolute_url other=s.other.title venue=event.venue.name date=event.date|date:"j M Y" %}{% blocktranslate trimmed %}
+                <a href="{{ other_url }}">{{ other }}</a> is also at {{ venue }} on <span class="event-date">{{ date }}</span>
+              {% endblocktranslate %}{% endwith %}{% with acts=s.other.eventartist_set.all %}{% if acts %}
               ({% for link in acts %}{{ link.artist.name }}{% if not forloop.last %}, {% endif %}{% endfor %}){% endif %}{% endwith %}.
-              Is it the same show?
+              {% translate "Is it the same show?" %}
             </p>
             <div class="d-flex flex-wrap gap-2">
               {% if s.festival %}
-                <form method="post" action="{% url 'events:event_merge' event.pk %}" data-confirm="Merge both into one festival? Logs, reviews and setlists move to it.">
+                <form method="post" action="{% url 'events:event_merge' event.pk %}" data-confirm="{% translate 'Merge both into one festival? Logs, reviews and setlists move to it.' %}">
                   {% csrf_token %}<input type="hidden" name="other" value="{{ s.other.pk }}" /><input type="hidden" name="action" value="festival" />
-                  <button class="btn btn-sm btn-info" type="submit">Make it one festival</button>
+                  <button class="btn btn-sm btn-info" type="submit">{% translate "Make it one festival" %}</button>
                 </form>
               {% endif %}
               {% if s.this_supports_other %}
-                <form method="post" action="{% url 'events:event_merge' event.pk %}" data-confirm="Add {{ event.title|escapejs }} as the support act on {{ s.other.title|escapejs }}? This event merges into that one.">
+                <form method="post" action="{% url 'events:event_merge' event.pk %}" data-confirm="{% blocktranslate with title=event.title other=s.other.title %}Add {{ title }} as the support act on {{ other }}? This event merges into that one.{% endblocktranslate %}">
                   {% csrf_token %}<input type="hidden" name="other" value="{{ s.other.pk }}" /><input type="hidden" name="action" value="this_supports_other" />
-                  <button class="btn btn-sm btn-outline-info" type="submit">{{ event.title }} opened for {{ s.other.title }}</button>
+                  <button class="btn btn-sm btn-outline-info" type="submit">{% blocktranslate with title=event.title other=s.other.title %}{{ title }} opened for {{ other }}{% endblocktranslate %}</button>
                 </form>
               {% endif %}
               {% if s.other_supports_this %}
-                <form method="post" action="{% url 'events:event_merge' event.pk %}" data-confirm="Add {{ s.other.title|escapejs }} as the support act here? That event merges into this one.">
+                <form method="post" action="{% url 'events:event_merge' event.pk %}" data-confirm="{% blocktranslate with other=s.other.title %}Add {{ other }} as the support act here? That event merges into this one.{% endblocktranslate %}">
                   {% csrf_token %}<input type="hidden" name="other" value="{{ s.other.pk }}" /><input type="hidden" name="action" value="other_supports_this" />
-                  <button class="btn btn-sm btn-outline-info" type="submit">{{ s.other.title }} opened for {{ event.title }}</button>
+                  <button class="btn btn-sm btn-outline-info" type="submit">{% blocktranslate with title=s.other.title other=event.title %}{{ title }} opened for {{ other }}{% endblocktranslate %}</button>
                 </form>
               {% endif %}
               {% if s.can_dismiss %}
-                <form method="post" action="{% url 'events:event_separate' event.pk %}" data-confirm="Keep these as two separate shows? This suggestion won't be shown again.">
+                <form method="post" action="{% url 'events:event_separate' event.pk %}" data-confirm="{% translate "Keep these as two separate shows? This suggestion won't be shown again." %}">
                   {% csrf_token %}<input type="hidden" name="other" value="{{ s.other.pk }}" />
-                  <button class="btn btn-sm btn-link text-body-secondary" type="submit">Separate shows</button>
+                  <button class="btn btn-sm btn-link text-body-secondary" type="submit">{% translate "Separate shows" %}</button>
                 </form>
               {% endif %}
             </div>
@@ -249,11 +250,11 @@
       {% endfor %}
 
       <div class="small text-body-secondary mt-3">
-        {% if want_count %}<div>{{ want_count }} want{{ want_count|pluralize:"s," }} to go</div>{% endif %}
+        {% if want_count %}<div>{% blocktranslate count counter=want_count %}{{ counter }} wants to go{% plural %}{{ counter }} want to go{% endblocktranslate %}</div>{% endif %}
         {% if in_lists %}
-          <div class="mt-2">In {{ in_lists_count }} list{{ in_lists_count|pluralize }}:</div>
+          <div class="mt-2">{% blocktranslate count counter=in_lists_count %}In {{ counter }} list:{% plural %}In {{ counter }} lists:{% endblocktranslate %}</div>
           <ul class="list-unstyled mb-0">
-            {% for l in in_lists %}<li><a href="{{ l.get_absolute_url }}">{{ l.title }}</a> by {{ l.user.get_username }}</li>{% endfor %}
+            {% for l in in_lists %}<li><a href="{{ l.get_absolute_url }}">{{ l.title }}</a> {% translate "by" %} {{ l.user.get_username }}</li>{% endfor %}
           </ul>
         {% endif %}
       </div>
@@ -264,7 +265,7 @@
   {% if user.is_authenticated and event.has_happened %}
   <div class="modal fade" id="logModal" tabindex="-1" aria-labelledby="logModalTitle" aria-hidden="true">
     <div class="modal-dialog modal-dialog-scrollable"><div class="modal-content">
-      <div class="modal-header"><h2 class="modal-title h5" id="logModalTitle">{% if my_log %}Your log{% else %}I was there{% endif %} · {{ event.title }}</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+      <div class="modal-header"><h2 class="modal-title h5" id="logModalTitle">{% if my_log %}{% translate "Your log" %}{% else %}{% translate "I was there" %}{% endif %} · {{ event.title }}</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{% translate 'Close' %}"></button></div>
       <div class="modal-body">
             <form method="post" action="{% url 'events:log_save' event.pk %}">
               {% csrf_token %}
@@ -272,7 +273,7 @@
               <div class="form-check mb-2">{{ log_form.liked }} <label class="form-check-label" for="{{ log_form.liked.id_for_label }}">{{ log_form.liked.label }}</label></div>
               {% if act_rows %}
                 <input type="hidden" name="acts_submitted" value="1" />
-                <div class="small text-body-secondary mb-1">Acts you saw</div>
+                <div class="small text-body-secondary mb-1">{% translate "Acts you saw" %}</div>
                 <div class="border rounded border-secondary-subtle p-2 mb-2">
                   {% for row in act_rows %}{% with pid=row.link.artist_id %}
                     <div class="{% if not forloop.last %}mb-2 pb-2 border-bottom border-secondary-subtle{% endif %}">
@@ -281,10 +282,10 @@
                         <label class="form-check-label small" for="act-seen-{{ pid }}">{{ row.link.artist.name }}</label>
                       </div>
                       <div class="d-flex gap-1 mt-1 act-details">
-                        <select class="form-select form-select-sm" name="act_rating_{{ pid }}" aria-label="Rating for {{ row.link.artist.name }}" style="max-width:6.5rem">
+                        <select class="form-select form-select-sm" name="act_rating_{{ pid }}" aria-label="{% blocktranslate with name=row.link.artist.name %}Rating for {{ name }}{% endblocktranslate %}" style="max-width:6.5rem">
                           {% for value, label in rating_choices %}<option value="{{ value }}" {% if row.rating == value %}selected{% endif %}>{{ label }}</option>{% endfor %}
                         </select>
-                        <input class="form-control form-control-sm" name="act_note_{{ pid }}" value="{{ row.note }}" maxlength="200" placeholder="Note" aria-label="Note for {{ row.link.artist.name }}" />
+                        <input class="form-control form-control-sm" name="act_note_{{ pid }}" value="{{ row.note }}" maxlength="200" placeholder="{% translate 'Note' %}" aria-label="{% blocktranslate with name=row.link.artist.name %}Note for {{ name }}{% endblocktranslate %}" />
                       </div>
                     </div>
                   {% endwith %}{% endfor %}
@@ -293,8 +294,8 @@
               <div class="mb-2">{{ log_form.review }}</div>
               <div class="form-check mb-2">{{ log_form.contains_spoilers }} <label class="form-check-label small" for="{{ log_form.contains_spoilers.id_for_label }}">{{ log_form.contains_spoilers.label }}</label></div>
               <div class="d-flex justify-content-end gap-2 mt-3">
-                <button class="btn btn-outline-secondary" type="button" data-bs-dismiss="modal">Cancel</button>
-                <button class="btn btn-success" type="submit">{% if my_log %}Update{% else %}Log it{% endif %}</button>
+                <button class="btn btn-outline-secondary" type="button" data-bs-dismiss="modal">{% translate "Cancel" %}</button>
+                <button class="btn btn-success" type="submit">{% if my_log %}{% translate "Update" %}{% else %}{% translate "Log it" %}{% endif %}</button>
               </div>
             </form>
       </div>
@@ -304,21 +305,21 @@
   {% if user.is_authenticated %}
   <div class="modal fade" id="listModal" tabindex="-1" aria-labelledby="listModalTitle" aria-hidden="true">
     <div class="modal-dialog"><div class="modal-content">
-      <div class="modal-header"><h2 class="modal-title h5" id="listModalTitle">Add to a list</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+      <div class="modal-header"><h2 class="modal-title h5" id="listModalTitle">{% translate "Add to a list" %}</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{% translate 'Close' %}"></button></div>
       <div class="modal-body">
             <form method="post" action="{% url 'events:list_add_event' event.pk %}">
               {% csrf_token %}
               {% if my_lists %}
-                <select class="form-select form-select-sm mb-2" name="list_id" aria-label="Your lists">
+                <select class="form-select form-select-sm mb-2" name="list_id" aria-label="{% translate 'Your lists' %}">
                   {% for l in my_lists %}<option value="{{ l.pk }}">{{ l.title }}</option>{% endfor %}
                 </select>
-                <div class="small text-body-secondary mb-1">or a new list:</div>
+                <div class="small text-body-secondary mb-1">{% translate "or a new list:" %}</div>
               {% endif %}
-              <input class="form-control form-control-sm mb-2" name="new_list_title" placeholder="New list title" {% if not my_lists %}required{% endif %} aria-label="New list title" />
-              <input class="form-control form-control-sm mb-2" name="note" placeholder="Note (optional)" maxlength="300" aria-label="Note" />
+              <input class="form-control form-control-sm mb-2" name="new_list_title" placeholder="{% translate 'New list title' %}" {% if not my_lists %}required{% endif %} aria-label="{% translate 'New list title' %}" />
+              <input class="form-control form-control-sm mb-2" name="note" placeholder="{% translate 'Note (optional)' %}" maxlength="300" aria-label="{% translate 'Note' %}" />
               <div class="d-flex justify-content-end gap-2 mt-3">
-                <button class="btn btn-outline-secondary" type="button" data-bs-dismiss="modal">Cancel</button>
-                <button class="btn btn-success" type="submit">Add to list</button>
+                <button class="btn btn-outline-secondary" type="button" data-bs-dismiss="modal">{% translate "Cancel" %}</button>
+                <button class="btn btn-success" type="submit">{% translate "Add to list" %}</button>
               </div>
             </form>
       </div>
@@ -330,13 +331,13 @@
     <div class="modal-dialog"><div class="modal-content">
       <form method="post" action="{% url 'events:make_festival' event.pk %}">
         {% csrf_token %}
-        <div class="modal-header"><h2 class="modal-title h5" id="festivalModalTitle">Turn into festival</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+        <div class="modal-header"><h2 class="modal-title h5" id="festivalModalTitle">{% translate "Turn into festival" %}</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{% translate 'Close' %}"></button></div>
         <div class="modal-body">
-          <p class="small text-body-secondary">This event becomes a day of a festival with this name.</p>
-          <label class="form-label" for="festival-name">Festival name</label>
-          <input class="form-control" id="festival-name" name="name" required placeholder="e.g. Lollapalooza Chile" />
+          <p class="small text-body-secondary">{% translate "This event becomes a day of a festival with this name." %}</p>
+          <label class="form-label" for="festival-name">{% translate "Festival name" %}</label>
+          <input class="form-control" id="festival-name" name="name" required placeholder="{% translate 'e.g. Lollapalooza Chile' %}" />
         </div>
-        <div class="modal-footer"><button class="btn btn-outline-secondary" type="button" data-bs-dismiss="modal">Cancel</button><button class="btn btn-warning" type="submit">Make it a festival</button></div>
+        <div class="modal-footer"><button class="btn btn-outline-secondary" type="button" data-bs-dismiss="modal">{% translate "Cancel" %}</button><button class="btn btn-warning" type="submit">{% translate "Make it a festival" %}</button></div>
       </form>
     </div></div>
   </div>
@@ -346,18 +347,18 @@
     <div class="modal-dialog"><div class="modal-content">
       <form method="post" action="{% url 'events:event_merge_duplicate' event.pk %}">
         {% csrf_token %}
-        <div class="modal-header"><h2 class="modal-title h5" id="mergeModalTitle">Merge a duplicate</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+        <div class="modal-header"><h2 class="modal-title h5" id="mergeModalTitle">{% translate "Merge a duplicate" %}</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{% translate 'Close' %}"></button></div>
         <div class="modal-body">
-          <p class="small text-body-secondary">The chosen event's lineup, logs and setlists move here, and it is deleted.</p>
+          <p class="small text-body-secondary">{% translate "The chosen event's lineup, logs and setlists move here, and it is deleted." %}</p>
           {% if duplicate_candidates %}
-            <select class="form-select mb-2" name="other" aria-label="Duplicate event">
-              <option value="">Suggested duplicates…</option>
-              {% for d in duplicate_candidates %}<option value="{{ d.pk }}">{{ d.title }} — {% if d.venue %}{{ d.venue.name }} · {% endif %}{{ d.date|date:"j M Y"|default:"no date" }}</option>{% endfor %}
+            <select class="form-select mb-2" name="other" aria-label="{% translate 'Duplicate event' %}">
+              <option value="">{% translate "Suggested duplicates…" %}</option>
+              {% for d in duplicate_candidates %}<option value="{{ d.pk }}">{{ d.title }} — {% if d.venue %}{{ d.venue.name }} · {% endif %}{% if d.date %}{{ d.date|date:"j M Y" }}{% else %}{% translate "no date" %}{% endif %}</option>{% endfor %}
             </select>
           {% endif %}
-          <input class="form-control" name="other_id" placeholder="{% if duplicate_candidates %}…or paste{% else %}Paste{% endif %} its link / number" aria-label="Duplicate event link or number" />
+          <input class="form-control" name="other_id" placeholder="{% if duplicate_candidates %}{% translate '…or paste its link / number' %}{% else %}{% translate 'Paste its link / number' %}{% endif %}" aria-label="{% translate 'Duplicate event link or number' %}" />
         </div>
-        <div class="modal-footer"><button class="btn btn-outline-secondary" type="button" data-bs-dismiss="modal">Cancel</button><button class="btn btn-warning" type="submit">Merge into this event</button></div>
+        <div class="modal-footer"><button class="btn btn-outline-secondary" type="button" data-bs-dismiss="modal">{% translate "Cancel" %}</button><button class="btn btn-warning" type="submit">{% translate "Merge into this event" %}</button></div>
       </form>
     </div></div>
   </div>
@@ -367,7 +368,7 @@
   <div class="modal fade" id="confirmModal" tabindex="-1" aria-labelledby="confirmModalText" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered"><div class="modal-content">
       <div class="modal-body"><p class="mb-0" id="confirmModalText"></p></div>
-      <div class="modal-footer"><button class="btn btn-outline-secondary" type="button" data-bs-dismiss="modal">Cancel</button><button class="btn btn-primary" type="button" id="confirmModalOk">Confirm</button></div>
+      <div class="modal-footer"><button class="btn btn-outline-secondary" type="button" data-bs-dismiss="modal">{% translate "Cancel" %}</button><button class="btn btn-primary" type="button" id="confirmModalOk">{% translate "Confirm" %}</button></div>
     </div></div>
   </div>
   <script>
@@ -380,7 +381,7 @@
           e.preventDefault();
           pending = form;
           text.textContent = form.dataset.confirm;
-          ok.textContent = form.dataset.confirmButton || "Confirm";
+          ok.textContent = form.dataset.confirmButton || "{% filter escapejs %}{% translate "Confirm" %}{% endfilter %}";
           ok.className = "btn " + (form.hasAttribute("data-confirm-danger") ? "btn-danger" : "btn-primary");
           bootstrap.Modal.getOrCreateInstance(el).show();
         });

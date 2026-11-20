@@ -11,7 +11,7 @@ function initFavoriteActs(root) {
       box.hidden = !lineup.length;
       selects.forEach(function (select, n) {
         var keep = select.value;
-        select.replaceChildren(new Option(n === 0 ? "Headliners" : "—", ""));
+        select.replaceChildren(new Option(n === 0 ? gettext("Headliners") : "—", ""));
         lineup.forEach(function (act) { select.add(new Option(act.name, act.id)); });
         select.value = lineup.some(function (act) { return String(act.id) === keep; }) ? keep : "";
       });
@@ -49,7 +49,7 @@ document.addEventListener("DOMContentLoaded", function () {
   }
 
   modal.addEventListener("show.bs.modal", function () {
-    body.innerHTML = '<div class="text-center text-body-secondary py-4"><div class="spinner-border spinner-border-sm"></div> Loading your events…</div>';
+    body.innerHTML = '<div class="text-center text-body-secondary py-4"><div class="spinner-border spinner-border-sm"></div> ' + gettext("Loading your events…") + '</div>';
     fetch(modal.dataset.url, {headers: headers})
       .then(function (r) { if (!r.ok) throw new Error(r.status); return r.text(); })
       .then(show)

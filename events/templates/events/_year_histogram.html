@@ -1,4 +1,4 @@
-{% if total %}
+{% load i18n %}{% if total %}
 <div class="rating-hist">
   <div class="d-flex justify-content-between align-items-end mb-1">
     <span class="section-title border-0 p-0">{{ title }}</span>
@@ -6,7 +6,8 @@
   </div>
   <div class="rating-bars" role="img" aria-label="{{ title }}: {% for b in bars %}{{ b.year }} {{ b.count }}{% if not forloop.last %}, {% endif %}{% endfor %}">
     {% for b in bars %}
-      {% if b.url %}<a class="rating-bar" href="{{ b.url }}" title="{{ b.year }}: {{ b.count }} event{{ b.count|pluralize }} · show in diary">{% else %}<div class="rating-bar" title="{{ b.year }}: {{ b.count }} event{{ b.count|pluralize }}">{% endif %}
+      {% blocktranslate count counter=b.count asvar events_text %}{{ counter }} event{% plural %}{{ counter }} events{% endblocktranslate %}
+      {% if b.url %}<a class="rating-bar" href="{{ b.url }}" title="{{ b.year }}: {{ events_text }} · {% translate 'show in diary' %}">{% else %}<div class="rating-bar" title="{{ b.year }}: {{ events_text }}">{% endif %}
         <div style="height: {{ b.height }}%{% if b.count %};min-height:2px{% endif %}"></div>
       {% if b.url %}</a>{% else %}</div>{% endif %}
     {% endfor %}

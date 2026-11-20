@@ -15,6 +15,7 @@ from decimal import Decimal, InvalidOperation
 from typing import Any
 
 from django.db import transaction
+from django.utils.translation import gettext
 
 logger = logging.getLogger(__name__)
 
@@ -157,5 +158,6 @@ def import_many(setlist_ids: list[str], user=None, pause: float = 0.6) -> list[t
             results.append((setlist_id, None, str(e)))
         except Exception:  # never turn one bad setlist into a 500 for the whole import
             logger.exception("Importing setlist %s failed", setlist_id)
-            results.append((setlist_id, None, "Something went wrong importing this setlist. Nothing was saved for it."))
+            results.append((setlist_id, None,
+                            gettext("Something went wrong importing this setlist. Nothing was saved for it.")))
     return results

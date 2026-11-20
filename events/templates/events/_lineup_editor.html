@@ -1,37 +1,37 @@
-{% comment %}Lineup rows, "+ Add another act" and the new-artist box (inside the event form).{% endcomment %}
-        <h2 class="section-title mt-2 mb-2">Lineup</h2>
-        <p class="small text-body-secondary mb-2">Bands, artists, cast, comedians… Drag ⠿ to set the order: first is the top of the bill. Setlists follow this order.</p>
+{% load i18n %}{% comment %}Lineup rows, "+ Add another act" and the new-artist box (inside the event form).{% endcomment %}
+        <h2 class="section-title mt-2 mb-2">{% translate "Lineup" %}</h2>
+        <p class="small text-body-secondary mb-2">{% translate "Bands, artists, cast, comedians… Drag ⠿ to set the order: first is the top of the bill. Setlists follow this order." %}</p>
         {% if event and event.display_image %}
           <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
-            <button type="button" class="btn btn-sm btn-outline-info" id="poster-sort" data-image="{% url 'events:event_poster_image' event.pk %}" data-direct="{{ event.display_image }}">Sort lineup from poster</button>
-            <span class="small text-body-secondary" id="poster-sort-status" aria-live="polite">Reads the photo and orders these acts as they appear on it, top to bottom; the first line becomes the headliners. Nothing is saved until you press Save.</span>
+            <button type="button" class="btn btn-sm btn-outline-info" id="poster-sort" data-image="{% url 'events:event_poster_image' event.pk %}" data-direct="{{ event.display_image }}">{% translate "Sort lineup from poster" %}</button>
+            <span class="small text-body-secondary" id="poster-sort-status" aria-live="polite">{% translate "Reads the photo and orders these acts as they appear on it, top to bottom; the first line becomes the headliners. Nothing is saved until you press Save." %}</span>
           </div>
         {% endif %}
         {{ artist_options|json_script:"artist-options" }}{{ tour_options|json_script:"tour-options" }}
         {{ formset.management_form }}
         {{ formset.non_form_errors }}
         <div class="row g-2 small text-body-secondary d-none d-md-flex mb-1" aria-hidden="true">
-          <div class="col-1"></div><div class="col-md-3">Artist</div><div class="col-md-2">Role</div>
-          <div class="col-md-2">Set time</div><div class="col-md-2">Tour</div><div class="col-md-1"></div>
+          <div class="col-1"></div><div class="col-md-3">{% translate "Artist" %}</div><div class="col-md-2">{% translate "Role" %}</div>
+          <div class="col-md-2">{% translate "Set time" %}</div><div class="col-md-2">{% translate "Tour" %}</div><div class="col-md-1"></div>
         </div>
         <div id="lineup-rows" data-prefix="{{ formset.prefix }}">
         {% for f in formset %}{% include "events/_lineup_row.html" with f=f labels=False %}{% endfor %}
         </div>
         <template id="lineup-row-template">{% include "events/_lineup_row.html" with f=formset.empty_form labels=False %}</template>
         <div class="d-flex flex-wrap gap-2">
-          <button type="button" class="btn btn-sm btn-outline-secondary" id="add-act">+ Add another act</button>
-          <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="collapse" data-bs-target="#bulk-acts" aria-expanded="false" aria-controls="bulk-acts">Type support acts in bulk</button>
+          <button type="button" class="btn btn-sm btn-outline-secondary" id="add-act">{% translate "+ Add another act" %}</button>
+          <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="collapse" data-bs-target="#bulk-acts" aria-expanded="false" aria-controls="bulk-acts">{% translate "Type support acts in bulk" %}</button>
         </div>
         <div class="collapse" id="bulk-acts">
           <div class="card card-body mt-2">
-            <label class="form-label small" for="bulk-acts-text">Support acts, one per line</label>
+            <label class="form-label small" for="bulk-acts-text">{% translate "Support acts, one per line" %}</label>
             <textarea class="form-control form-control-sm" id="bulk-acts-text" rows="5" placeholder="Alabama Shakes&#10;Foals&#10;Two Door Cinema Club"></textarea>
-            <div class="form-text">Names can also be separated by •, · , * or ; (not commas, so “Crosby, Stills &amp; Nash” stays one act). Known artists are picked, new names become new artists when you save, and acts already in the lineup are skipped.</div>
+            <div class="form-text">{% translate "Names can also be separated by •, · , * or ; (not commas, so “Crosby, Stills &amp; Nash” stays one act). Known artists are picked, new names become new artists when you save, and acts already in the lineup are skipped." %}</div>
             <div class="d-flex align-items-center gap-2 mt-2">
-              <button type="button" class="btn btn-sm btn-success" id="bulk-acts-add">Add these acts</button>
+              <button type="button" class="btn btn-sm btn-success" id="bulk-acts-add">{% translate "Add these acts" %}</button>
               <span class="small text-body-secondary" id="bulk-acts-status" aria-live="polite"></span>
             </div>
           </div>
         </div>
 
-        <div class="form-text">Type to search artists. A name that isn't on En Vivo yet is added as a new artist when you save.</div>
+        <div class="form-text">{% translate "Type to search artists. A name that isn't on En Vivo yet is added as a new artist when you save." %}</div>

@@ -66,15 +66,15 @@
       return { url: link };
     }
     if (thumb) {
-      return { url: thumb, note: "This is Google's small preview. For a sharper photo, click it on Google first and drag the large version." };
+      return { url: thumb, note: gettext("This is Google's small preview. For a sharper photo, click it on Google first and drag the large version.") };
     }
     if (links.some(function (l) { return /^data:/i.test(l); })) {
-      return { error: "That's Google's small preview, which can't be saved. Click the photo on Google first, then drag the large version." };
+      return { error: gettext("That's Google's small preview, which can't be saved. Click the photo on Google first, then drag the large version.") };
     }
     if (links.some(isSearchPage)) {
-      return { error: "That's a link to the search results, not the photo. Drag the photo itself." };
+      return { error: gettext("That's a link to the search results, not the photo. Drag the photo itself.") };
     }
-    return { error: "That didn't include a photo link. Try dragging the photo itself, or right-click it → “Copy image address”." };
+    return { error: gettext("That didn't include a photo link. Try dragging the photo itself, or right-click it → “Copy image address”.") };
   }
 
   function init(root) {
@@ -96,8 +96,8 @@
       input.value = url;
       preview.hidden = false;
       preview.src = url;
-      label.textContent = "Drop another photo to replace it";
-      submit.textContent = "Use this photo";
+      label.textContent = gettext("Drop another photo to replace it");
+      submit.textContent = gettext("Use this photo");
       say(note || "");
       submit.focus({ preventScroll: true });
     }
@@ -105,7 +105,7 @@
     preview.addEventListener("error", function () {
       if (!preview.getAttribute("src")) return;
       preview.hidden = true;
-      say("This photo doesn't load here (its site may block other pages from showing it). Try another one.", "error");
+      say(gettext("This photo doesn't load here (its site may block other pages from showing it). Try another one."), "error");
     });
 
     function hasLinkOrFile(event) {
@@ -135,7 +135,7 @@
       event.preventDefault();
       var links = droppedLinks(event.dataTransfer);
       if (!links.length && event.dataTransfer.files.length) {
-        say("We only save links to photos, not files. Drag the photo from a web page instead.", "error");
+        say(gettext("We only save links to photos, not files. Drag the photo from a web page instead."), "error");
         return;
       }
       var picked = pickPhoto(links);
@@ -155,7 +155,7 @@
         say("");
       } else if (isSearchPage(value)) {
         preview.hidden = true;
-        say("That's a link to the search results, not the photo. Right-click the photo → “Copy image address”.", "error");
+        say(gettext("That's a link to the search results, not the photo. Right-click the photo → “Copy image address”."), "error");
       }
     }
     input.addEventListener("input", checkInput);

@@ -1,23 +1,23 @@
 {% extends "base.html" %}
-{% load event_extras %}
+{% load i18n event_extras %}
 
-{% block title %}Artists · En Vivo{% endblock %}
+{% block title %}{% translate "Artists" %} · En Vivo{% endblock %}
 
 {% block content %}
   <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
-    <h1 class="h4 m-0">Artists <a class="small fs-6 fw-normal ms-2" href="{% url 'events:play_list' %}">Plays →</a></h1>
-    {% if user.is_authenticated %}<a class="btn btn-sm btn-success" href="{% url 'events:artist_create' %}">+ New artist</a>{% endif %}
+    <h1 class="h4 m-0">{% translate "Artists" %} <a class="small fs-6 fw-normal ms-2" href="{% url 'events:play_list' %}">{% translate "Plays →" %}</a></h1>
+    {% if user.is_authenticated %}<a class="btn btn-sm btn-success" href="{% url 'events:artist_create' %}">{% translate "+ New artist" %}</a>{% endif %}
     <form class="d-flex flex-wrap gap-2" method="get" role="search">
-      <input class="form-control form-control-sm w-auto" type="search" name="q" value="{{ q }}" placeholder="Search artists" aria-label="Search artists">
-      <select class="form-select form-select-sm w-auto" name="country" onchange="this.form.submit()" aria-label="Country">
-        <option value="">All countries</option>
-        <option value="NONE" {% if country == "NONE" %}selected{% endif %}>No country</option>
+      <input class="form-control form-control-sm w-auto" type="search" name="q" value="{{ q }}" placeholder="{% translate 'Search artists' %}" aria-label="{% translate 'Search artists' %}">
+      <select class="form-select form-select-sm w-auto" name="country" onchange="this.form.submit()" aria-label="{% translate 'Country' %}">
+        <option value="">{% translate "All countries" %}</option>
+        <option value="NONE" {% if country == "NONE" %}selected{% endif %}>{% translate "No country" %}</option>
         {% for code, name in countries %}<option value="{{ code }}" {% if country == code %}selected{% endif %}>{{ name }}</option>{% endfor %}
       </select>
-      <select class="form-select form-select-sm w-auto" name="sort" onchange="this.form.submit()" aria-label="Sort by">
+      <select class="form-select form-select-sm w-auto" name="sort" onchange="this.form.submit()" aria-label="{% translate 'Sort by' %}">
         {% for value, label in sorts.items %}<option value="{{ value }}" {% if sort == value %}selected{% endif %}>{{ label }}</option>{% endfor %}
       </select>
-      <button class="btn btn-sm btn-outline-secondary">Search</button>
+      <button class="btn btn-sm btn-outline-secondary">{% translate "Search" %}</button>
     </form>
   </div>
   {% if page.object_list %}
@@ -32,22 +32,22 @@
           </a>
           <a class="d-block mt-2 fw-semibold small lh-sm clamp-2 text-decoration-none" href="{{ p.get_absolute_url }}">{{ p.name }}</a>
           <div class="small text-body-secondary">
-            {% if sort == "popular" %}{{ p.fans }} {{ p.fans|pluralize:"person,people" }}
-            {% elif sort == "rated" %}{% if p.avg_rating %}<span class="stars">{{ p.avg_rating|stars }}</span> {{ p.avg_rating|avg_stars }}{% else %}Not rated{% endif %}
-            {% elif sort == "recent" %}{{ p.last_date|date:"j M Y"|default:"No date" }}
-            {% else %}{{ p.n }} event{{ p.n|pluralize }}{% endif %}
+            {% if sort == "popular" %}{% blocktranslate count counter=p.fans %}{{ counter }} person{% plural %}{{ counter }} people{% endblocktranslate %}
+            {% elif sort == "rated" %}{% if p.avg_rating %}<span class="stars">{{ p.avg_rating|stars }}</span> {{ p.avg_rating|avg_stars }}{% else %}{% translate "Not rated" %}{% endif %}
+            {% elif sort == "recent" %}{% if p.last_date %}{{ p.last_date|date:"j M Y" }}{% else %}{% translate "No date" %}{% endif %}
+            {% else %}{% blocktranslate count counter=p.n %}{{ counter }} event{% plural %}{{ counter }} events{% endblocktranslate %}{% endif %}
           </div>
         </div>
       {% endfor %}
     </div>
     {% if page.has_other_pages %}
-      <nav class="mt-4 d-flex justify-content-center gap-2" aria-label="Pages">
-        {% if page.has_previous %}<a class="btn btn-sm btn-outline-secondary" href="?{{ querystring }}&page={{ page.previous_page_number }}">← Previous</a>{% endif %}
-        <span class="align-self-center small text-body-secondary">Page {{ page.number }} of {{ page.paginator.num_pages }}</span>
-        {% if page.has_next %}<a class="btn btn-sm btn-outline-secondary" href="?{{ querystring }}&page={{ page.next_page_number }}">Next →</a>{% endif %}
+      <nav class="mt-4 d-flex justify-content-center gap-2" aria-label="{% translate 'Pages' %}">
+        {% if page.has_previous %}<a class="btn btn-sm btn-outline-secondary" href="?{{ querystring }}&page={{ page.previous_page_number }}">{% translate "← Previous" %}</a>{% endif %}
+        <span class="align-self-center small text-body-secondary">{% blocktranslate with number=page.number total=page.paginator.num_pages %}Page {{ number }} of {{ total }}{% endblocktranslate %}</span>
+        {% if page.has_next %}<a class="btn btn-sm btn-outline-secondary" href="?{{ querystring }}&page={{ page.next_page_number }}">{% translate "Next →" %}</a>{% endif %}
       </nav>
     {% endif %}
   {% else %}
-    <p class="text-body-secondary">{% if q %}No artists match “{{ q }}”.{% else %}No artists yet.{% endif %}</p>
+    <p class="text-body-secondary">{% if q %}{% blocktranslate %}No artists match “{{ q }}”.{% endblocktranslate %}{% else %}{% translate "No artists yet." %}{% endif %}</p>
   {% endif %}
 {% endblock %}

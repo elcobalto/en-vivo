@@ -1,20 +1,20 @@
-{% comment %}One lineup row (also used, with __prefix__, as the template for "+ Add another act").{% endcomment %}
+{% load i18n %}{% comment %}One lineup row (also used, with __prefix__, as the template for "+ Add another act").{% endcomment %}
 <div class="row g-2 align-items-center mb-2 lineup-row">
   {{ f.id }}{{ f.billing_order.as_hidden }}{{ f.new_artist.as_hidden }}
-  <div class="col-1 text-center"><span class="drag-handle fs-5 text-body-secondary" title="Drag (or ↑/↓) to reorder" aria-label="Reorder" role="button" tabindex="0" style="cursor:grab">⠿</span></div>
+  <div class="col-1 text-center"><span class="drag-handle fs-5 text-body-secondary" title="{% translate 'Drag (or ↑/↓) to reorder' %}" aria-label="{% translate 'Reorder' %}" role="button" tabindex="0" style="cursor:grab">⠿</span></div>
   <div class="col-11 col-md-3">
-    <label class="visually-hidden" for="{{ f.artist.id_for_label }}">Artist</label>
+    <label class="visually-hidden" for="{{ f.artist.id_for_label }}">{% translate "Artist" %}</label>
     <div class="artist-pick {% if f.new_artist.value %}d-none{% endif %}">{{ f.artist }}</div>
     <div class="new-artist-label form-control form-control-sm {% if not f.new_artist.value %}d-none{% endif %}">
-      <span class="fw-semibold">{{ f.new_artist.value }}</span> <span class="badge text-bg-success">new artist</span>
+      <span class="fw-semibold">{{ f.new_artist.value }}</span> <span class="badge text-bg-success">{% translate "new artist" %}</span>
     </div>
   </div>
-  <div class="col-5 col-md-2"><label class="visually-hidden" for="{{ f.role.id_for_label }}">Role</label>{{ f.role }}</div>
-  <div class="col-4 col-md-2"><label class="visually-hidden" for="{{ f.start_time.id_for_label }}">Set time</label>{{ f.start_time }}</div>
-  <div class="col-8 col-md-2"><label class="visually-hidden" for="{{ f.production.id_for_label }}">Tour</label>{{ f.production }}</div>
+  <div class="col-5 col-md-2"><label class="visually-hidden" for="{{ f.role.id_for_label }}">{% translate "Role" %}</label>{{ f.role }}</div>
+  <div class="col-4 col-md-2"><label class="visually-hidden" for="{{ f.start_time.id_for_label }}">{% translate "Set time" %}</label>{{ f.start_time }}</div>
+  <div class="col-8 col-md-2"><label class="visually-hidden" for="{{ f.production.id_for_label }}">{% translate "Tour" %}</label>{{ f.production }}</div>
   <div class="col-3 col-md-1">
-    {% if f.instance.pk %}<div class="form-check">{{ f.DELETE }} <label class="form-check-label small" for="{{ f.DELETE.id_for_label }}">Remove</label></div>
-    {% else %}<button type="button" class="btn btn-sm btn-link text-danger p-0 remove-row" title="Remove this row" aria-label="Remove this row">×</button>{% endif %}
+    {% if f.instance.pk %}<div class="form-check">{{ f.DELETE }} <label class="form-check-label small" for="{{ f.DELETE.id_for_label }}">{% translate "Remove" %}</label></div>
+    {% else %}<button type="button" class="btn btn-sm btn-link text-danger p-0 remove-row" title="{% translate 'Remove this row' %}" aria-label="{% translate 'Remove this row' %}">×</button>{% endif %}
   </div>
   {% for error in f.non_field_errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
   {% for field in f %}{% for error in field.errors %}<div class="text-danger small">{{ field.label }}: {{ error }}</div>{% endfor %}{% endfor %}

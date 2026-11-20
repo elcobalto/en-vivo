@@ -1,4 +1,5 @@
 from django.contrib import admin
+from django.utils.translation import gettext_lazy
 from django.contrib.auth import get_user_model
 from django.contrib.auth.admin import UserAdmin
 
@@ -149,6 +150,6 @@ class EnVivoUserAdmin(UserAdmin):
     list_display = ["username", "email", "first_name", "last_name", "is_staff", "created_at"]
     ordering = ["-date_joined"]
 
-    @admin.display(description="Created at", ordering="date_joined")
+    @admin.display(description=gettext_lazy("Created at"), ordering="date_joined")
     def created_at(self, user):
         return user.date_joined

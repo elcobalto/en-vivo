@@ -27,6 +27,8 @@ from urllib.request import Request, urlopen
 from django.conf import settings
 from django.core.cache import cache
 from django.utils.html import strip_tags
+from django.utils.text import format_lazy
+from django.utils.translation import gettext_lazy
 
 USER_AGENT = "EnVivo/1.0 (event photo picker)"
 CACHE_SECONDS = 60 * 60 * 24  # the same search within a day costs nothing
@@ -67,14 +69,16 @@ def _get_json(url: str, params: dict[str, Any], timeout: float = 8) -> dict[str,
         except Exception:
             message = ""
         if e.code == 429:
-            raise ImageSearchError("has reached its free limit for now; try again later") from e
+            raise ImageSearchError(gettext_lazy("has reached its free limit for now; try again later")) from e
         if e.code in (502, 503, 504):
-            raise ImageSearchError("is busy right now; try again in a moment") from e
-        raise ImageSearchError(f"error {e.code}: {message or e.reason}") from e
+            raise ImageSearchError(gettext_lazy("is busy right now; try again in a moment")) from e
+        raise ImageSearchError(format_lazy(gettext_lazy("error {code}: {message}"), code=e.code,
+                                           message=message or e.reason)) from e
     except (URLError, TimeoutError, ValueError) as e:
         if isinstance(getattr(e, "reason", e), TimeoutError):
-            raise ImageSearchError("is taking too long to answer; try again in a moment") from e
-        raise ImageSearchError(f"request failed: {getattr(e, 'reason', e)}") from e
+            raise ImageSearchError(gettext_lazy("is taking too long to answer; try again in a moment")) from e
+        raise ImageSearchError(format_lazy(gettext_lazy("request failed: {reason}"),
+                                           reason=getattr(e, "reason", e))) from e
 
 
 def deezer_artist_pictures(artist: str) -> list[Candidate]:
@@ -209,7 +213,7 @@ def find_candidates(query: str, artist: str = "") -> tuple[list[dict], list[str]
         try:
             return search(), ""
         except ImageSearchError as e:
-            return [], str(e)
+            return [], e  # its (lazy) message is translated below: worker threads don't share the page's language
 
     # In parallel, so a slow source doesn't hold up the others; results keep the order above.
     with ThreadPoolExecutor(max_workers=len(sources)) as pool:

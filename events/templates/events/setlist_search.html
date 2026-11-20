@@ -1,29 +1,30 @@
 {% extends "base.html" %}
+{% load i18n %}
 
-{% block title %}Import setlist · {{ event.title }} · En Vivo{% endblock %}
+{% block title %}{% translate "Import setlist" %} · {{ event.title }} · En Vivo{% endblock %}
 
 {% block content %}
   <div class="row justify-content-center">
     <div class="col-12 col-lg-9">
       <div class="d-flex align-items-center justify-content-between mb-3">
-        <h1 class="h4 m-0">Import a setlist for “{{ event.title }}”</h1>
-        <a class="btn btn-sm btn-outline-secondary" href="{{ event.get_absolute_url }}">Back to event</a>
+        <h1 class="h4 m-0">{% blocktranslate with title=event.title %}Import a setlist for “{{ title }}”{% endblocktranslate %}</h1>
+        <a class="btn btn-sm btn-outline-secondary" href="{{ event.get_absolute_url }}">{% translate "Back to event" %}</a>
       </div>
 
       <form method="get" class="card mb-3"><div class="card-body row g-2 align-items-end">
         <div class="col-12 col-md-7">
-          <label class="form-label" for="artist">Artist on setlist.fm</label>
-          <input class="form-control" id="artist" name="artist" value="{{ artist }}" placeholder="e.g. Green Day" required />
+          <label class="form-label" for="artist">{% translate "Artist on setlist.fm" %}</label>
+          <input class="form-control" id="artist" name="artist" value="{{ artist }}" placeholder="{% translate 'e.g. Green Day' %}" required />
         </div>
         <div class="col-12 col-md-3">
           {% if event.date %}
             <div class="form-check">
               <input class="form-check-input" type="checkbox" id="any_date" name="any_date" value="1" {% if not match_date %}checked{% endif %} />
-              <label class="form-check-label small" for="any_date">Any date (not just {{ event.date|date:"j M Y" }})</label>
+              <label class="form-check-label small" for="any_date">{% blocktranslate with date=event.date|date:"j M Y" %}Any date (not just {{ date }}){% endblocktranslate %}</label>
             </div>
           {% endif %}
         </div>
-        <div class="col-12 col-md-2 d-grid"><button class="btn btn-primary" type="submit">Search</button></div>
+        <div class="col-12 col-md-2 d-grid"><button class="btn btn-primary" type="submit">{% translate "Search" %}</button></div>
       </div></form>
 
       {% if error %}<div class="alert alert-danger">{{ error }}</div>{% endif %}
@@ -38,22 +39,22 @@
                 {% if s.venue.city.name %} · {{ s.venue.city.name }}{% endif %}{% if s.venue.city.country.code %}, {{ s.venue.city.country.code }}{% endif %}
                 {% if s.tour.name %} · {{ s.tour.name }}{% endif %}
               </div>
-              {% if s.url %}<a class="small" href="{{ s.url }}" target="_blank" rel="noreferrer">View on setlist.fm</a>{% endif %}
+              {% if s.url %}<a class="small" href="{{ s.url }}" target="_blank" rel="noreferrer">{% translate "View on setlist.fm" %}</a>{% endif %}
             </div>
             <form method="post" action="{% url 'events:setlist_import' event.pk %}" class="align-self-center">
               {% csrf_token %}
               <input type="hidden" name="setlist_id" value="{{ s.id }}" />
-              <button class="btn btn-outline-success" type="submit">Use this setlist</button>
+              <button class="btn btn-outline-success" type="submit">{% translate "Use this setlist" %}</button>
             </form>
           </div></div>
         {% empty %}
           <div class="alert alert-secondary">
-            No setlists found{% if match_date %} on {{ event.date|date:"j M Y" }}. Try “Any date”{% endif %}.
+            {% if match_date %}{% blocktranslate with date=event.date|date:"j M Y" %}No setlists found on {{ date }}. Try “Any date”.{% endblocktranslate %}{% else %}{% translate "No setlists found." %}{% endif %}
           </div>
         {% endfor %}
       {% endif %}
 
-      <p class="small text-body-secondary mt-3">Only the song list is imported. The event, venue and date stay as they are in En Vivo.</p>
+      <p class="small text-body-secondary mt-3">{% translate "Only the song list is imported. The event, venue and date stay as they are in En Vivo." %}</p>
     </div>
   </div>
 {% endblock %}

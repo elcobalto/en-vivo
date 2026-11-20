@@ -1,7 +1,7 @@
 {% extends "base.html" %}
-{% load static %}
+{% load i18n static %}
 
-{% block title %}{% if event %}Edit {{ event.title }}{% else %}New event{% endif %} · En Vivo{% endblock %}
+{% block title %}{% if event %}{% blocktranslate with title=event.title %}Edit {{ title }}{% endblocktranslate %}{% else %}{% translate "New event" %}{% endif %} · En Vivo{% endblock %}
 
 {% block scripts %}<script src="{% static 'events/venue-search.js' %}"></script><script src="{% static 'events/lineup-order.js' %}"></script><script src="{% static 'events/poster-lineup.js' %}"></script>{% endblock %}
 
@@ -11,15 +11,15 @@
       {# The poster stays in view while the lineup is reordered further down. #}
       <div class="col-6 col-md-4 col-lg-3 order-lg-2">
         <div class="sticky-lg-top" style="top:1rem">
-          <div class="small text-body-secondary mb-1">{% if event.image_url %}Event photo{% else %}Photo shown (borrowed: the event has none of its own){% endif %}</div>
-          <a href="{{ event.display_image }}" target="_blank" rel="noreferrer" title="Open full size">
+          <div class="small text-body-secondary mb-1">{% if event.image_url %}{% translate "Event photo" %}{% else %}{% translate "Photo shown (borrowed: the event has none of its own)" %}{% endif %}</div>
+          <a href="{{ event.display_image }}" target="_blank" rel="noreferrer" title="{% translate 'Open full size' %}">
             <img class="event-photo" src="{{ event.display_image }}" alt="{{ event.title }}" referrerpolicy="no-referrer" />
           </a>
         </div>
       </div>
     {% endif %}
     <div class="col-12 col-lg-8">
-      <h1 class="h4 mb-3">{% if event %}Edit event{% else %}New event{% endif %}</h1>
+      <h1 class="h4 mb-3">{% if event %}{% translate "Edit event" %}{% else %}{% translate "New event" %}{% endif %}</h1>
       <form method="post" class="card"><div class="card-body">
         {% csrf_token %}
         {{ form.non_field_errors }}
@@ -27,9 +27,9 @@
           {% for field in form %}
             {% if field.name == 'venue' %}
             <div class="col-12">
-              <div class="form-label">Venue</div>
+              <div class="form-label">{% translate "Venue" %}</div>
               {% include "events/_venue_search.html" with mode="select" hidden_field=field initial=form.selected_venue %}
-              <div class="form-text">Search venues already on En Vivo or anywhere on Google Maps.</div>
+              <div class="form-text">{% translate "Search venues already on En Vivo or anywhere on Google Maps." %}</div>
               {% for error in field.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
             </div>
             {% elif field.name == 'photo_for_all_days' %}
@@ -46,29 +46,29 @@
             <div class="{% if field.name in 'title description image_url' %}col-12{% else %}col-12 col-md-6{% endif %}">
               <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
               {{ field }}
-              {% if field.name == 'title' %}<div class="form-text">Optional. Leave blank to use the headliner's name; it follows changes to the lineup.</div>{% endif %}
-              {% if field.name == 'image_url' and event %}<div class="form-text"><a href="{% url 'events:event_photo' event.pk %}">Find a photo automatically</a></div>{% endif %}
-              {% if field.name == 'play' %}<div class="form-text">{{ field.help_text }} <a href="{% url 'events:play_create' %}?next={{ request.get_full_path|urlencode }}">+ New play</a></div>{% endif %}
-              {% if field.name == 'production' %}<div class="form-text">{{ field.help_text }} <a href="{% url 'events:production_create' %}?next={{ request.get_full_path|urlencode }}">+ New production</a></div>{% endif %}
+              {% if field.name == 'title' %}<div class="form-text">{% translate "Optional. Leave blank to use the headliner's name; it follows changes to the lineup." %}</div>{% endif %}
+              {% if field.name == 'image_url' and event %}<div class="form-text"><a href="{% url 'events:event_photo' event.pk %}">{% translate "Find a photo automatically" %}</a></div>{% endif %}
+              {% if field.name == 'play' %}<div class="form-text">{{ field.help_text }} <a href="{% url 'events:play_create' %}?next={{ request.get_full_path|urlencode }}">{% translate "+ New play" %}</a></div>{% endif %}
+              {% if field.name == 'production' %}<div class="form-text">{{ field.help_text }} <a href="{% url 'events:production_create' %}?next={{ request.get_full_path|urlencode }}">{% translate "+ New production" %}</a></div>{% endif %}
               {% for error in field.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
             </div>
             {% endif %}
             {% if field.name == 'venue' %}
               <div class="col-12">
                 <details {% if form.new_venue_name.value or form.new_venue_name.errors %}open{% endif %}>
-                  <summary class="small">Can't find it? Add the venue by hand</summary>
+                  <summary class="small">{% translate "Can't find it? Add the venue by hand" %}</summary>
                   <div class="row g-2 mt-1">
                     <div class="col-12 col-md-6">
-                      <label class="form-label small" for="{{ form.new_venue_name.id_for_label }}">Venue name</label>
+                      <label class="form-label small" for="{{ form.new_venue_name.id_for_label }}">{% translate "Venue name" %}</label>
                       {{ form.new_venue_name }}
                       {% for error in form.new_venue_name.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
                     </div>
                     <div class="col-8 col-md-4">
-                      <label class="form-label small" for="{{ form.new_venue_city.id_for_label }}">City</label>
+                      <label class="form-label small" for="{{ form.new_venue_city.id_for_label }}">{% translate "City" %}</label>
                       {{ form.new_venue_city }}
                     </div>
                     <div class="col-4 col-md-2">
-                      <label class="form-label small" for="{{ form.new_venue_country.id_for_label }}">Country</label>
+                      <label class="form-label small" for="{{ form.new_venue_country.id_for_label }}">{% translate "Country" %}</label>
                       {{ form.new_venue_country }}
                     </div>
                   </div>
@@ -82,8 +82,8 @@
 
 
         <div class="d-flex gap-2 mt-4">
-          <button class="btn btn-success" type="submit">Save event</button>
-          <a class="btn btn-outline-secondary" href="{% if event %}{{ event.get_absolute_url }}{% else %}{% url 'events:event_list' %}{% endif %}">Cancel</a>
+          <button class="btn btn-success" type="submit">{% translate "Save event" %}</button>
+          <a class="btn btn-outline-secondary" href="{% if event %}{{ event.get_absolute_url }}{% else %}{% url 'events:event_list' %}{% endif %}">{% translate "Cancel" %}</a>
         </div>
       </div></form>
     </div>

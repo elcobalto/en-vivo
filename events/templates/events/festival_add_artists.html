@@ -1,48 +1,49 @@
 {% extends "base.html" %}
+{% load i18n %}
 
-{% block title %}Add artists · {{ event.title }} · En Vivo{% endblock %}
+{% block title %}{% translate "Add artists" %} · {{ event.title }} · En Vivo{% endblock %}
 
 {% block content %}
   <div class="row justify-content-center"><div class="col-12 col-md-8 col-lg-6">
     <p class="small mb-1"><a href="{{ event.get_absolute_url }}">← {{ event.title }}</a></p>
-    <h1 class="h4 mb-1">Add artists to the lineup</h1>
-    <button class="btn btn-sm btn-outline-secondary mb-2" type="button" data-bs-toggle="collapse" data-bs-target="#typed-artists" aria-expanded="false" aria-controls="typed-artists">Type the artists instead</button>
+    <h1 class="h4 mb-1">{% translate "Add artists to the lineup" %}</h1>
+    <button class="btn btn-sm btn-outline-secondary mb-2" type="button" data-bs-toggle="collapse" data-bs-target="#typed-artists" aria-expanded="false" aria-controls="typed-artists">{% translate "Type the artists instead" %}</button>
     <form method="post" class="collapse" id="typed-artists">
       {% csrf_token %}
       <div class="card card-body mb-3">
-        <label class="form-label small" for="typed-text">Artists, one per line</label>
+        <label class="form-label small" for="typed-text">{% translate "Artists, one per line" %}</label>
         <textarea class="form-control form-control-sm" id="typed-text" name="typed" rows="6" placeholder="Alabama Shakes&#10;Foals&#10;Two Door Cinema Club"></textarea>
-        <div class="form-text">Names can also be separated by •, · , * or ; (not commas, so “Crosby, Stills &amp; Nash” stays one act). Known artists are linked, new names become new artists, and acts already on the lineup are skipped. No setlists are added this way.</div>
+        <div class="form-text">{% translate "Names can also be separated by •, · , * or ; (not commas, so “Crosby, Stills &amp; Nash” stays one act). Known artists are linked, new names become new artists, and acts already on the lineup are skipped. No setlists are added this way." %}</div>
         <div class="d-flex flex-wrap align-items-center gap-2 mt-2">
-          <label class="small" for="typed-role">Add them as</label>
+          <label class="small" for="typed-role">{% translate "Add them as" %}</label>
           <select class="form-select form-select-sm w-auto" id="typed-role" name="typed_role">
-            <option value="support" selected>Support</option>
-            <option value="headliner">Headliner</option>
+            <option value="support" selected>{% translate "Support" %}</option>
+            <option value="headliner">{% translate "Headliner" %}</option>
           </select>
-          <button class="btn btn-sm btn-success ms-auto" type="submit">Add to lineup</button>
+          <button class="btn btn-sm btn-success ms-auto" type="submit">{% translate "Add to lineup" %}</button>
         </div>
       </div>
     </form>
-    <p class="small text-body-secondary mb-2">Acts setlist.fm has on {{ event.date|date:"j F Y"|default:"this date" }}. setlist.fm has no festival search, so pick how to look:</p>
+    <p class="small text-body-secondary mb-2">{% if event.date %}{% blocktranslate with date=event.date|date:_("j F Y") %}Acts setlist.fm has on {{ date }}.{% endblocktranslate %}{% else %}{% translate "Acts setlist.fm has on this date." %}{% endif %} {% translate "setlist.fm has no festival search, so pick how to look:" %}</p>
     {% if not event.date %}
-      <p class="text-body-secondary">Add a date to this festival day to find artists. <a href="{% url 'events:event_edit' event.pk %}">Edit event</a></p>
+      <p class="text-body-secondary">{% translate "Add a date to this festival day to find artists." %} <a href="{% url 'events:event_edit' event.pk %}">{% translate "Edit event" %}</a></p>
     {% else %}
       <form method="get" class="card mb-3"><div class="card-body">
         <div class="form-check">
           <input class="form-check-input" type="radio" name="mode" value="city" id="mode-city" data-default="{{ defaults.city }}" {% if mode == "city" %}checked{% endif %}>
-          <label class="form-check-label" for="mode-city"><strong>City + date</strong> <span class="small text-body-secondary">— everything in the city that day. Finds the whole festival, but also unrelated shows (use the venue boxes below to pick).</span></label>
+          <label class="form-check-label" for="mode-city"><strong>{% translate "City + date" %}</strong> <span class="small text-body-secondary">— {% translate "everything in the city that day. Finds the whole festival, but also unrelated shows (use the venue boxes below to pick)." %}</span></label>
         </div>
         <div class="form-check">
           <input class="form-check-input" type="radio" name="mode" value="venue" id="mode-venue" data-default="{{ defaults.venue }}" {% if mode == "venue" %}checked{% endif %}>
-          <label class="form-check-label" for="mode-venue"><strong>Venue + date</strong> <span class="small text-body-secondary">— only that place, e.g. the park the festival is in. The most precise when the name matches setlist.fm's.</span></label>
+          <label class="form-check-label" for="mode-venue"><strong>{% translate "Venue + date" %}</strong> <span class="small text-body-secondary">— {% translate "only that place, e.g. the park the festival is in. The most precise when the name matches setlist.fm's." %}</span></label>
         </div>
         <div class="form-check">
           <input class="form-check-input" type="radio" name="mode" value="tour" id="mode-tour" data-default="{{ defaults.tour }}" {% if mode == "tour" %}checked{% endif %}>
-          <label class="form-check-label" for="mode-tour"><strong>Festival name as tour + date</strong> <span class="small text-body-secondary">— some sets list the festival as their tour. Precise, but usually catches only part of the lineup.</span></label>
+          <label class="form-check-label" for="mode-tour"><strong>{% translate "Festival name as tour + date" %}</strong> <span class="small text-body-secondary">— {% translate "some sets list the festival as their tour. Precise, but usually catches only part of the lineup." %}</span></label>
         </div>
         <div class="d-flex gap-2 mt-2">
-          <input class="form-control form-control-sm" name="q" id="search-term" value="{{ term }}" aria-label="Search for" placeholder="City, venue or festival name">
-          <button class="btn btn-sm btn-primary" type="submit">Search</button>
+          <input class="form-control form-control-sm" name="q" id="search-term" value="{{ term }}" aria-label="{% translate 'Search for' %}" placeholder="{% translate 'City, venue or festival name' %}">
+          <button class="btn btn-sm btn-primary" type="submit">{% translate "Search" %}</button>
         </div>
       </div></form>
       <script>
@@ -54,13 +55,13 @@
     {% endif %}
     {% if not event.date %}
     {% elif error %}
-      <div class="alert alert-warning">Couldn't search setlist.fm: {{ error }}</div>
+      <div class="alert alert-warning">{% blocktranslate %}Couldn't search setlist.fm: {{ error }}{% endblocktranslate %}</div>
     {% elif candidates %}
       <form method="post" class="card"><div class="card-body">
         {% csrf_token %}
         {% if venues|length > 1 %}
           <div class="mb-3">
-            <div class="small text-body-secondary mb-1">Venues setlist.fm found that day: tick one to add all of its artists.</div>
+            <div class="small text-body-secondary mb-1">{% translate "Venues setlist.fm found that day: tick one to add all of its artists." %}</div>
             {% for v in venues %}
               <div class="form-check form-check-inline">
                 <input class="form-check-input venue-pick" type="checkbox" form="" id="venue-{{ forloop.counter }}" data-venue="{{ v.key }}">
@@ -75,24 +76,24 @@
             <div class="d-flex align-items-center gap-2">
               <label class="form-check-label flex-grow-1 d-flex justify-content-between gap-2" for="add-{{ forloop.counter }}">
                 <span>{{ c.name }}</span>
-                <span class="small text-body-secondary text-end">{{ c.venue }}{% if c.setlist.sets.set %} · setlist{% endif %}</span>
+                <span class="small text-body-secondary text-end">{{ c.venue }}{% if c.setlist.sets.set %} · {% translate "setlist" %}{% endif %}</span>
               </label>
-              <select class="form-select form-select-sm w-auto" name="role_{{ c.key }}" aria-label="Role for {{ c.name }}">
-                <option value="support" selected>Support</option>
-                <option value="headliner">Headliner</option>
+              <select class="form-select form-select-sm w-auto" name="role_{{ c.key }}" aria-label="{% blocktranslate with name=c.name %}Role for {{ name }}{% endblocktranslate %}">
+                <option value="support" selected>{% translate "Support" %}</option>
+                <option value="headliner">{% translate "Headliner" %}</option>
               </select>
             </div>
           </div>
         {% endfor %}
         <div class="d-flex justify-content-end gap-2 mt-3">
-          <a class="btn btn-outline-secondary" href="{{ event.get_absolute_url }}">Cancel</a>
-          <button class="btn btn-success" type="submit">Add to lineup</button>
+          <a class="btn btn-outline-secondary" href="{{ event.get_absolute_url }}">{% translate "Cancel" %}</a>
+          <button class="btn btn-success" type="submit">{% translate "Add to lineup" %}</button>
         </div>
       </div></form>
-      {% if capped %}<p class="small text-body-secondary mt-2 mb-0">During the beta this shows setlist.fm's first 20 results. Missing someone? Type them with “Type the artists instead” above.</p>{% endif %}
-      <p class="small text-body-secondary mt-2">Acts setlist.fm lists at this festival's venue are ticked; others aren't. Headliners are billed above support acts, and each artist's setlist is added too when setlist.fm has one. Anyone else can be added from <a href="{% url 'events:event_edit' event.pk %}">Edit event</a>.</p>
+      {% if capped %}<p class="small text-body-secondary mt-2 mb-0">{% translate "During the beta this shows setlist.fm's first 20 results. Missing someone? Type them with “Type the artists instead” above." %}</p>{% endif %}
+      {% url 'events:event_edit' event.pk as edit_url %}<p class="small text-body-secondary mt-2">{% blocktranslate trimmed %}Acts setlist.fm lists at this festival's venue are ticked; others aren't. Headliners are billed above support acts, and each artist's setlist is added too when setlist.fm has one. Anyone else can be added from <a href="{{ edit_url }}">Edit event</a>.{% endblocktranslate %}</p>
     {% else %}
-      <p class="text-body-secondary">setlist.fm has no other artists for that search. Try another option above. You can add them from <a href="{% url 'events:event_edit' event.pk %}">Edit event</a>.</p>
+      {% url 'events:event_edit' event.pk as edit_url %}<p class="text-body-secondary">{% blocktranslate trimmed %}setlist.fm has no other artists for that search. Try another option above. You can add them from <a href="{{ edit_url }}">Edit event</a>.{% endblocktranslate %}</p>
     {% endif %}
   </div></div>
   <script>

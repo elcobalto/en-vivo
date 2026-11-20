@@ -15,7 +15,8 @@ from django.http import Http404, HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.template.loader import render_to_string
 from django.urls import reverse
-from django.utils import timezone
+from django.utils import timezone, translation
+from django.utils.translation import gettext, gettext_lazy
 from django.views.decorators.http import require_POST
 
 from .forms import CommentForm, FavoritesForm, ProfileForm
@@ -156,11 +157,11 @@ def profile(request: HttpRequest, username: str) -> HttpResponse:
 
 
 RANKINGS = {
-    "artists": "Most seen artists",
-    "local-artists": "Most seen local artists",
-    "foreign-artists": "Most seen foreign artists",
-    "venues": "Most visited venues",
-    "cities": "Most visited cities",
+    "artists": gettext_lazy("Most seen artists"),
+    "local-artists": gettext_lazy("Most seen local artists"),
+    "foreign-artists": gettext_lazy("Most seen foreign artists"),
+    "venues": gettext_lazy("Most visited venues"),
+    "cities": gettext_lazy("Most visited cities"),
 }
 
 
@@ -213,7 +214,8 @@ def profile_edit(request: HttpRequest) -> HttpResponse:
     form = ProfileForm(request.POST or None, instance=get_profile(request.user))
     if request.method == "POST" and form.is_valid():
         form.save()
-        messages.success(request, "Profile saved.")
+        translation.activate(form.instance.language)  # "Profile saved." in the language just picked
+        messages.success(request, gettext("Profile saved."))
         # form.instance.user carries the (possibly new) username; request.user is a stale copy.
         return redirect("events:profile", username=form.instance.user.get_username())
     return render(
@@ -235,7 +237,7 @@ def favorites_edit(request: HttpRequest) -> HttpResponse:
             summary = render_to_string("events/_favorites_summary.html", {"favorites": _favorites(request.user)},
                                        request=request)
             return JsonResponse({"ok": True, "summary": summary})
-        messages.success(request, "Favourites saved.")
+        messages.success(request, gettext("Favourites saved."))
         return redirect("events:profile_edit")
     if in_modal:
         html = render_to_string("events/_favorites_form.html", {"favorites_form": form}, request=request)
@@ -269,7 +271,7 @@ def people(request: HttpRequest) -> HttpResponse:
 def follow_toggle(request: HttpRequest, username: str) -> HttpResponse:
     owner = _owner(username)
     if owner == request.user:
-        messages.error(request, "You can't follow yourself.")
+        messages.error(request, gettext("You can't follow yourself."))
     else:
         deleted, _ = Follow.objects.filter(follower=request.user, following=owner).delete()
         if not deleted:
@@ -346,7 +348,7 @@ def comment_add(request: HttpRequest, pk: int) -> HttpResponse:
         comment.log = log
         comment.save()
     else:
-        messages.error(request, "Your reply can't be empty.")
+        messages.error(request, gettext("Your reply can't be empty."))
     return redirect("events:review_detail", pk=log.pk)
 
 

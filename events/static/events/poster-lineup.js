@@ -85,7 +85,7 @@
       var script = document.createElement("script");
       script.src = "https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js";
       script.onload = function () { resolve(window.Tesseract); };
-      script.onerror = function () { reject(new Error("Couldn't load the poster reader.")); };
+      script.onerror = function () { reject(new Error(gettext("Couldn't load the poster reader."))); };
       document.head.appendChild(script);
     });
   }
@@ -96,10 +96,11 @@
     return fetch(button.dataset.image, { credentials: "same-origin" }).then(function (resp) {
       if (resp.ok) return resp.blob().then(function (blob) { return blobToCanvas(blob); });
       return resp.text().then(function (reason) {
-        var why = (reason || "").length < 200 ? reason : "error " + resp.status;
+        var code = interpolate(gettext("error %s"), [resp.status]);
+        var why = (reason || "").length < 200 ? reason : code;
         return direct().catch(function () {
-          throw new Error("Couldn't get the photo: " + (why || "error " + resp.status) +
-                          " Try saving a copy of the poster on another site and using that link.");
+          throw new Error(interpolate(gettext("Couldn't get the photo: %s Try saving a copy of the poster on another site and using that link."),
+                                      [why || code]));
         });
       });
     });
@@ -117,7 +118,7 @@
 
   function blobToCanvas(blob) {
     return createImageBitmap(blob).then(function (bitmap) { return toCanvas(bitmap, bitmap.width, bitmap.height); },
-      function () { throw new Error("The photo couldn't be opened as an image."); });
+      function () { throw new Error(gettext("The photo couldn't be opened as an image.")); });
   }
 
   function toCanvas(source, width, height) {
@@ -145,22 +146,22 @@
     var acts = Array.prototype.slice.call(list.querySelectorAll(".lineup-row")).filter(function (row) {
       return rowName(row) && !isDeleted(row) && CREDITS.indexOf(rowRole(row)) === -1;
     });
-    if (acts.length < 2) { say("Add at least two acts to the lineup first."); return; }
+    if (acts.length < 2) { say(gettext("Add at least two acts to the lineup first.")); return; }
     button.disabled = true;
     var worker, poster;
-    say("Getting the photo…");
+    say(gettext("Getting the photo…"));
     loadPoster()
       .then(function (canvas) {
         poster = canvas;
-        say("Loading the poster reader… (the first time takes a few seconds)");
+        say(gettext("Loading the poster reader… (the first time takes a few seconds)"));
         return loadTesseract();
       })
       .then(function (Tesseract) {
-        return Tesseract.createWorker("eng").catch(function () { throw new Error("The poster reader couldn't start. Check your connection and try again."); });
+        return Tesseract.createWorker("eng").catch(function () { throw new Error(gettext("The poster reader couldn't start. Check your connection and try again.")); });
       })
       .then(function (w) {
         worker = w;
-        say("Reading the poster…");
+        say(gettext("Reading the poster…"));
         return worker.recognize(poster, {}, { blocks: true });
       })
       .then(function (result) {
@@ -171,7 +172,7 @@
           if (spot) found.push({ row: row, index: index, line: spot.line, top: spot.top, left: spot.left });
           else missing.push(rowName(row));
         });
-        if (!found.length) { say("Couldn't read any of these names on the poster. The lineup wasn't changed."); return; }
+        if (!found.length) { say(gettext("Couldn't read any of these names on the poster. The lineup wasn't changed.")); return; }
 
         // Found acts fill the slots they held, in poster order; acts not found stay where they are.
         var slots = found.map(function (f) { return f.index; }).sort(function (a, b) { return a - b; });
@@ -198,14 +199,14 @@
         if (window.enVivoLineup) window.enVivoLineup.renumber();
 
         var heads = ranked.filter(isHeadliner).length;
-        say("Sorted " + found.length + " act" + (found.length === 1 ? "" : "s") + " top to bottom (" + heads +
-            " headliner" + (heads === 1 ? "" : "s") + ")." +
-            (missing.length ? " Not found on the poster, left in place: " + missing.join(", ") + "." : "") +
-            " Check it, then Save.");
+        say(interpolate(ngettext("Sorted %s act top to bottom", "Sorted %s acts top to bottom", found.length), [found.length]) +
+            " (" + interpolate(ngettext("%s headliner", "%s headliners", heads), [heads]) + ")." +
+            (missing.length ? " " + interpolate(gettext("Not found on the poster, left in place: %s."), [missing.join(", ")]) : "") +
+            " " + gettext("Check it, then Save."));
       })
       .catch(function (err) {
         if (window.console) console.error("Poster sort failed:", err);
-        say((err && err.message) || (typeof err === "string" ? err : "Couldn't read the poster."));
+        say((err && err.message) || (typeof err === "string" ? err : gettext("Couldn't read the poster.")));
       })
       .then(function () {
         button.disabled = false;

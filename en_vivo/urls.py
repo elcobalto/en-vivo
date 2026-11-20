@@ -16,9 +16,12 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import include, path
+from django.views.i18n import JavaScriptCatalog
 
 urlpatterns = [
     path('admin/', admin.site.urls),
+    # The translations JavaScript needs (gettext() in events/static/events/*.js), in the page's language.
+    path("jsi18n/", JavaScriptCatalog.as_view(), name="javascript-catalog"),
     path("", include("events.urls")),
     path("accounts/", include("django.contrib.auth.urls")),
     path("accounts/", include("allauth.urls")),

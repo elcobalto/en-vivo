@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load i18n %}
 
 {% block title %}{{ title }} · {{ owner.get_username }} · En Vivo{% endblock %}
 
@@ -6,13 +7,13 @@
   {% include "events/_profile_nav.html" %}
   <div class="d-flex justify-content-between align-items-end mb-2" style="max-width:40rem">
     <h2 class="section-title flex-grow-1 m-0">{{ title }}</h2>
-    <a class="small ms-2" href="{% url 'events:profile' owner.get_username %}">← Profile</a>
+    <a class="small ms-2" href="{% url 'events:profile' owner.get_username %}">{% translate "← Profile" %}</a>
   </div>
   <ol class="mb-0 ps-4" style="max-width:40rem">
     {% for url, name, n, unit in rows %}
       <li class="py-1 border-bottom border-secondary-subtle">
-        <div class="d-flex justify-content-between"><a href="{{ url }}">{{ name }}</a><span class="text-body-secondary small">{{ n }} {{ unit }}{{ n|pluralize }}</span></div>
+        <div class="d-flex justify-content-between"><a href="{{ url }}">{{ name }}</a><span class="text-body-secondary small">{% if unit == "visit" %}{% blocktranslate count counter=n %}{{ counter }} visit{% plural %}{{ counter }} visits{% endblocktranslate %}{% else %}{% blocktranslate count counter=n %}{{ counter }} show{% plural %}{{ counter }} shows{% endblocktranslate %}{% endif %}</span></div>
       </li>
-    {% empty %}<li class="small text-body-secondary list-unstyled">None yet.</li>{% endfor %}
+    {% empty %}<li class="small text-body-secondary list-unstyled">{% translate "None yet." %}</li>{% endfor %}
   </ol>
 {% endblock %}

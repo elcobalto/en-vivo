@@ -8,6 +8,7 @@ from django.core.exceptions import PermissionDenied
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
+from django.utils.translation import gettext
 from django.views.decorators.http import require_POST
 
 from .forms import FeedbackForm
@@ -27,7 +28,7 @@ def feedback(request: HttpRequest) -> HttpResponse:
         key = f"feedback-sent:{request.user.pk}"
         sent = cache.get_or_set(key, 0, timeout=60 * 60)
         if sent >= FEEDBACK_PER_HOUR:
-            messages.error(request, "You've sent a lot of feedback in the last hour; please try again later.")
+            messages.error(request, gettext("You've sent a lot of feedback in the last hour; please try again later."))
             return render(request, "events/feedback.html", {"form": form, "back": back})
         item = form.save(commit=False)
         item.user = request.user
@@ -38,7 +39,7 @@ def feedback(request: HttpRequest) -> HttpResponse:
             cache.incr(key)
         except ValueError:
             cache.set(key, 1, timeout=60 * 60)
-        messages.success(request, "Thanks! Your message reached the En Vivo team.")
+        messages.success(request, gettext("Thanks! Your message reached the En Vivo team."))
         return redirect(back)
     return render(request, "events/feedback.html", {"form": form, "back": back})
 

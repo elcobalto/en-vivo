@@ -1,13 +1,13 @@
-{% load event_extras %}
+{% load i18n event_extras %}
 {% if total %}
 <div class="rating-hist">
   <div class="d-flex justify-content-between align-items-end mb-1">
     <span class="section-title border-0 p-0">{{ title }}</span>
-    <span class="small text-body-secondary text-nowrap">{{ total }}{% if show_average %} · <span title="Average rating">{{ average|avg_stars }} avg</span>{% endif %}</span>
+    <span class="small text-body-secondary text-nowrap">{{ total }}{% if show_average %} · <span title="{% translate 'Average rating' %}">{% blocktranslate with average=average|avg_stars %}{{ average }} avg{% endblocktranslate %}</span>{% endif %}</span>
   </div>
-  <div class="rating-bars" role="img" aria-label="Ratings: {% for b in bars %}{{ b.label }} {{ b.count }}{% if not forloop.last %}, {% endif %}{% endfor %}">
+  <div class="rating-bars" role="img" aria-label="{% translate 'Ratings' %}: {% for b in bars %}{{ b.label }} {{ b.count }}{% if not forloop.last %}, {% endif %}{% endfor %}">
     {% for b in bars %}
-      {% if b.url %}<a class="rating-bar" href="{{ b.url }}" title="{{ b.count }} × {{ b.label }} · show in diary">{% else %}<div class="rating-bar" title="{{ b.count }} × {{ b.label }}">{% endif %}
+      {% if b.url %}<a class="rating-bar" href="{{ b.url }}" title="{{ b.count }} × {{ b.label }} · {% translate 'show in diary' %}">{% else %}<div class="rating-bar" title="{{ b.count }} × {{ b.label }}">{% endif %}
         <div style="height: {{ b.height }}%{% if b.count %};min-height:2px{% endif %}"></div>
       {% if b.url %}</a>{% else %}</div>{% endif %}
     {% endfor %}

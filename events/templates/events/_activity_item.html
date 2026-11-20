@@ -1,23 +1,29 @@
-{% load event_extras social %}
+{% load i18n event_extras social %}
 <div class="d-flex gap-2 py-2 border-bottom border-secondary-subtle small">
   <a href="{% url 'events:profile' item.actor.get_username %}">{% avatar item.actor 28 %}</a>
   <div class="flex-grow-1">
     <a class="fw-semibold" href="{% url 'events:profile' item.actor.get_username %}">{{ item.actor|display_name }}</a>
     {% if item.kind == 'log' %}
-      {% if item.obj.review %}reviewed{% else %}logged{% endif %}
+      {% if item.obj.review %}{% translate "reviewed" %}{% else %}{% translate "logged" %}{% endif %}
       <a href="{{ item.obj.event.get_absolute_url }}">{{ item.obj.event.title }}</a>
       {% if item.obj.rating %}<span class="stars">{{ item.obj.rating|stars }}</span>{% endif %}{% if item.obj.liked %} <span class="liked">♥</span>{% endif %}
-      {% if item.obj.review %}<a class="text-body-secondary" href="{% url 'events:review_detail' item.obj.pk %}">· read review</a>{% endif %}
+      {% if item.obj.review %}<a class="text-body-secondary" href="{% url 'events:review_detail' item.obj.pk %}">· {% translate "read review" %}</a>{% endif %}
     {% elif item.kind == 'want' %}
-      wants to go to <a href="{{ item.obj.event.get_absolute_url }}">{{ item.obj.event.title }}</a>
+      {% translate "wants to go to" %} <a href="{{ item.obj.event.get_absolute_url }}">{{ item.obj.event.title }}</a>
     {% elif item.kind == 'list' %}
-      created the list <a href="{{ item.obj.get_absolute_url }}">{{ item.obj.title }}</a>
+      {% translate "created the list" %} <a href="{{ item.obj.get_absolute_url }}">{{ item.obj.title }}</a>
     {% elif item.kind == 'follow' %}
-      followed <a href="{% url 'events:profile' item.obj.following.get_username %}">{{ item.obj.following|display_name }}</a>
+      {% translate "followed" %} <a href="{% url 'events:profile' item.obj.following.get_username %}">{{ item.obj.following|display_name }}</a>
     {% elif item.kind == 'like' %}
-      liked <a href="{% url 'events:review_detail' item.obj.log.pk %}">{{ item.obj.log.user|display_name }}'s review</a> of {{ item.obj.log.event.title }}
+      {% url 'events:review_detail' item.obj.log.pk as review_url %}
+      {% blocktranslate trimmed with name=item.obj.log.user|display_name event=item.obj.log.event.title %}
+        liked <a href="{{ review_url }}">{{ name }}'s review</a> of {{ event }}
+      {% endblocktranslate %}
     {% elif item.kind == 'comment' %}
-      replied to <a href="{% url 'events:review_detail' item.obj.log.pk %}">{{ item.obj.log.user|display_name }}'s review</a> of {{ item.obj.log.event.title }}
+      {% url 'events:review_detail' item.obj.log.pk as review_url %}
+      {% blocktranslate trimmed with name=item.obj.log.user|display_name event=item.obj.log.event.title %}
+        replied to <a href="{{ review_url }}">{{ name }}'s review</a> of {{ event }}
+      {% endblocktranslate %}
     {% endif %}
   </div>
   <span class="text-body-secondary text-nowrap">{{ item.at|timesince }}</span>

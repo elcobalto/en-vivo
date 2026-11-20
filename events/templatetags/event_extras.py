@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from django import template
+from django.utils import formats
+from django.utils.translation import gettext_lazy
 
 register = template.Library()
 
@@ -20,10 +22,10 @@ def stars(value) -> str:
 
 @register.filter
 def avg_stars(value) -> str:
-    """Render an average 1–10 rating as '3.6' on the 5-star scale."""
+    """Render an average 1–10 rating as '3.6' on the 5-star scale ('3,6' in Spanish)."""
     if value is None:
         return ""
-    return f"{float(value) / 2:.1f}"
+    return formats.number_format(round(float(value) / 2, 1), 1)
 
 
 @register.filter
@@ -35,7 +37,7 @@ def is_admin(user) -> bool:
 
 
 @register.inclusion_tag("events/_rating_histogram.html")
-def rating_histogram(logs, title: str = "Ratings", show_average: bool = False, link: str = ""):
+def rating_histogram(logs, title: str = gettext_lazy("Ratings"), show_average: bool = False, link: str = ""):
     """Letterboxd-style bars for ½★ … ★★★★★ from a queryset of logs (ratings stored 1–10).
     With ``link`` (a diary URL), each bar with logs links to the diary filtered by that rating."""
     from django.db.models import Count
@@ -58,7 +60,7 @@ def rating_histogram(logs, title: str = "Ratings", show_average: bool = False, l
 
 
 @register.inclusion_tag("events/_year_histogram.html")
-def year_histogram(logs, title: str = "Events by year", link: str = ""):
+def year_histogram(logs, title: str = gettext_lazy("Events by year"), link: str = ""):
     """Bars for how many dated events were attended each year, gap years included as empty bars.
     With ``link`` (a diary URL), each year with events links to the diary filtered by that year."""
     from django.db.models import Count

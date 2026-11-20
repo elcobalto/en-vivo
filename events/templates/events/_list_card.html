@@ -1,4 +1,4 @@
-<a class="text-decoration-none d-block" href="{{ event_list.get_absolute_url }}">
+{% load i18n %}<a class="text-decoration-none d-block" href="{{ event_list.get_absolute_url }}">
   <div class="d-flex mb-2">
     {% for item in event_list.all_items|slice:":5" %}
       <div class="poster position-relative flex-shrink-0" style="width:20%;{% if not forloop.first %}margin-left:-6%;{% endif %}z-index:{{ forloop.revcounter }};padding:0">
@@ -11,5 +11,5 @@
   <div class="fw-semibold">{{ event_list.title }}</div>
 </a>
 <div class="small text-body-secondary">
-  {% if show_owner %}by <a href="{% url 'events:user_lists' event_list.user.get_username %}">{{ event_list.user.get_username }}</a> · {% endif %}{{ event_list.item_count }} event{{ event_list.item_count|pluralize }}
+  {% if show_owner %}{% translate "by" %} <a href="{% url 'events:user_lists' event_list.user.get_username %}">{{ event_list.user.get_username }}</a> · {% endif %}{% blocktranslate count counter=event_list.item_count %}{{ counter }} event{% plural %}{{ counter }} events{% endblocktranslate %}
 </div>

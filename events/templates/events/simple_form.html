@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load i18n %}
 
 {% block title %}{{ title }} · En Vivo{% endblock %}
 
@@ -19,8 +20,8 @@
           </div>
         {% endfor %}
         <div class="d-flex gap-2">
-          <button class="btn btn-success" type="submit">Save</button>
-          <a class="btn btn-outline-secondary" href="{% if next %}{{ next }}{% else %}{% url 'events:home' %}{% endif %}">Cancel</a>
+          <button class="btn btn-success" type="submit">{% translate "Save" %}</button>
+          <a class="btn btn-outline-secondary" href="{% if next %}{{ next }}{% else %}{% url 'events:home' %}{% endif %}">{% translate "Cancel" %}</a>
         </div>
       </div></form>
     </div>

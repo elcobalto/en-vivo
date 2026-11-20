@@ -1,4 +1,4 @@
-{% comment %}
+{% load i18n %}{% comment %}
 Songs-per-album bars. Pass: rows (from albums.album_rows; albums.top_albums marks the green ones), album_sort, skip_empty,
 hide_controls (for extra charts under one set of controls),
 keep (list of (name, value) query params to carry, e.g. tab/seen_by) and unit ("song" or "play").
@@ -21,33 +21,33 @@ With unit="play" each row shows plays / different songs, and album_by ("n" or "s
   .album-row.is-none .album-bar { background: repeating-linear-gradient(45deg, var(--ev-bar) 0 4px, var(--ev-line) 4px 8px); }
   .album-n { min-width: 1.5rem; text-align: right; color: var(--bs-secondary-color); }
 </style>
-{% if not hide_controls %}<form method="get" class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2" aria-label="Album chart options">
+{% if not hide_controls %}<form method="get" class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2" aria-label="{% translate 'Album chart options' %}">
   {% for name, value in keep %}<input type="hidden" name="{{ name }}" value="{{ value }}">{% endfor %}
-  <div class="btn-group btn-group-sm" role="group" aria-label="Sort albums">
+  <div class="btn-group btn-group-sm" role="group" aria-label="{% translate 'Sort albums' %}">
     <input type="radio" class="btn-check" name="sort" value="newest" id="sort-newest-{{ unit }}" {% if album_sort == "newest" %}checked{% endif %} onchange="this.form.submit()">
-    <label class="btn btn-outline-secondary" for="sort-newest-{{ unit }}">Newest first</label>
+    <label class="btn btn-outline-secondary" for="sort-newest-{{ unit }}">{% translate "Newest first" %}</label>
     <input type="radio" class="btn-check" name="sort" value="count" id="sort-count-{{ unit }}" {% if album_sort == "count" %}checked{% endif %} onchange="this.form.submit()">
-    <label class="btn btn-outline-secondary" for="sort-count-{{ unit }}">{% if unit == "play" and album_by == "songs" %}Most songs{% else %}Most {{ unit }}s{% endif %}</label>
+    <label class="btn btn-outline-secondary" for="sort-count-{{ unit }}">{% if unit == "play" and album_by == "songs" or unit == "song" %}{% translate "Most songs" %}{% else %}{% translate "Most plays" %}{% endif %}</label>
   </div>
   {% if unit == "play" %}
-  <div class="btn-group btn-group-sm" role="group" aria-label="Measure albums by">
+  <div class="btn-group btn-group-sm" role="group" aria-label="{% translate 'Measure albums by' %}">
     <input type="radio" class="btn-check" name="by" value="n" id="by-plays" {% if album_by != "songs" %}checked{% endif %} onchange="this.form.submit()">
-    <label class="btn btn-outline-secondary" for="by-plays">Plays</label>
+    <label class="btn btn-outline-secondary" for="by-plays">{% translate "Plays" %}</label>
     <input type="radio" class="btn-check" name="by" value="songs" id="by-songs" {% if album_by == "songs" %}checked{% endif %} onchange="this.form.submit()">
-    <label class="btn btn-outline-secondary" for="by-songs">Songs</label>
+    <label class="btn btn-outline-secondary" for="by-songs">{% translate "Songs" %}</label>
   </div>
   {% endif %}
   <div class="form-check form-switch m-0">
     <input class="form-check-input" type="checkbox" role="switch" name="empty" value="skip" id="skip-empty-{{ unit }}" {% if skip_empty %}checked{% endif %} onchange="this.form.submit()">
-    <label class="form-check-label small" for="skip-empty-{{ unit }}">Skip empty albums</label>
+    <label class="form-check-label small" for="skip-empty-{{ unit }}">{% translate "Skip empty albums" %}</label>
   </div>
-  <noscript><button class="btn btn-sm btn-outline-secondary">Apply</button></noscript>
+  <noscript><button class="btn btn-sm btn-outline-secondary">{% translate "Apply" %}</button></noscript>
 </form>{% endif %}
 {% if rows %}
-  <div class="album-chart" role="img" aria-label="{{ unit|capfirst }}s per album: {% for a in rows %}{{ a.title }}{% if a.year %} ({{ a.year }}){% endif %} {{ a.n }}{% if not forloop.last %}, {% endif %}{% endfor %}">
+  <div class="album-chart" role="img" aria-label="{% if unit == "play" %}{% translate 'Plays per album' %}{% else %}{% translate 'Songs per album' %}{% endif %}: {% for a in rows %}{{ a.title }}{% if a.year %} ({{ a.year }}){% endif %} {{ a.n }}{% if not forloop.last %}, {% endif %}{% endfor %}">
     {% for a in rows %}
       <details class="album-item"{% if not a.tracks %} data-empty{% endif %}>
-        <summary class="album-row{% if not a.n %} is-empty{% endif %}{% if a.is_none %} is-none{% endif %}"{% if a.color %} data-album-color style="--album-color: {{ a.color }}"{% endif %}{% if not a.tracks %} onclick="return false"{% endif %} title="{{ a.title }}{% if a.year %} ({{ a.year }}){% endif %}: {{ a.n }} {{ unit }}{{ a.n|pluralize }}{% if unit == 'play' %} of {{ a.songs }} song{{ a.songs|pluralize }}{% endif %}">
+        <summary class="album-row{% if not a.n %} is-empty{% endif %}{% if a.is_none %} is-none{% endif %}"{% if a.color %} data-album-color style="--album-color: {{ a.color }}"{% endif %}{% if not a.tracks %} onclick="return false"{% endif %} title="{{ a.title }}{% if a.year %} ({{ a.year }}){% endif %}: {% if unit == 'play' %}{% blocktranslate count counter=a.n with songs=a.songs %}{{ counter }} play of {{ songs }} songs{% plural %}{{ counter }} plays of {{ songs }} songs{% endblocktranslate %}{% else %}{% blocktranslate count counter=a.n %}{{ counter }} song{% plural %}{{ counter }} songs{% endblocktranslate %}{% endif %}">
           <span class="album-year event-date">{{ a.year|default:"—" }}</span>
           <div class="album-bar-wrap">
             <div class="album-name small text-truncate">{{ a.title }}</div>
@@ -59,8 +59,8 @@ With unit="play" each row shows plays / different songs, and album_by ("n" or "s
           <ul class="list-unstyled small album-tracks mb-2">
             {% for t in a.tracks %}
               <li class="d-flex justify-content-between gap-2">
-                <span{% if t.is_cover %} class="fst-italic" title="Cover of {{ t.by }}"{% endif %}>{{ t.title }}{% if t.by %} <span class="text-body-secondary">· {{ t.by }}</span>{% endif %}</span>
-                {% if t.of %}<span class="text-body-secondary text-nowrap" title="Played at {{ t.n }} of the {{ t.of }} show{{ t.of|pluralize }} since it came out">{{ t.n }} / {{ t.of }}</span>{% endif %}
+                <span{% if t.is_cover %} class="fst-italic" title="{% blocktranslate with artist=t.by %}Cover of {{ artist }}{% endblocktranslate %}"{% endif %}>{{ t.title }}{% if t.by %} <span class="text-body-secondary">· {{ t.by }}</span>{% endif %}</span>
+                {% if t.of %}<span class="text-body-secondary text-nowrap" title="{% blocktranslate count counter=t.of with n=t.n %}Played at {{ n }} of the {{ counter }} show since it came out{% plural %}Played at {{ n }} of the {{ counter }} shows since it came out{% endblocktranslate %}">{{ t.n }} / {{ t.of }}</span>{% endif %}
               </li>
             {% endfor %}
           </ul>
@@ -68,7 +68,7 @@ With unit="play" each row shows plays / different songs, and album_by ("n" or "s
       </details>
     {% endfor %}
   </div>
-  {% if unit == "play" and not hide_controls %}<div class="small text-body-secondary mt-1">Numbers are plays / different songs; bars measure {% if album_by == "songs" %}songs{% else %}plays{% endif %}.</div>{% endif %}
+  {% if unit == "play" and not hide_controls %}<div class="small text-body-secondary mt-1">{% if album_by == "songs" %}{% translate "Numbers are plays / different songs; bars measure songs." %}{% else %}{% translate "Numbers are plays / different songs; bars measure plays." %}{% endif %}</div>{% endif %}
 {% else %}
-  <p class="small text-body-secondary mb-0">No albums to show.</p>
+  <p class="small text-body-secondary mb-0">{% translate "No albums to show." %}</p>
 {% endif %}

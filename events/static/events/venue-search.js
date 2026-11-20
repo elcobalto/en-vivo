@@ -59,7 +59,7 @@
       chosen.append(el("span", "badge text-bg-success me-2", "✓"));
       chosen.append(el("strong", "", venue.name));
       if (venue.secondary) chosen.append(el("span", "text-body-secondary", " · " + venue.secondary));
-      var clear = el("button", "btn btn-link btn-sm text-danger p-0 ms-2", "Remove");
+      var clear = el("button", "btn btn-link btn-sm text-danger p-0 ms-2", gettext("Remove"));
       clear.type = "button";
       clear.addEventListener("click", function () {
         hidden.value = "";
@@ -99,7 +99,7 @@
         form.submit();
         return;
       }
-      showMessage("Adding “" + place.main + "”…");
+      showMessage(interpolate(gettext("Adding “%s”…"), [place.main]));
       var body = new FormData();
       body.append("place_id", place.place_id);
       body.append("session", session);
@@ -111,7 +111,7 @@
       })
         .then(function (r) { return r.json().then(function (data) { return { ok: r.ok, data: data }; }); })
         .then(function (res) {
-          if (!res.ok) throw new Error(res.data.error || "Could not add that venue.");
+          if (!res.ok) throw new Error(res.data.error || gettext("Could not add that venue."));
           finish(res.data);
         })
         .catch(function (err) { showMessage(err.message); });
@@ -136,15 +136,15 @@
       }
 
       if (local.length) {
-        addHeader("On En Vivo");
+        addHeader(gettext("On En Vivo"));
         local.forEach(function (v) { addItem(v.name, v.secondary, function () { finish(v); }); });
       }
       if (google.length) {
-        addHeader("From Google");
+        addHeader(gettext("From Google"));
         google.forEach(function (p) { addItem(p.main, p.secondary, function () { pickGoogle(p); }); });
       }
       if (!local.length && !google.length) {
-        showMessage(data.error || (data.google_enabled ? "No matches." : "No matches. Google search isn't configured, add it by hand below."));
+        showMessage(data.error || (data.google_enabled ? gettext("No matches.") : gettext("No matches. Google search isn't configured, add it by hand below.")));
         return;
       }
       if (data.error) list.append(el("div", "list-group-item small text-warning", data.error));
@@ -160,7 +160,7 @@
       fetch(url, { credentials: "same-origin" })
         .then(function (r) { return r.json(); })
         .then(function (data) { if (mine === seq) render(data); })
-        .catch(function () { if (mine === seq) showMessage("Search failed, try again."); });
+        .catch(function () { if (mine === seq) showMessage(gettext("Search failed, try again.")); });
     }
 
     input.addEventListener("input", function () {

@@ -17,7 +17,9 @@ from django.http import Http404, HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
+from django.utils.formats import date_format
 from django.utils.http import url_has_allowed_host_and_scheme
+from django.utils.translation import gettext, gettext_lazy, ngettext
 from django.views.decorators.http import require_POST
 
 from .forms import RATING_CHOICES, EventForm, EventArtistFormSet, LogForm, ArtistForm, PlayForm, ProductionForm, VenueForm
@@ -42,13 +44,13 @@ from .models import (
 )
 
 SORTS = {
-    "newest": ("Latest date first", [F("date").desc(nulls_last=True), "title"]),
-    "oldest": ("Earliest date first", [F("date").asc(nulls_last=True), "title"]),
-    "popular": ("Most logged", ["-log_count", F("date").desc(nulls_last=True)]),
-    "rating": ("Highest rated", [F("avg_rating").desc(nulls_last=True), "-log_count"]),
-    "added": ("Recently added", ["-created_at", "-pk"]),
+    "newest": (gettext_lazy("Latest date first"), [F("date").desc(nulls_last=True), "title"]),
+    "oldest": (gettext_lazy("Earliest date first"), [F("date").asc(nulls_last=True), "title"]),
+    "popular": (gettext_lazy("Most logged"), ["-log_count", F("date").desc(nulls_last=True)]),
+    "rating": (gettext_lazy("Highest rated"), [F("avg_rating").desc(nulls_last=True), "-log_count"]),
+    "added": (gettext_lazy("Recently added"), ["-created_at", "-pk"]),
 }
-WHEN = {"": "Any time", "upcoming": "Upcoming", "past": "Past"}
+WHEN = {"": gettext_lazy("Any time"), "upcoming": gettext_lazy("Upcoming"), "past": gettext_lazy("Past")}
 from .roles import can_delete_event, can_edit_event, home_place, is_admin
 from .albums import (album_colors, album_groups, album_rows, choose_album, mark_album_choices, played_by_album,
                      remember_album,
@@ -288,10 +290,10 @@ def _seen_by(request: HttpRequest):
 
 
 ARTIST_SORTS = {
-    "events": "Most events",
-    "popular": "Most popular",
-    "rated": "Highest rated",
-    "recent": "Last performed",
+    "events": gettext_lazy("Most events"),
+    "popular": gettext_lazy("Most popular"),
+    "rated": gettext_lazy("Highest rated"),
+    "recent": gettext_lazy("Last performed"),
 }
 
 
@@ -397,12 +399,13 @@ def artist_songs_manage(request: HttpRequest, pk: int) -> HttpResponse:
             song.album_checked_at = timezone.now()  # fixed by hand: never looked up again
             song.save(update_fields=["album_title", "album_year", "album_mbid", "album_checked_at", "cover_of_name"])
             changed += 1
-        messages.success(request, f"Updated the album of {changed} song{'s' if changed != 1 else ''}.")
+        messages.success(request, ngettext("Updated the album of %(n)s song.", "Updated the album of %(n)s songs.",
+                                           changed) % {"n": changed})
         return redirect("events:artist_songs_manage", pk=artist.pk)
     groups: dict[str, dict] = {}
     for song in songs:
         key = normalize_name(song.album_title)
-        group = groups.setdefault(key, {"title": song.album_title or "No album", "year": song.album_year,
+        group = groups.setdefault(key, {"title": song.album_title or gettext("No album"), "year": song.album_year,
                                         "is_none": not song.album_title, "songs": []})
         if group["year"] is None:
             group["year"] = song.album_year
@@ -424,18 +427,19 @@ def artist_albums_edit(request: HttpRequest, pk: int) -> HttpResponse:
     artist = get_object_or_404(Artist, pk=pk)
     if request.POST.get("delete"):
         Album.objects.filter(artist=artist, pk=request.POST["delete"]).delete()
-        messages.success(request, "Album removed.")
+        messages.success(request, gettext("Album removed."))
     else:
         title = " ".join((request.POST.get("title") or "").split())[:240]
         raw_year = (request.POST.get("year") or "").strip()
         year = int(raw_year) if raw_year.isdigit() and 1000 < int(raw_year) < 3000 else None
         if not title:
-            messages.error(request, "Give the album a title.")
+            messages.error(request, gettext("Give the album a title."))
         elif any(normalize_name(a.title) == normalize_name(title) for a in artist.albums.all()):
-            messages.info(request, f"“{title}” is already in {artist.name}'s albums.")
+            messages.info(request, gettext("“%(title)s” is already in %(artist)s's albums.") % {
+                "title": title, "artist": artist.name})
         else:
             Album.objects.create(artist=artist, title=title, year=year)
-            messages.success(request, f"Added “{title}”.")
+            messages.success(request, gettext("Added “%(title)s”.") % {"title": title})
     return redirect(_safe_next(request, artist.get_absolute_url()))
 
 
@@ -599,7 +603,7 @@ def diary(request: HttpRequest, username: str | None = None) -> HttpResponse:
             "expanded": expanded,
             "years": years,
             "event_types": [(v, l) for v, l in EventType.choices if v in set(types_logged)],
-            "by_type": [(type_labels.get(r["event__event_type"], "Other"), r["n"]) for r in by_type],
+            "by_type": [(type_labels.get(r["event__event_type"], EventType.OTHER.label), r["n"]) for r in by_type],
             **stats,
         },
     )
@@ -654,9 +658,10 @@ def event_form(request: HttpRequest, pk: int | None = None) -> HttpResponse:
                 if updated:
                     messages.info(request, shared_photo_message(updated, unit))
         if merged:
-            messages.info(request, f"“{merged.title}” already existed on that day, so this was added to it.")
+            messages.info(request, gettext("“%(title)s” already existed on that day, so this was added to it.")
+                          % {"title": merged.title})
             return redirect(merged)
-        messages.success(request, "Event saved.")
+        messages.success(request, gettext("Event saved."))
         return redirect(saved)
 
     return render(request, "events/event_form.html", {
@@ -713,10 +718,12 @@ def festival_add_artists(request: HttpRequest, pk: int) -> HttpResponse:
                 else EventArtist.Role.SUPPORT)
         added, skipped = add_typed_artists(event, request.POST["typed"], role)
         if added:
-            messages.success(request, f"Added {added} artist{'s' if added != 1 else ''} to the lineup."
-                                      + (f" {skipped} {'was' if skipped == 1 else 'were'} already on it." if skipped else ""))
+            text = ngettext("Added %(n)s artist to the lineup.", "Added %(n)s artists to the lineup.", added) % {"n": added}
+            if skipped:
+                text += " " + ngettext("%(n)s was already on it.", "%(n)s were already on it.", skipped) % {"n": skipped}
+            messages.success(request, text)
         else:
-            messages.info(request, "Nothing added: type at least one artist that isn't on the lineup yet.")
+            messages.info(request, gettext("Nothing added: type at least one artist that isn't on the lineup yet."))
             return redirect(request.get_full_path())
         return redirect(event)
     on_bill = {normalize_name(n) for n in event.eventartist_set.values_list("artist__name", flat=True)}
@@ -775,16 +782,18 @@ def festival_add_artists(request: HttpRequest, pk: int) -> HttpResponse:
                         skipped.append(f"{c['name']}: {e}")
             event.order_bill()  # new headliners move above the support acts
         event.refresh_auto_title()
-        messages.success(request, f"Added {len(chosen)} artist{'s' if len(chosen) != 1 else ''} to the lineup"
-                                  f" and {setlists} setlist{'s' if setlists != 1 else ''}.")
+        messages.success(request, gettext("Added %(artists)s to the lineup and %(setlists)s.") % {
+            "artists": ngettext("%(n)s artist", "%(n)s artists", len(chosen)) % {"n": len(chosen)},
+            "setlists": ngettext("%(n)s setlist", "%(n)s setlists", setlists) % {"n": setlists},
+        })
         for note in skipped:
-            messages.warning(request, f"Setlist not added for {note}")
+            messages.warning(request, gettext("Setlist not added for %(note)s") % {"note": note})
         return redirect(event)
     # The venues setlist.fm found that day (the festival's own first): ticking one ticks all its artists.
     venues: dict[str, dict] = {}
     for c in candidates:
         c["venue_key"] = normalize_name(c["venue"]) or "unknown"
-        v = venues.setdefault(c["venue_key"], {"key": c["venue_key"], "name": c["venue"] or "Unknown venue",
+        v = venues.setdefault(c["venue_key"], {"key": c["venue_key"], "name": c["venue"] or gettext("Unknown venue"),
                                                "count": 0, "same_venue": c["same_venue"]})
         v["count"] += 1
     return render(request, "events/festival_add_artists.html", {
@@ -899,7 +908,8 @@ def setlist_albums_edit(request: HttpRequest, pk: int, artist_pk: int) -> HttpRe
         if choose_album(song, request.POST.get(f"album_{song.pk}"), allowed):
             song.save(update_fields=["album_title", "album_year", "album_mbid", "album_checked_at"])
             changed += 1
-    messages.success(request, f"Updated the album of {changed} song{'s' if changed != 1 else ''}.")
+    messages.success(request, ngettext("Updated the album of %(n)s song.", "Updated the album of %(n)s songs.",
+                                       changed) % {"n": changed})
     return redirect(reverse("events:act_setlist", args=[pk, artist_pk]))
 
 
@@ -928,12 +938,12 @@ def play_detail(request: HttpRequest, pk: int) -> HttpResponse:
 
 @login_required
 def play_create(request: HttpRequest) -> HttpResponse:
-    return _simple_create(request, PlayForm, "Play")
+    return _simple_create(request, PlayForm, "play")
 
 
 @login_required
 def play_edit(request: HttpRequest, pk: int) -> HttpResponse:
-    return _simple_edit(request, Play, pk, PlayForm, "Play")
+    return _simple_edit(request, Play, pk, PlayForm, "play")
 
 
 @login_required
@@ -945,7 +955,7 @@ def event_delete(request: HttpRequest, pk: int) -> HttpResponse:
     if request.method == "POST":
         title = event.title
         event.delete()
-        messages.success(request, f"Deleted “{title}”.")
+        messages.success(request, gettext("Deleted “%(name)s”.") % {"name": title})
         return redirect("events:event_list")
     impact = {
         "logs": event.logs.count(),
@@ -957,30 +967,46 @@ def event_delete(request: HttpRequest, pk: int) -> HttpResponse:
     return render(request, "events/event_confirm_delete.html", {"event": event, "impact": impact})
 
 
-def _simple_create(request: HttpRequest, form_class, title: str,
+# Page titles and messages for the catalog forms, per kind (whole sentences, so they translate well).
+CATALOG_TEXTS = {
+    "artist": {"new": gettext_lazy("New artist"), "edit": gettext_lazy("Edit artist"),
+               "created": gettext_lazy("Artist “%(name)s” created."), "saved": gettext_lazy("Artist “%(name)s” saved.")},
+    "venue": {"new": gettext_lazy("New venue"), "edit": gettext_lazy("Edit venue"),
+              "created": gettext_lazy("Venue “%(name)s” created."), "saved": gettext_lazy("Venue “%(name)s” saved.")},
+    "production": {"new": gettext_lazy("New production"), "edit": gettext_lazy("Edit production"),
+                   "created": gettext_lazy("Production “%(name)s” created."),
+                   "saved": gettext_lazy("Production “%(name)s” saved.")},
+    "play": {"new": gettext_lazy("New play"), "edit": gettext_lazy("Edit play"),
+             "created": gettext_lazy("Play “%(name)s” created."), "saved": gettext_lazy("Play “%(name)s” saved.")},
+}
+
+
+def _simple_create(request: HttpRequest, form_class, kind: str,
                    template: str = "events/simple_form.html") -> HttpResponse:
+    texts = CATALOG_TEXTS[kind]
     form = form_class(request.POST or None)
     if request.method == "POST" and form.is_valid():
         obj = form.save()
-        messages.success(request, f"{title} “{obj}” created.")
+        messages.success(request, str(texts["created"]) % {"name": obj})
         return redirect(_safe_next(request, obj.get_absolute_url()))
     return render(
-        request, template, {"form": form, "title": f"New {title.lower()}", "next": _safe_next(request, "")}
+        request, template, {"form": form, "title": texts["new"], "next": _safe_next(request, "")}
     )
 
 
-def _simple_edit(request: HttpRequest, model, pk: int, form_class, title: str,
+def _simple_edit(request: HttpRequest, model, pk: int, form_class, kind: str,
                  template: str = "events/simple_form.html") -> HttpResponse:
     """Admins only: edit catalog data shared by every event (artists, venues, productions)."""
     if not is_admin(request.user):
         raise PermissionDenied
+    texts = CATALOG_TEXTS[kind]
     obj = get_object_or_404(model, pk=pk)
     form = form_class(request.POST or None, instance=obj)
     if request.method == "POST" and form.is_valid():
         obj = form.save()
-        messages.success(request, f"{title} “{obj}” saved.")
+        messages.success(request, str(texts["saved"]) % {"name": obj})
         return redirect(obj.get_absolute_url())
-    context = {"form": form, "title": f"Edit {title.lower()}", "next": obj.get_absolute_url()}
+    context = {"form": form, "title": texts["edit"], "next": obj.get_absolute_url()}
     if model is Venue:
         context.update(venue=obj, next="", link_url=reverse("events:venue_link_place", args=[obj.pk]))
     return render(request, template, context)
@@ -999,7 +1025,7 @@ def artist_delete(request: HttpRequest, pk: int) -> HttpResponse:
             SetlistSong.objects.filter(song__artist=artist).delete()
             artist.setlists.all().delete()
             artist.delete()  # lineup spots, songs and acts seen go with it; tours lose their artist
-        messages.success(request, f"Deleted “{name}”.")
+        messages.success(request, gettext("Deleted “%(name)s”.") % {"name": name})
         return redirect("events:event_list")
     impact = {
         "events": artist.events.distinct().count(),
@@ -1012,32 +1038,32 @@ def artist_delete(request: HttpRequest, pk: int) -> HttpResponse:
 
 @login_required
 def artist_edit(request: HttpRequest, pk: int) -> HttpResponse:
-    return _simple_edit(request, Artist, pk, ArtistForm, "Artist")
+    return _simple_edit(request, Artist, pk, ArtistForm, "artist")
 
 
 @login_required
 def venue_edit(request: HttpRequest, pk: int) -> HttpResponse:
-    return _simple_edit(request, Venue, pk, VenueForm, "Venue", template="events/venue_form.html")
+    return _simple_edit(request, Venue, pk, VenueForm, "venue", template="events/venue_form.html")
 
 
 @login_required
 def production_edit(request: HttpRequest, pk: int) -> HttpResponse:
-    return _simple_edit(request, Production, pk, ProductionForm, "Production")
+    return _simple_edit(request, Production, pk, ProductionForm, "production")
 
 
 @login_required
 def artist_create(request: HttpRequest) -> HttpResponse:
-    return _simple_create(request, ArtistForm, "Artist")
+    return _simple_create(request, ArtistForm, "artist")
 
 
 @login_required
 def venue_create(request: HttpRequest) -> HttpResponse:
-    return _simple_create(request, VenueForm, "Venue", template="events/venue_form.html")
+    return _simple_create(request, VenueForm, "venue", template="events/venue_form.html")
 
 
 @login_required
 def production_create(request: HttpRequest) -> HttpResponse:
-    return _simple_create(request, ProductionForm, "Production")
+    return _simple_create(request, ProductionForm, "production")
 
 
 # --------------------------------------------------------------------------- diary entries
@@ -1049,7 +1075,8 @@ def log_save(request: HttpRequest, pk: int) -> HttpResponse:
     event = get_object_or_404(Event, pk=pk)
     if not event.has_happened:
         messages.error(
-            request, f"“{event.title}” hasn't happened yet. You can log it from {event.date.day} {event.date:%b %Y}."
+            request, gettext("“%(title)s” hasn't happened yet. You can log it from %(date)s.") % {
+                "title": event.title, "date": date_format(event.date, "j M Y")}
         )
         return redirect(event)
     log = Log.objects.filter(user=request.user, event=event).first()
@@ -1061,9 +1088,9 @@ def log_save(request: HttpRequest, pk: int) -> HttpResponse:
         entry.save()
         if request.POST.get("acts_submitted"):
             _save_acts(entry, request.POST)
-        messages.success(request, "Saved to your diary.")
+        messages.success(request, gettext("Saved to your diary."))
     else:
-        messages.error(request, "Could not save your log: " + form.errors.as_text())
+        messages.error(request, gettext("Could not save your log: %(errors)s") % {"errors": form.errors.as_text()})
     return redirect(event)
 
 
@@ -1100,7 +1127,7 @@ def _video_groups(event: Event, lineup) -> list[tuple[str, object, list]]:
     groups = []
     whole = [v for v in videos if v.artist_id is None]
     if whole:
-        groups.append(("Whole event", None, whole))
+        groups.append((gettext("Whole event"), None, whole))
     for link in lineup:
         mine = [v for v in videos if v.artist_id == link.artist_id]
         if mine:
@@ -1136,7 +1163,7 @@ def log_delete(request: HttpRequest, pk: int) -> HttpResponse:
     event = get_object_or_404(Event, pk=pk)
     deleted, _ = Log.objects.filter(user=request.user, event=event).delete()
     if deleted:
-        messages.success(request, "Removed from your diary.")
+        messages.success(request, gettext("Removed from your diary."))
     return redirect(event)
 
 
@@ -1183,7 +1210,7 @@ def setlist_import(request: HttpRequest, pk: int) -> HttpResponse:
         raise Http404
     setlist_id = (request.POST.get("setlist_id") or "").strip()
     if not setlist_id:
-        messages.error(request, "Missing setlist id.")
+        messages.error(request, gettext("Missing setlist id."))
         return redirect("events:setlist_search", pk=event.pk)
     try:
         setlist = import_setlist(event, get_setlist(setlist_id))
@@ -1192,8 +1219,10 @@ def setlist_import(request: HttpRequest, pk: int) -> HttpResponse:
         return redirect("events:setlist_search", pk=event.pk)
     except Exception:
         logging.getLogger(__name__).exception("Importing setlist %s into event %s failed", setlist_id, event.pk)
-        messages.error(request, "Something went wrong importing that setlist. Nothing was saved.")
+        messages.error(request, gettext("Something went wrong importing that setlist. Nothing was saved."))
         return redirect("events:setlist_search", pk=event.pk)
 
-    messages.success(request, f"Imported {setlist.entries.count()} songs for {setlist.artist}.")
+    count = setlist.entries.count()
+    messages.success(request, ngettext("Imported %(n)s song for %(artist)s.", "Imported %(n)s songs for %(artist)s.",
+                                       count) % {"n": count, "artist": setlist.artist})
     return redirect(event)

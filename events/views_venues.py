@@ -9,6 +9,7 @@ from django.db.models import Q
 from django.http import Http404, HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
+from django.utils.translation import gettext, ngettext
 from django.views.decorators.http import require_GET, require_POST
 
 from . import google_places, image_search, setlistfm_events
@@ -56,7 +57,7 @@ def venue_search(request: HttpRequest) -> JsonResponse:
 
     if google_places.enabled() and len(q) >= 3:
         if _rate_limited(request):
-            return JsonResponse({**data, "error": "Too many searches, wait a moment."}, status=429)
+            return JsonResponse({**data, "error": gettext("Too many searches, wait a moment.")}, status=429)
         try:
             known = set(Venue.objects.exclude(google_place_id=None).values_list("google_place_id", flat=True))
             data["google"] = [s for s in google_places.autocomplete(q, session) if s["place_id"] not in known]
@@ -70,7 +71,7 @@ def venue_search(request: HttpRequest) -> JsonResponse:
 def venue_from_place(request: HttpRequest) -> JsonResponse:
     place_id = (request.POST.get("place_id") or "").strip()
     if not place_id:
-        return JsonResponse({"error": "Missing place."}, status=400)
+        return JsonResponse({"error": gettext("Missing place.")}, status=400)
     try:
         venue = google_places.venue_from_place(place_id, (request.POST.get("session") or "")[:100])
     except google_places.PlacesError as e:
@@ -91,7 +92,7 @@ def venue_link_place(request: HttpRequest, pk: int) -> HttpResponse:
     except google_places.PlacesError as e:
         messages.error(request, str(e))
         return redirect("events:venue_edit", pk=venue.pk)
-    messages.success(request, f"“{venue.name}” now uses Google's data.")
+    messages.success(request, gettext("“%(name)s” now uses Google's data.") % {"name": venue.name})
     return redirect(venue)
 
 
@@ -112,7 +113,7 @@ def setlistfm_shows(request: HttpRequest) -> HttpResponse:
     if request.method == "POST":
         ids = [i.strip() for i in request.POST.getlist("setlist_id") if i.strip()][:max_setlist_imports(request.user)]
         if not ids:
-            messages.error(request, "Select at least one setlist.")
+            messages.error(request, gettext("Select at least one setlist."))
         else:
             created = joined = skipped = attended = 0
             mark_attended = request.POST.get("attended") == "1"
@@ -131,13 +132,13 @@ def setlistfm_shows(request: HttpRequest) -> HttpResponse:
                     created += 1
                 else:
                     joined += 1
-            summary = [f"{created} event{'s' if created != 1 else ''} created"]
+            summary = [ngettext("%(n)s event created", "%(n)s events created", created) % {"n": created}]
             if joined:
-                summary.append(f"{joined} added to existing events")
+                summary.append(gettext("%(n)s added to existing events") % {"n": joined})
             if skipped:
-                summary.append(f"{skipped} already imported")
+                summary.append(gettext("%(n)s already imported") % {"n": skipped})
             if attended:
-                summary.append(f"{attended} added to your diary")
+                summary.append(gettext("%(n)s added to your diary") % {"n": attended})
             messages.success(request, ", ".join(summary) + ".")
         return redirect(request.get_full_path())
 
@@ -151,7 +152,7 @@ def setlistfm_shows(request: HttpRequest) -> HttpResponse:
         page = 1
     results, error = [], None
     if searched and not any(filters.values()):
-        error = "Fill in at least one filter: artist, city, venue, year or country."
+        error = gettext("Fill in at least one filter: artist, city, venue, year or country.")
     elif searched:
         try:
             results = search_setlists(
@@ -193,15 +194,15 @@ def _photo_picker(request, *, obj, default_query: str, artist: str, context: dic
     if request.method == "POST":
         url = image_search.clean_image_link(request.POST.get("url") or "")
         if image_search.is_search_page(url):
-            messages.error(request, "That's a link to the search results, not to the photo. Drag the photo "
-                                    "itself here, or right-click it → “Copy image address”.")
+            messages.error(request, gettext("That's a link to the search results, not to the photo. Drag the photo "
+                                            "itself here, or right-click it → “Copy image address”."))
             return redirect(request.get_full_path())
         if not url.startswith("https://") or len(url) > 1000:
-            messages.error(request, "That photo can't be used (it needs a secure https link).")
+            messages.error(request, gettext("That photo can't be used (it needs a secure https link)."))
             return redirect(request.get_full_path())
         obj.image_url = url
         obj.save(update_fields=["image_url", "updated_at"])
-        messages.success(request, "Photo updated.")
+        messages.success(request, gettext("Photo updated."))
         if isinstance(obj, Event) and request.POST.get("all_days"):
             from .merge import share_photo, shared_photo_message
 
@@ -215,7 +216,7 @@ def _photo_picker(request, *, obj, default_query: str, artist: str, context: dic
     key = f"photo-search:{request.user.pk}"
     used = cache.get_or_set(key, 0, timeout=60 * 60)
     if used >= PHOTO_SEARCHES_PER_HOUR:
-        errors.append("You've searched a lot in the last hour; try again later.")
+        errors.append(gettext("You've searched a lot in the last hour; try again later."))
     elif query:
         try:
             cache.incr(key)
@@ -246,7 +247,7 @@ def event_photo(request: HttpRequest, pk: int) -> HttpResponse:
         context={"subject_title": event.title, "back_url": event.get_absolute_url(),
                  "photo_share": photo_siblings(event),
                  "edit_url": reverse("events:event_edit", args=[event.pk]),
-                 "hint": "Pick the image that fits best: a poster, the artist, or the show itself."},
+                 "hint": gettext("Pick the image that fits best: a poster, the artist, or the show itself.")},
     )
 
 
@@ -264,7 +265,7 @@ def production_photo(request: HttpRequest, pk: int) -> HttpResponse:
         request, obj=production, default_query=query, artist="",
         context={"subject_title": production.title, "back_url": production.get_absolute_url(),
                  "edit_url": reverse("events:production_edit", args=[production.pk]) if is_admin(request.user) else "",
-                 "hint": "Pick the festival or tour poster. It's also used for its events that have no photo."},
+                 "hint": gettext("Pick the festival or tour poster. It's also used for its events that have no photo.")},
     )
 
 
@@ -278,7 +279,7 @@ def artist_photo(request: HttpRequest, pk: int) -> HttpResponse:
         request, obj=artist, default_query=artist.name, artist=artist.name,
         context={"subject_title": artist.name, "back_url": artist.get_absolute_url(),
                  "edit_url": reverse("events:artist_edit", args=[artist.pk]) if is_admin(request.user) else "",
-                 "hint": "Pick a photo of the artist. It's also used for their events that have no photo."},
+                 "hint": gettext("Pick a photo of the artist. It's also used for their events that have no photo.")},
     )
 
 
@@ -294,18 +295,18 @@ def video_add(request: HttpRequest, pk: int) -> HttpResponse:
     event = get_object_or_404(Event, pk=pk)
     vid = youtube_id(request.POST.get("url") or "")
     if not vid:
-        messages.error(request, "That doesn't look like a YouTube link.")
+        messages.error(request, gettext("That doesn't look like a YouTube link."))
         return redirect("events:event_videos", pk=event.pk)
     artist_id = (request.POST.get("artist") or "").strip()
     artist = None
     if artist_id.isdigit():
         artist = event.artists.filter(pk=int(artist_id)).first()
     if EventVideo.objects.filter(event=event, youtube_id=vid).exists():
-        messages.info(request, "That video is already on this event.")
+        messages.info(request, gettext("That video is already on this event."))
     else:
         EventVideo.objects.create(event=event, artist=artist, youtube_id=vid,
                                   title=video_title(vid), added_by=request.user)
-        messages.success(request, "Video added.")
+        messages.success(request, gettext("Video added."))
     return redirect("events:event_videos", pk=event.pk)
 
 
@@ -318,7 +319,7 @@ def video_remove(request: HttpRequest, pk: int, video_pk: int) -> HttpResponse:
     if video.added_by_id != request.user.pk and not is_admin(request.user):
         raise PermissionDenied
     video.delete()
-    messages.success(request, "Video removed.")
+    messages.success(request, gettext("Video removed."))
     return redirect("events:event_videos", pk=pk)
 
 
@@ -372,7 +373,7 @@ def event_poster_image(request: HttpRequest, pk: int) -> HttpResponse:
     if not url:
         raise Http404
     if not _public_https_url(url):
-        return HttpResponse("Only https photos from public sites can be read.", status=400, content_type="text/plain")
+        return HttpResponse(gettext("Only https photos from public sites can be read."), status=400, content_type="text/plain")
 
     class SafeRedirects(HTTPRedirectHandler):
         max_redirections = 3
@@ -397,15 +398,17 @@ def event_poster_image(request: HttpRequest, pk: int) -> HttpResponse:
             # Some hosts only answer browsers.
             content_type, data = download("Mozilla/5.0 (compatible; EnVivo poster reader)")
     except HTTPError as e:
-        return HttpResponse(f"The photo's site answered {e.code}.", status=502, content_type="text/plain")
+        return HttpResponse(gettext("The photo's site answered %(code)s.") % {"code": e.code}, status=502,
+                            content_type="text/plain")
     except (URLError, OSError, ValueError) as e:
-        return HttpResponse(f"Couldn't download the photo ({e.__class__.__name__}).", status=502, content_type="text/plain")
+        return HttpResponse(gettext("Couldn't download the photo (%(error)s).") % {"error": e.__class__.__name__},
+                            status=502, content_type="text/plain")
     if len(data) > POSTER_MAX_BYTES:
-        return HttpResponse("The photo is larger than 8 MB.", status=413, content_type="text/plain")
+        return HttpResponse(gettext("The photo is larger than 8 MB."), status=413, content_type="text/plain")
     if not content_type.startswith("image/"):
         sniffed = _image_type(data)  # e.g. served as application/octet-stream
         if not sniffed:
-            return HttpResponse("That link isn't an image.", status=415, content_type="text/plain")
+            return HttpResponse(gettext("That link isn't an image."), status=415, content_type="text/plain")
         content_type = sniffed
     response = HttpResponse(data, content_type=content_type)
     response["Cache-Control"] = "private, max-age=300"

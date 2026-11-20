@@ -1,37 +1,38 @@
 {% extends "base.html" %}
+{% load i18n %}
 
-{% block title %}Manage songs · {{ artist.name }} · En Vivo{% endblock %}
+{% block title %}{% translate "Manage songs" %} · {{ artist.name }} · En Vivo{% endblock %}
 
 {% block content %}
   <p class="small mb-1"><a href="{{ artist.get_absolute_url }}">← {{ artist.name }}</a></p>
-  <h1 class="h4 mb-1">{{ artist.name }}: manage songs</h1>
+  <h1 class="h4 mb-1">{% blocktranslate with name=artist.name %}{{ name }}: manage songs{% endblocktranslate %}</h1>
   <p class="small text-body-secondary mb-3">
-    {{ song_total }} song{{ song_total|pluralize }}, grouped by album (newest first, songs with no album last).
-    Pick an album to move a song, or name the original artist if it's a cover (a band they were in gets its own chart); only changed rows are saved, and fixed songs aren't looked up again.
-    Missing an album? Add it in <a href="{{ artist.get_absolute_url }}#manage-albums">Manage albums</a>{% if artist.member_of.exists %} (or on the band's page){% endif %}.
+    {% blocktranslate count counter=song_total %}{{ counter }} song, grouped by album (newest first, songs with no album last).{% plural %}{{ counter }} songs, grouped by album (newest first, songs with no album last).{% endblocktranslate %}
+    {% translate "Pick an album to move a song, or name the original artist if it's a cover (a band they were in gets its own chart); only changed rows are saved, and fixed songs aren't looked up again." %}
+    {% url 'events:artist_detail' artist.pk as artist_url %}{% if artist.member_of.exists %}{% blocktranslate %}Missing an album? Add it in <a href="{{ artist_url }}#manage-albums">Manage albums</a> (or on the band's page).{% endblocktranslate %}{% else %}{% blocktranslate %}Missing an album? Add it in <a href="{{ artist_url }}#manage-albums">Manage albums</a>.{% endblocktranslate %}{% endif %}
   </p>
   {% if groups %}
     <form method="post" style="max-width:52rem">
       {% csrf_token %}
       {% for group in groups %}
-        <h2 class="section-title mt-4 mb-2">{% if group.is_none %}<em>No album</em>{% else %}{{ group.title }}{% if group.year %} · {{ group.year }}{% endif %}{% endif %} <span class="text-body-secondary">({{ group.songs|length }})</span></h2>
+        <h2 class="section-title mt-4 mb-2">{% if group.is_none %}<em>{% translate "No album" %}</em>{% else %}{{ group.title }}{% if group.year %} · {{ group.year }}{% endif %}{% endif %} <span class="text-body-secondary">({{ group.songs|length }})</span></h2>
         {% for song in group.songs %}
           <div class="row g-2 align-items-center py-1 border-bottom border-secondary-subtle">
             <div class="col-12 col-md-4">
               <label class="small" for="album-{{ song.pk }}">{{ song.title }}</label>
-              <span class="small text-body-secondary">· {{ song.plays }} play{{ song.plays|pluralize }}</span>
+              <span class="small text-body-secondary">· {% blocktranslate count counter=song.plays %}{{ counter }} play{% plural %}{{ counter }} plays{% endblocktranslate %}</span>
             </div>
-            <div class="col-6 col-md-3"><input class="form-control form-control-sm" name="cover_of_{{ song.pk }}" value="{{ song.cover_of_name }}" maxlength="200" placeholder="Not a cover" aria-label="Cover of (original artist) for {{ song.title }}" title="Cover of (original artist)"></div>
+            <div class="col-6 col-md-3"><input class="form-control form-control-sm" name="cover_of_{{ song.pk }}" value="{{ song.cover_of_name }}" maxlength="200" placeholder="{% translate 'Not a cover' %}" aria-label="{% blocktranslate with title=song.title %}Cover of (original artist) for {{ title }}{% endblocktranslate %}" title="{% translate 'Cover of (original artist)' %}"></div>
             <div class="col-6 col-md-5">{% include "events/_album_select.html" %}</div>
           </div>
         {% endfor %}
       {% endfor %}
       <div class="position-sticky bottom-0 py-3 d-flex justify-content-end gap-2" style="background:var(--ev-bg)">
-        <a class="btn btn-outline-secondary" href="{{ artist.get_absolute_url }}">Cancel</a>
-        <button class="btn btn-success" type="submit">Save changes</button>
+        <a class="btn btn-outline-secondary" href="{{ artist.get_absolute_url }}">{% translate "Cancel" %}</a>
+        <button class="btn btn-success" type="submit">{% translate "Save changes" %}</button>
       </div>
     </form>
   {% else %}
-    <p class="text-body-secondary">No songs yet. They're added when setlists are imported.</p>
+    <p class="text-body-secondary">{% translate "No songs yet. They're added when setlists are imported." %}</p>
   {% endif %}
 {% endblock %}

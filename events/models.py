@@ -16,16 +16,29 @@ from django.db import models
 from django.db.models import Avg, Count, F
 from django.db.models.functions import Lower
 from django.urls import reverse
+from django.utils import translation
+from django.utils.translation import gettext, gettext_lazy as _
 from django_countries.fields import CountryField
 
 
 class EventType(models.TextChoices):
-    MUSIC = "music", "Music"
-    THEATER = "theater", "Theater"
-    COMEDY = "comedy", "Comedy"
-    DANCE = "dance", "Dance"
-    FESTIVAL = "festival", "Festival"
-    OTHER = "other", "Other"
+    MUSIC = "music", _("Music")
+    THEATER = "theater", _("Theater")
+    COMEDY = "comedy", _("Comedy")
+    DANCE = "dance", _("Dance")
+    FESTIVAL = "festival", _("Festival")
+    OTHER = "other", _("Other")
+
+
+# The title of an event with no lineup or production yet.
+AUTO_TITLES = {
+    EventType.MUSIC: _("Music event"),
+    EventType.THEATER: _("Theater event"),
+    EventType.COMEDY: _("Comedy event"),
+    EventType.DANCE: _("Dance event"),
+    EventType.FESTIVAL: _("Festival event"),
+    EventType.OTHER: _("Other event"),
+}
 
 
 class TimestampedModel(models.Model):
@@ -78,9 +91,9 @@ class Venue(TimestampedModel):
 
 class Artist(TimestampedModel):
     class Kind(models.TextChoices):
-        PERSON = "person", "Person"
-        GROUP = "group", "Band / group"
-        COMPANY = "company", "Company / troupe"
+        PERSON = "person", _("Person")
+        GROUP = "group", _("Band / group")
+        COMPANY = "company", _("Company / troupe")
 
     name = models.CharField(max_length=200, db_index=True)
     kind = models.CharField(max_length=20, choices=Kind.choices, default=Kind.PERSON)
@@ -93,8 +106,8 @@ class Artist(TimestampedModel):
     mbid = models.CharField("MusicBrainz ID", max_length=36, null=True, blank=True, unique=True)
     # Bands this artist was in (Paul McCartney → The Beatles): their songs get their own album chart.
     member_of = models.ManyToManyField(
-        "self", symmetrical=False, blank=True, related_name="members", verbose_name="Member of",
-        help_text="Bands this artist was a member of.",
+        "self", symmetrical=False, blank=True, related_name="members", verbose_name=_("Member of"),
+        help_text=_("Bands this artist was a member of."),
     )
 
     class Meta:
@@ -111,7 +124,7 @@ def normalize_name(text: str) -> str:
     """Comparable name: ignores capitals, accents and extra spaces."""
     import unicodedata
 
-    plain = "".join(c for c in unicodedata.normalize("NFKD", text or "") if not unicodedata.combining(c))
+    plain = "".join(c for c in unicodedata.normalize("NFKD", str(text or "")) if not unicodedata.combining(c))
     return " ".join(plain.casefold().split())
 
 
@@ -204,7 +217,7 @@ class Event(TimestampedModel):
         max_length=240,
         db_index=True,
         blank=True,
-        help_text="Optional. Leave blank to use the headliner's name.",
+        help_text=_("Optional. Leave blank to use the headliner's name."),
     )
     # True when the title was generated from lineup/venue/date and should follow their changes.
     title_is_auto = models.BooleanField(default=False, editable=False)
@@ -217,7 +230,7 @@ class Event(TimestampedModel):
     # Theater only: the original play this event stages.
     play = models.ForeignKey(
         Play, on_delete=models.SET_NULL, null=True, blank=True, related_name="stagings",
-        verbose_name="Original play",
+        verbose_name=_("Original play"),
     )
     venue = models.ForeignKey(
         Venue, on_delete=models.SET_NULL, null=True, blank=True, related_name="events"
@@ -226,15 +239,15 @@ class Event(TimestampedModel):
     description = models.TextField(blank=True, default="")
     image_url = models.URLField(max_length=1000, blank=True, default="")
     class Thumbnail(models.TextChoices):
-        FIT = "fit", "Whole photo on a blurred background"
-        CROP = "crop", "Crop to fill"
-        STRETCH = "stretch", "Stretch to fill (may look distorted)"
-        AUTO = "auto", "Auto: stretch photos close to poster shape, blur wider ones"
+        FIT = "fit", _("Whole photo on a blurred background")
+        CROP = "crop", _("Crop to fill")
+        STRETCH = "stretch", _("Stretch to fill (may look distorted)")
+        AUTO = "auto", _("Auto: stretch photos close to poster shape, blur wider ones")
 
     # How the photo sits in the poster-shaped thumbnails.
     image_display = models.CharField(
-        "Thumbnail", max_length=10, choices=Thumbnail.choices, default=Thumbnail.FIT,
-        help_text="How the photo fits the poster-shaped thumbnails on cards and lists.",
+        _("Thumbnail"), max_length=10, choices=Thumbnail.choices, default=Thumbnail.FIT,
+        help_text=_("How the photo fits the poster-shaped thumbnails on cards and lists."),
     )
 
     artists = models.ManyToManyField(Artist, through="EventArtist", related_name="events")
@@ -269,8 +282,13 @@ class Event(TimestampedModel):
     def build_auto_title(self) -> str:
         """The headliner's name (venue and date are shown next to the title, not in it).
 
-        Falls back to the production's title, then to “Music event”, “Comedy event”…
+        Falls back to the production's title, then to “Music event”, “Comedy event”… Titles are saved, so
+        they're written in the site's language (Spanish), whoever saves the event.
         """
+        with translation.override(settings.LANGUAGE_CODE):
+            return self._auto_title()
+
+    def _auto_title(self) -> str:
         if self.event_type == EventType.THEATER and self.play_id:
             return self.play.title[:240]  # stagings are named after their play
         headliner = self.headliner if self.pk else None
@@ -285,14 +303,14 @@ class Event(TimestampedModel):
             if len(names) > 1:
                 # “Green Day & Foo Fighters”, “A, B & C”, “A, B, C & more”
                 shown = names[:3]
-                tail = "more" if len(names) > 3 else shown.pop()
+                tail = gettext("more") if len(names) > 3 else shown.pop()
                 return f"{', '.join(shown)} & {tail}"[:240]
         if headliner:
             title = headliner.name
         elif self.production_id:
             title = self.production.title
         else:
-            title = f"{self.get_event_type_display()} event"
+            title = str(AUTO_TITLES.get(self.event_type, AUTO_TITLES[EventType.OTHER]))
         return title[:240]
 
     def refresh_auto_title(self) -> None:
@@ -386,24 +404,24 @@ CREDIT_ROLES = ("author", "director")
 
 class EventArtist(models.Model):
     class Role(models.TextChoices):
-        HEADLINER = "headliner", "Headliner"
-        SUPPORT = "support", "Support"
-        GUEST = "guest", "Guest"
-        CAST = "cast", "Cast"
-        HOST = "host", "Host"
-        DIRECTOR = "director", "Director"
-        AUTHOR = "author", "Author / playwright"
-        OTHER = "other", "Other"
+        HEADLINER = "headliner", _("Headliner")
+        SUPPORT = "support", _("Support")
+        GUEST = "guest", _("Guest")
+        CAST = "cast", _("Cast")
+        HOST = "host", _("Host")
+        DIRECTOR = "director", _("Director")
+        AUTHOR = "author", _("Author / playwright")
+        OTHER = "other", _("Other")
 
     event = models.ForeignKey(Event, on_delete=models.CASCADE)
     artist = models.ForeignKey(Artist, on_delete=models.CASCADE)
     role = models.CharField(max_length=20, choices=Role.choices, default=Role.HEADLINER)
     billing_order = models.PositiveIntegerField(default=1)
-    start_time = models.TimeField("Set time", null=True, blank=True)
+    start_time = models.TimeField(_("Set time"), null=True, blank=True)
     # The tour this act was on at this event (tours belong to artists, not events).
     production = models.ForeignKey(
         Production, on_delete=models.SET_NULL, null=True, blank=True, related_name="lineup_entries",
-        verbose_name="Tour",
+        verbose_name=_("Tour"),
     )
 
     class Meta:
@@ -484,7 +502,7 @@ class Song(TimestampedModel):
     album_mbid = models.CharField("MusicBrainz release group", max_length=36, blank=True, default="")
     album_checked_at = models.DateTimeField(null=True, blank=True, editable=False)
     # Whose song it originally is when this artist plays it as a cover (from setlist.fm's "cover").
-    cover_of_name = models.CharField("Cover of", max_length=200, blank=True, default="")
+    cover_of_name = models.CharField(_("Cover of"), max_length=200, blank=True, default="")
 
     class Meta:
         constraints = [
@@ -543,7 +561,7 @@ class SetlistSong(models.Model):
     set_name = models.CharField(max_length=60, blank=True, default="", help_text='e.g. "Encore"')
     note = models.CharField(max_length=200, blank=True, default="", help_text='e.g. "acoustic"')
     # Played from a recording (intro/outro tapes): listed, but not counted as a song played.
-    is_tape = models.BooleanField("Tape", default=False)
+    is_tape = models.BooleanField(_("Tape"), default=False)
 
     class Meta:
         constraints = [
@@ -581,7 +599,7 @@ class EventList(TimestampedModel):
     title = models.CharField(max_length=200)
     description = models.TextField(blank=True, default="")
     is_ranked = models.BooleanField(
-        "Ranked list", default=False, help_text="Show numbers next to each entry."
+        _("Ranked list"), default=False, help_text=_("Show numbers next to each entry.")
     )
 
     class Meta:
@@ -620,23 +638,38 @@ class Profile(TimestampedModel):
     location = models.CharField(max_length=120, blank=True, default="")
     avatar_url = models.URLField(blank=True, default="")
     # Used as defaults (setlist.fm search, new venues) and to show nearby upcoming events.
-    home_city = models.CharField("Home city", max_length=120, blank=True, default="")
-    home_country = CountryField("Home country", blank=True, default="")
+    home_city = models.CharField(_("Home city"), max_length=120, blank=True, default="")
+    home_country = CountryField(_("Home country"), blank=True, default="")
     # Overrides each event's own thumbnail setting for this person, when set.
     thumbnail_display = models.CharField(
-        "Thumbnails", max_length=10, blank=True, default="",
-        choices=[("", "As each event is set")] + list(Event.Thumbnail.choices),
-        help_text="How photos fit the poster-shaped thumbnails when you browse.",
+        _("Thumbnails"), max_length=10, blank=True, default="",
+        choices=[("", _("As each event is set"))] + list(Event.Thumbnail.choices),
+        help_text=_("How photos fit the poster-shaped thumbnails when you browse."),
     )
     # Whether "I attended these shows" starts ticked when importing from setlist.fm (it can be unticked there).
     import_as_attended = models.BooleanField(
-        "Mark setlist.fm imports as attended", default=True,
-        help_text="Starts the \"I attended these shows\" box ticked when you import shows from setlist.fm. "
-                  "You can still untick it on each import.",
+        _("Mark setlist.fm imports as attended"), default=True,
+        help_text=_("Starts the \"I attended these shows\" box ticked when you import shows from setlist.fm. "
+                    "You can still untick it on each import."),
+    )
+    # The language the site is shown in for this person. Filled from home_country when the profile is created
+    # (Spanish for Spain and Latin America, English elsewhere, Spanish without a country): see save().
+    language = models.CharField(
+        _("Language"), max_length=5, choices=settings.LANGUAGES, blank=True, default="",
+        help_text=_("The language En Vivo is shown in for you."),
     )
 
     def __str__(self) -> str:
         return self.name
+
+    def save(self, *args, **kwargs):
+        if not self.language:
+            from .languages import language_for_country
+
+            self.language = language_for_country(self.home_country.code or "")
+            if kwargs.get("update_fields") is not None:
+                kwargs["update_fields"] = {*kwargs["update_fields"], "language"}
+        super().save(*args, **kwargs)
 
     @property
     def name(self) -> str:
@@ -757,14 +790,14 @@ class Feedback(TimestampedModel):
     """A bug report or idea sent from the beta banner, for admins to read in the feedback inbox."""
 
     class Kind(models.TextChoices):
-        BUG = "bug", "Bug"
-        IDEA = "idea", "Idea or feedback"
+        BUG = "bug", _("Bug")
+        IDEA = "idea", _("Idea or feedback")
 
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
                              related_name="feedback")
     kind = models.CharField(max_length=10, choices=Kind.choices, default=Kind.BUG)
     message = models.TextField(max_length=4000)
-    page = models.CharField("Page", max_length=500, blank=True, default="")  # where they were when they wrote
+    page = models.CharField(_("Page"), max_length=500, blank=True, default="")  # where they were when they wrote
     user_agent = models.CharField(max_length=300, blank=True, default="")  # browser and device, for bugs
     resolved = models.BooleanField(default=False)
 

@@ -1,16 +1,16 @@
-{# One pickable photo on "Find photo". Also rendered empty inside a <template> that photo-openverse.js fills in. #}
+{% load i18n %}{# One pickable photo on "Find photo". Also rendered empty inside a <template> that photo-openverse.js fills in. #}
 <div class="col">
   <form method="post" class="h-100 d-flex flex-column">
     {% csrf_token %}
     <input type="hidden" name="url" value="{{ c.url }}" data-c-url />
-    <button class="btn p-0 border-0 text-start" type="submit" title="Use this photo">
+    <button class="btn p-0 border-0 text-start" type="submit" title="{% translate 'Use this photo' %}">
       <div class="poster position-relative"><img src="{{ c.thumb }}" alt="{{ c.title }}" loading="lazy" referrerpolicy="no-referrer" data-c-thumb /></div>
     </button>
     <div class="small mt-1 d-flex align-items-center gap-1">
       <span class="badge text-bg-secondary" data-c-source>{{ c.source }}</span>
-      <a class="text-body-secondary text-truncate" href="{{ c.page }}" target="_blank" rel="noreferrer" data-c-credit{% if not c.page %} hidden{% endif %}>{{ c.credit|default:"source" }}</a>
+      <a class="text-body-secondary text-truncate" href="{{ c.page }}" target="_blank" rel="noreferrer" data-c-credit{% if not c.page %} hidden{% endif %}>{% if c.credit %}{{ c.credit }}{% else %}{% translate "source" %}{% endif %}</a>
       <span class="text-body-secondary text-truncate" data-c-credit-text{% if c.page %} hidden{% endif %}>{{ c.credit }}</span>
     </div>
-    <button class="btn btn-sm btn-outline-success mt-1" type="submit">Use this photo</button>
+    <button class="btn btn-sm btn-outline-success mt-1" type="submit">{% translate "Use this photo" %}</button>
   </form>
 </div>

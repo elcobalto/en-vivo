@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load static %}
+{% load i18n static %}
 
 {% block title %}{{ title }} · En Vivo{% endblock %}
 
@@ -10,21 +10,21 @@
 
       <div class="card mb-3"><div class="card-body">
         {% if venue %}
-          <h2 class="h6 mb-1">Standardize with Google</h2>
+          <h2 class="h6 mb-1">{% translate "Standardize with Google" %}</h2>
           <p class="small text-body-secondary mb-2">
-            {% if venue.google_place_id %}This venue is linked to Google Maps. Pick it again to refresh its data, or pick another place to relink it.
-            {% else %}Pick this venue on Google Maps to replace the typed-in data with its official name, address, commune, region, country and coordinates.{% endif %}
+            {% if venue.google_place_id %}{% translate "This venue is linked to Google Maps. Pick it again to refresh its data, or pick another place to relink it." %}
+            {% else %}{% translate "Pick this venue on Google Maps to replace the typed-in data with its official name, address, commune, region, country and coordinates." %}{% endif %}
           </p>
-          {% include "events/_venue_search.html" with mode="link" link_url=link_url placeholder="Search Google Maps for this venue" %}
+          {% include "events/_venue_search.html" with mode="link" link_url=link_url placeholder=_("Search Google Maps for this venue") %}
         {% else %}
-          <h2 class="h6 mb-1">Find the venue</h2>
-          <p class="small text-body-secondary mb-2">Search En Vivo and Google Maps. Picking a Google result creates the venue with standardized data.</p>
+          <h2 class="h6 mb-1">{% translate "Find the venue" %}</h2>
+          <p class="small text-body-secondary mb-2">{% translate "Search En Vivo and Google Maps. Picking a Google result creates the venue with standardized data." %}</p>
           {% include "events/_venue_search.html" with mode="create" next=next %}
         {% endif %}
       </div></div>
 
       <details class="card" {% if venue or form.errors %}open{% endif %}>
-        <summary class="card-header small">{% if venue %}Edit by hand{% else %}Can't find it? Add it by hand{% endif %}</summary>
+        <summary class="card-header small">{% if venue %}{% translate "Edit by hand" %}{% else %}{% translate "Can't find it? Add it by hand" %}{% endif %}</summary>
         <form method="post" class="card-body">
           {% csrf_token %}
           {% if next %}<input type="hidden" name="next" value="{{ next }}" />{% endif %}
@@ -38,8 +38,8 @@
             </div>
           {% endfor %}
           <div class="d-flex gap-2">
-            <button class="btn btn-success" type="submit">Save</button>
-            <a class="btn btn-outline-secondary" href="{% if next %}{{ next }}{% elif venue %}{{ venue.get_absolute_url }}{% else %}{% url 'events:home' %}{% endif %}">Cancel</a>
+            <button class="btn btn-success" type="submit">{% translate "Save" %}</button>
+            <a class="btn btn-outline-secondary" href="{% if next %}{{ next }}{% elif venue %}{{ venue.get_absolute_url }}{% else %}{% url 'events:home' %}{% endif %}">{% translate "Cancel" %}</a>
           </div>
         </form>
       </details>

@@ -8,6 +8,7 @@ from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect
+from django.utils.translation import gettext
 from django.views.decorators.http import require_POST
 
 from .merge import merge_events, same_slot_events
@@ -73,7 +74,7 @@ def event_merge(request: HttpRequest, pk: int) -> HttpResponse:
     elif action == "other_supports_this":
         keep, remove, mode = event, other, "support"
     else:
-        messages.error(request, "Unknown action.")
+        messages.error(request, gettext("Unknown action."))
         return redirect(event)
 
     if not can_edit_event(request.user, remove):
@@ -82,9 +83,10 @@ def event_merge(request: HttpRequest, pk: int) -> HttpResponse:
     removed_title = remove.title
     keep = merge_events(keep, remove, mode=mode)
     if mode == "festival":
-        messages.success(request, f"Merged into one festival: “{keep.title}”.")
+        messages.success(request, gettext("Merged into one festival: “%(title)s”.") % {"title": keep.title})
     else:
-        messages.success(request, f"“{removed_title}” is now the support act on “{keep.title}”.")
+        messages.success(request, gettext("“%(support)s” is now the support act on “%(title)s”.") % {
+            "support": removed_title, "title": keep.title})
     return redirect(keep)
 
 
@@ -96,7 +98,8 @@ def event_separate(request: HttpRequest, pk: int) -> HttpResponse:
     if not (can_edit_event(request.user, event) or can_edit_event(request.user, other)):
         raise PermissionDenied
     event.separate_from.add(other)
-    messages.info(request, f"Got it: “{event.title}” and “{other.title}” are separate shows.")
+    messages.info(request, gettext("Got it: “%(one)s” and “%(other)s” are separate shows.") % {
+        "one": event.title, "other": other.title})
     return redirect(event)
 
 
@@ -155,7 +158,8 @@ def festival_group(request: HttpRequest, pk: int) -> HttpResponse:
         if day.production_id != festival.pk:
             day.production = festival
             day.save()
-    messages.success(request, f"Grouped {len(suggestion['days']) + 1} days as “{festival.title}”.")
+    messages.success(request, gettext("Grouped %(n)s days as “%(title)s”.") % {
+        "n": len(suggestion["days"]) + 1, "title": festival.title})
     return redirect(festival)
 
 
@@ -199,7 +203,7 @@ def make_festival(request: HttpRequest, pk: int) -> HttpResponse:
         raise PermissionDenied
     name = (request.POST.get("name") or "").strip()[:240]
     if not name:
-        messages.error(request, "Give the festival a name.")
+        messages.error(request, gettext("Give the festival a name."))
         return redirect(event)
     from .models import production_named
 
@@ -211,9 +215,11 @@ def make_festival(request: HttpRequest, pk: int) -> HttpResponse:
 
     merged = merge_into_same_festival_day(event)
     if merged:
-        messages.info(request, f"“{festival.title}” already had an event that day, so this was merged into it.")
+        messages.info(request, gettext("“%(title)s” already had an event that day, so this was merged into it.")
+                      % {"title": festival.title})
         return redirect(merged)
-    messages.success(request, f"“{event.title}” is now part of the festival “{festival.title}”.")
+    messages.success(request, gettext("“%(title)s” is now part of the festival “%(festival)s”.") % {
+        "title": event.title, "festival": festival.title})
     return redirect(event)
 
 
@@ -229,7 +235,7 @@ def add_to_festival(request: HttpRequest, pk: int) -> HttpResponse:
     festival_event = get_object_or_404(same_day_festivals(event), pk=request.POST.get("festival") or 0)
     title = event.title
     kept = merge_events(festival_event, event, mode="festival")
-    messages.success(request, f"“{title}” was added to “{kept.title}”.")
+    messages.success(request, gettext("“%(title)s” was added to “%(kept)s”.") % {"title": title, "kept": kept.title})
     return redirect(kept)
 
 
@@ -272,7 +278,7 @@ def artist_merge_duplicate(request: HttpRequest, pk: int) -> HttpResponse:
     remove = get_object_or_404(Artist.objects.exclude(pk=pk), pk=request.POST.get("other") or 0)
     removed = remove.name
     merge_artists(keep, remove)
-    messages.success(request, f"Merged “{removed}” into “{keep.name}”.")
+    messages.success(request, gettext("Merged “%(removed)s” into “%(kept)s”.") % {"removed": removed, "kept": keep.name})
     return redirect(keep)
 
 
@@ -288,5 +294,5 @@ def event_merge_duplicate(request: HttpRequest, pk: int) -> HttpResponse:
     remove = get_object_or_404(Event.objects.exclude(pk=pk), pk=raw if raw.isdigit() else 0)
     removed = remove.title
     merge_events(keep, remove, mode="duplicate")
-    messages.success(request, f"Merged the duplicate “{removed}” into this event.")
+    messages.success(request, gettext("Merged the duplicate “%(removed)s” into this event.") % {"removed": removed})
     return redirect(keep)

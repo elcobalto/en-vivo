@@ -1,42 +1,42 @@
 {% extends "base.html" %}
-{% load event_extras %}
+{% load i18n event_extras %}
 
-{% block title %}{{ owner.get_username }}'s diary · En Vivo{% endblock %}
+{% block title %}{% blocktranslate with username=owner.get_username %}{{ username }}'s diary{% endblocktranslate %} · En Vivo{% endblock %}
 
 {% block content %}
   {% include "events/_profile_nav.html" %}
-  <form method="get" class="d-flex flex-wrap gap-2 align-items-center mb-3" aria-label="Filter diary">
-    <select class="form-select form-select-sm w-auto" name="type" onchange="this.form.submit()" aria-label="Type">
-      <option value="">All types</option>
+  <form method="get" class="d-flex flex-wrap gap-2 align-items-center mb-3" aria-label="{% translate 'Filter diary' %}">
+    <select class="form-select form-select-sm w-auto" name="type" onchange="this.form.submit()" aria-label="{% translate 'Type' %}">
+      <option value="">{% translate "All types" %}</option>
       {% for value, label in event_types %}<option value="{{ value }}" {% if f.type == value %}selected{% endif %}>{{ label }}</option>{% endfor %}
     </select>
-    <select class="form-select form-select-sm w-auto" name="year" onchange="this.form.submit()" aria-label="Year">
-      <option value="">All years</option>
+    <select class="form-select form-select-sm w-auto" name="year" onchange="this.form.submit()" aria-label="{% translate 'Year' %}">
+      <option value="">{% translate "All years" %}</option>
       {% for y in years %}<option value="{{ y }}" {% if f.year == y|stringformat:"d" %}selected{% endif %}>{{ y }}</option>{% endfor %}
     </select>
-    <select class="form-select form-select-sm w-auto" name="rating" onchange="this.form.submit()" aria-label="Rating">
-      <option value="">All ratings</option>
+    <select class="form-select form-select-sm w-auto" name="rating" onchange="this.form.submit()" aria-label="{% translate 'Rating' %}">
+      <option value="">{% translate "All ratings" %}</option>
       {% for value, label in ratings %}<option value="{{ value }}" {% if f.rating == value|stringformat:"d" %}selected{% endif %}>{{ label }}</option>{% endfor %}
     </select>
     {% if expanded %}<input type="hidden" name="view" value="expanded">{% endif %}
-    <noscript><button class="btn btn-sm btn-primary" type="submit">Filter</button></noscript>
-    {% if f.type or f.year or f.rating %}<a class="small" href="{{ request.path }}{% if expanded %}?view=expanded{% endif %}">Clear</a>{% endif %}
-    <div class="btn-group btn-group-sm ms-auto" role="group" aria-label="Diary view">
-      <a class="btn btn-outline-secondary{% if not expanded %} active{% endif %}" href="?{{ filters_qs }}"{% if not expanded %} aria-current="page"{% endif %}>List</a>
-      <a class="btn btn-outline-secondary{% if expanded %} active{% endif %}" href="?view=expanded{% if filters_qs %}&{{ filters_qs }}{% endif %}"{% if expanded %} aria-current="page"{% endif %}>Expanded</a>
+    <noscript><button class="btn btn-sm btn-primary" type="submit">{% translate "Filter" %}</button></noscript>
+    {% if f.type or f.year or f.rating %}<a class="small" href="{{ request.path }}{% if expanded %}?view=expanded{% endif %}">{% translate "Clear" %}</a>{% endif %}
+    <div class="btn-group btn-group-sm ms-auto" role="group" aria-label="{% translate 'Diary view' %}">
+      <a class="btn btn-outline-secondary{% if not expanded %} active{% endif %}" href="?{{ filters_qs }}"{% if not expanded %} aria-current="page"{% endif %}>{% translate "List" %}</a>
+      <a class="btn btn-outline-secondary{% if expanded %} active{% endif %}" href="?view=expanded{% if filters_qs %}&{{ filters_qs }}{% endif %}"{% if expanded %} aria-current="page"{% endif %}>{% translate "Expanded" %}</a>
     </div>
   </form>
   <div class="d-flex flex-wrap justify-content-end gap-3 mb-4">
     <div class="d-flex gap-4 text-center">
-      <div><div class="h4 m-0">{{ log_count }}</div><div class="small text-body-secondary">Events</div></div>
-      {% if avg_rating %}<div><div class="h4 m-0">{{ avg_rating|avg_stars }}</div><div class="small text-body-secondary">Avg rating</div></div>{% endif %}
+      <div><div class="h4 m-0">{{ log_count }}</div><div class="small text-body-secondary">{% translate "Events" %}</div></div>
+      {% if avg_rating %}<div><div class="h4 m-0">{{ avg_rating|avg_stars }}</div><div class="small text-body-secondary">{% translate "Avg rating" %}</div></div>{% endif %}
       {% for label, n in by_type %}<div><div class="h4 m-0">{{ n }}</div><div class="small text-body-secondary">{{ label }}</div></div>{% endfor %}
     </div>
   </div>
 
   {% if logs and expanded %}
     {% for log in logs %}{% with event=log.event %}
-      {% ifchanged event.date.year %}<h2 class="section-title pt-3 mb-3">{{ event.date.year|default:"Undated" }}</h2>{% endifchanged %}
+      {% ifchanged event.date.year %}<h2 class="section-title pt-3 mb-3">{% if event.date %}{{ event.date.year }}{% else %}{% translate "Undated" %}{% endif %}</h2>{% endifchanged %}
       <div class="d-flex gap-3 mb-4 pb-4 border-bottom border-secondary-subtle">
         <a class="flex-shrink-0 d-block" style="width:7.5rem" href="{{ event.get_absolute_url }}">
           <div class="poster position-relative" title="{{ event.title }}">{% if event.display_image %}{% include "events/_poster_img.html" %}{% else %}<div class="poster-placeholder">{{ event.get_event_type_display }}</div>{% endif %}</div>
@@ -44,9 +44,9 @@
         <div class="flex-grow-1" style="min-width:0">
           <a class="fw-semibold fs-5 lh-sm" href="{{ event.get_absolute_url }}">{{ event.title }}</a>
           <div class="small text-body-secondary mt-1">
-            <span class="event-date">{{ event.date|date:"j M Y"|default:"Date not added" }}</span>{% if event.venue %} · {{ event.venue.name }}{% if event.venue.city %}, {{ event.venue.city }}{% endif %}{% endif %} · {{ event.get_event_type_display }}
+            <span class="event-date">{% if event.date %}{{ event.date|date:"j M Y" }}{% else %}{% translate "Date not added" %}{% endif %}</span>{% if event.venue %} · {{ event.venue.name }}{% if event.venue.city %}, {{ event.venue.city }}{% endif %}{% endif %} · {{ event.get_event_type_display }}
           </div>
-          <div class="mt-1"><a class="text-decoration-none stars" href="{% url 'events:review_detail' log.pk %}" title="Open this log">{{ log.rating|stars|default:"·" }}</a>{% if log.liked %} <span class="liked">♥</span>{% endif %}</div>
+          <div class="mt-1"><a class="text-decoration-none stars" href="{% url 'events:review_detail' log.pk %}" title="{% translate 'Open this log' %}">{{ log.rating|stars|default:"·" }}</a>{% if log.liked %} <span class="liked">♥</span>{% endif %}</div>
           {% if log.seen_bill %}
             <ul class="list-unstyled small mt-2 mb-0">
               {% for link in log.seen_bill %}
@@ -54,37 +54,37 @@
               {% endfor %}
             </ul>
           {% endif %}
-          {% if log.review %}<p class="small mt-2 mb-0">{% if log.contains_spoilers %}<span class="text-warning">Spoilers</span>{% else %}{{ log.review|truncatewords:40 }}{% endif %}</p>{% endif %}
+          {% if log.review %}<p class="small mt-2 mb-0">{% if log.contains_spoilers %}<span class="text-warning">{% translate "Spoilers" %}</span>{% else %}{{ log.review|truncatewords:40 }}{% endif %}</p>{% endif %}
         </div>
       </div>
     {% endwith %}{% endfor %}
   {% elif logs %}
     <div class="table-responsive">
       <table class="table table-hover align-middle">
-        <thead><tr class="small text-body-secondary"><th>Date</th><th>Event</th><th>Type</th><th>Rating</th><th></th><th>Review</th></tr></thead>
+        <thead><tr class="small text-body-secondary"><th>{% translate "Date" %}</th><th>{% translate "Event" %}</th><th>{% translate "Type" %}</th><th>{% translate "Rating" %}</th><th></th><th>{% translate "Review" %}</th></tr></thead>
         <tbody>
           {% for log in logs %}
-            {% ifchanged log.event.date.year %}<tr><td colspan="6" class="section-title pt-4">{{ log.event.date.year|default:"Undated" }}</td></tr>{% endifchanged %}
+            {% ifchanged log.event.date.year %}<tr><td colspan="6" class="section-title pt-4">{% if log.event.date %}{{ log.event.date.year }}{% else %}{% translate "Undated" %}{% endif %}</td></tr>{% endifchanged %}
             <tr>
               <td class="text-nowrap small">{{ log.event.date|date:"j M"|default:"—" }}</td>
               <td><a class="fw-semibold" href="{{ log.event.get_absolute_url }}">{{ log.event.title }}</a>{% if log.event.venue %}<div class="small text-body-secondary">{{ log.event.venue.name }}</div>{% endif %}</td>
               <td class="small">{{ log.event.get_event_type_display }}</td>
-              <td class="stars"><a class="text-decoration-none stars" href="{% url 'events:review_detail' log.pk %}" title="Open this log">{{ log.rating|stars|default:"·" }}</a></td>
+              <td class="stars"><a class="text-decoration-none stars" href="{% url 'events:review_detail' log.pk %}" title="{% translate 'Open this log' %}">{{ log.rating|stars|default:"·" }}</a></td>
               <td>{% if log.liked %}<span class="liked">♥</span>{% endif %}</td>
-              <td class="small">{% if log.review %}{% if log.contains_spoilers %}<span class="text-warning">Spoilers</span>{% else %}{{ log.review|truncatewords:14 }}{% endif %}{% endif %}</td>
+              <td class="small">{% if log.review %}{% if log.contains_spoilers %}<span class="text-warning">{% translate "Spoilers" %}</span>{% else %}{{ log.review|truncatewords:14 }}{% endif %}{% endif %}</td>
             </tr>
           {% endfor %}
         </tbody>
       </table>
     </div>
   {% else %}
-    <p class="text-body-secondary">{% if f.type or f.year %}No events match these filters.{% else %}No events logged yet.{% endif %}{% if owner == user %} <a href="{% url 'events:event_list' %}">Find an event you went to</a> and log it.{% endif %}</p>
+    <p class="text-body-secondary">{% if f.type or f.year %}{% translate "No events match these filters." %}{% else %}{% translate "No events logged yet." %}{% endif %}{% if owner == user %} {% url 'events:event_list' as events_url %}{% blocktranslate %}<a href="{{ events_url }}">Find an event you went to</a> and log it.{% endblocktranslate %}{% endif %}</p>
   {% endif %}
   {% if page.has_other_pages %}
-    <nav class="mt-4 d-flex justify-content-center gap-2" aria-label="Pages">
-      {% if page.has_previous %}<a class="btn btn-sm btn-outline-secondary" href="?{{ querystring }}&page={{ page.previous_page_number }}">← Previous</a>{% endif %}
-      <span class="align-self-center small text-body-secondary">Page {{ page.number }} of {{ page.paginator.num_pages }}</span>
-      {% if page.has_next %}<a class="btn btn-sm btn-outline-secondary" href="?{{ querystring }}&page={{ page.next_page_number }}">Next →</a>{% endif %}
+    <nav class="mt-4 d-flex justify-content-center gap-2" aria-label="{% translate 'Pages' %}">
+      {% if page.has_previous %}<a class="btn btn-sm btn-outline-secondary" href="?{{ querystring }}&page={{ page.previous_page_number }}">{% translate "← Previous" %}</a>{% endif %}
+      <span class="align-self-center small text-body-secondary">{% blocktranslate with number=page.number total=page.paginator.num_pages %}Page {{ number }} of {{ total }}{% endblocktranslate %}</span>
+      {% if page.has_next %}<a class="btn btn-sm btn-outline-secondary" href="?{{ querystring }}&page={{ page.next_page_number }}">{% translate "Next →" %}</a>{% endif %}
     </nav>
   {% endif %}
 {% endblock %}

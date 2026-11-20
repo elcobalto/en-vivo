@@ -20,6 +20,7 @@ from urllib.request import Request, urlopen
 
 from django.conf import settings
 from django.db import transaction
+from django.utils.translation import gettext
 
 from .models import Venue
 
@@ -59,7 +60,7 @@ def _ssl_context() -> ssl.SSLContext:
 def _call(method: str, path: str, *, body: dict | None = None, field_mask: str | None = None,
           query: dict | None = None) -> dict[str, Any]:
     if not enabled():
-        raise PlacesError("Venue search isn't configured (missing GOOGLE_PLACES_API_KEY).")
+        raise PlacesError(gettext("Venue search isn't configured (missing GOOGLE_PLACES_API_KEY)."))
     headers = {
         "Content-Type": "application/json",
         "X-Goog-Api-Key": settings.GOOGLE_PLACES_API_KEY,
@@ -84,9 +85,10 @@ def _call(method: str, path: str, *, body: dict | None = None, field_mask: str |
         except Exception:
             pass
         hint = f" ({reason}{': ' + REASON_HINTS[reason] if reason in REASON_HINTS else ''})" if reason else ""
-        raise PlacesError(f"Google Places error {e.code}: {message or e.reason}{hint}") from e
+        raise PlacesError(gettext("Google Places error %(code)s: %(message)s") % {
+            "code": e.code, "message": f"{message or e.reason}{hint}"}) from e
     except URLError as e:
-        raise PlacesError(f"Google Places request failed: {e.reason}") from e
+        raise PlacesError(gettext("Google Places request failed: %(reason)s") % {"reason": e.reason}) from e
 
 
 def autocomplete(text: str, session: str) -> list[dict[str, str]]:
@@ -162,7 +164,7 @@ def venue_from_place(place_id: str, session: str = "") -> Venue:
 
     fields = venue_fields(place_details(place_id, session))
     if not fields["name"]:
-        raise PlacesError("Google returned a place without a name.")
+        raise PlacesError(gettext("Google returned a place without a name."))
 
     # A venue typed by hand earlier with the same name and city gets standardized instead of duplicated.
     # Compared in Python: SQLite's case-insensitive matching ignores non-ASCII letters like Ñ/ñ.
@@ -183,7 +185,7 @@ def apply_place(venue: Venue, place_id: str, fields: dict[str, Any] | None = Non
     """Overwrite a venue's location data with Google's (keeps capacity)."""
     clash = Venue.objects.filter(google_place_id=place_id).exclude(pk=venue.pk).first()
     if clash:
-        raise PlacesError(f"That place is already linked to “{clash.name}”.")
+        raise PlacesError(gettext("That place is already linked to “%(name)s”.") % {"name": clash.name})
     fields = fields or venue_fields(place_details(place_id, session))
     for key, value in fields.items():
         setattr(venue, key, value)

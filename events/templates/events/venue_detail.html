@@ -1,33 +1,37 @@
 {% extends "base.html" %}
-{% load event_extras %}
+{% load i18n event_extras %}
 
 {% block title %}{{ venue.name }} · En Vivo{% endblock %}
 
 {% block content %}
   <div class="mb-4">
-    <div class="small text-body-secondary text-uppercase">Venue</div>
+    <div class="small text-body-secondary text-uppercase">{% translate "Venue" %}</div>
     <h1 class="h3 fw-bold">{{ venue.name }}</h1>
-    {% if user|is_admin %}<a class="btn btn-sm btn-outline-secondary mb-2" href="{% url 'events:venue_edit' venue.pk %}">Edit venue</a>{% endif %}
+    {% if user|is_admin %}<a class="btn btn-sm btn-outline-secondary mb-2" href="{% url 'events:venue_edit' venue.pk %}">{% translate "Edit venue" %}</a>{% endif %}
     <div class="text-body-secondary">
       {% if venue.address %}{{ venue.address }}{% else %}{{ venue.location_label }}{% endif %}
-      {% if venue.latitude and venue.longitude %} · <a href="https://www.google.com/maps/search/?api=1&amp;query={{ venue.latitude }},{{ venue.longitude }}{% if venue.google_place_id %}&amp;query_place_id={{ venue.google_place_id|urlencode }}{% endif %}" target="_blank" rel="noreferrer">Map</a>{% endif %}
-      {% if venue.capacity %} · Capacity {{ venue.capacity }}{% endif %}
+      {% if venue.latitude and venue.longitude %} · <a href="https://www.google.com/maps/search/?api=1&amp;query={{ venue.latitude }},{{ venue.longitude }}{% if venue.google_place_id %}&amp;query_place_id={{ venue.google_place_id|urlencode }}{% endif %}" target="_blank" rel="noreferrer">{% translate "Map" %}</a>{% endif %}
+      {% if venue.capacity %} · {% blocktranslate with capacity=venue.capacity %}Capacity {{ capacity }}{% endblocktranslate %}{% endif %}
     </div>
   </div>
 
   {% if seen_by %}
     <div class="alert alert-secondary d-flex flex-wrap justify-content-between align-items-center gap-2 py-2">
-      <span><a href="{% url 'events:profile' seen_by.get_username %}">@{{ seen_by.get_username }}</a> has been to {{ venue.name }}
-        <strong>{{ events|length }} time{{ events|length|pluralize }}</strong></span>
-      <a class="small" href="{{ request.path }}">Show all events</a>
+      {% url 'events:profile' seen_by.get_username as seen_by_url %}
+      <span>{% blocktranslate trimmed count counter=events|length with username=seen_by.get_username name=venue.name %}
+        <a href="{{ seen_by_url }}">@{{ username }}</a> has been to {{ name }} <strong>{{ counter }} time</strong>
+      {% plural %}
+        <a href="{{ seen_by_url }}">@{{ username }}</a> has been to {{ name }} <strong>{{ counter }} times</strong>
+      {% endblocktranslate %}</span>
+      <a class="small" href="{{ request.path }}">{% translate "Show all events" %}</a>
     </div>
   {% endif %}
-  <h2 class="section-title mb-3">{% if seen_by %}Their visits{% else %}Events here{% endif %}</h2>
+  <h2 class="section-title mb-3">{% if seen_by %}{% translate "Their visits" %}{% else %}{% translate "Events here" %}{% endif %}</h2>
   {% if events %}
     <div class="row row-cols-2 row-cols-sm-3 row-cols-lg-6 g-3">
       {% for event in events %}<div class="col">{% include "events/_event_card.html" %}</div>{% endfor %}
     </div>
   {% else %}
-    <p class="text-body-secondary">No events yet.</p>
+    <p class="text-body-secondary">{% translate "No events yet." %}</p>
   {% endif %}
 {% endblock %}

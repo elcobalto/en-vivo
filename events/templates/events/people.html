@@ -1,9 +1,10 @@
 {% extends "base.html" %}
+{% load i18n %}
 
-{% block title %}People · En Vivo{% endblock %}
+{% block title %}{% translate "People" %} · En Vivo{% endblock %}
 
 {% block content %}
-  <h1 class="h4 mb-3">People</h1>
-  <p class="text-body-secondary small">Follow people to see what they log in your activity feed.</p>
-  {% for person in people %}{% include "events/_person_row.html" %}{% empty %}<p class="text-body-secondary">No one here yet.</p>{% endfor %}
+  <h1 class="h4 mb-3">{% translate "People" %}</h1>
+  <p class="text-body-secondary small">{% translate "Follow people to see what they log in your activity feed." %}</p>
+  {% for person in people %}{% include "events/_person_row.html" %}{% empty %}<p class="text-body-secondary">{% translate "No one here yet." %}</p>{% endfor %}
 {% endblock %}

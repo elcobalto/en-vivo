@@ -1,23 +1,24 @@
 {% extends "base.html" %}
+{% load i18n %}
 
-{% block title %}Delete {{ artist.name }} · En Vivo{% endblock %}
+{% block title %}{% blocktranslate with name=artist.name %}Delete {{ name }}{% endblocktranslate %} · En Vivo{% endblock %}
 
 {% block content %}
   <div class="row justify-content-center">
     <div class="col-12 col-md-8 col-lg-6">
       <div class="card border-danger"><div class="card-body">
-        <h1 class="h5">Delete “{{ artist.name }}”?</h1>
-        <p>This permanently removes the artist for everyone, together with:</p>
+        <h1 class="h5">{% blocktranslate with name=artist.name %}Delete “{{ name }}”?{% endblocktranslate %}</h1>
+        <p>{% translate "This permanently removes the artist for everyone, together with:" %}</p>
         <ul class="small">
-          <li>their place in the lineup of {{ impact.events }} event{{ impact.events|pluralize }}</li>
-          <li>{{ impact.setlists }} setlist{{ impact.setlists|pluralize }} and their songs</li>
-          <li>{{ impact.act_logs }} “I saw this act” entr{{ impact.act_logs|pluralize:"y,ies" }} in people's logs, with their act ratings and notes</li>
+          <li>{% blocktranslate count counter=impact.events %}their place in the lineup of {{ counter }} event{% plural %}their place in the lineup of {{ counter }} events{% endblocktranslate %}</li>
+          <li>{% blocktranslate count counter=impact.setlists %}{{ counter }} setlist and its songs{% plural %}{{ counter }} setlists and their songs{% endblocktranslate %}</li>
+          <li>{% blocktranslate count counter=impact.act_logs %}{{ counter }} “I saw this act” entry in people's logs, with its act rating and note{% plural %}{{ counter }} “I saw this act” entries in people's logs, with their act ratings and notes{% endblocktranslate %}</li>
         </ul>
-        <p class="small text-warning">This cannot be undone. The events themselves, people's event logs and reviews are kept{% if impact.tours %}; {{ impact.tours }} tour{{ impact.tours|pluralize }} stay but lose their artist{% endif %}.</p>
+        <p class="small text-warning">{% translate "This cannot be undone. The events themselves, people's event logs and reviews are kept." %}{% if impact.tours %} {% blocktranslate count counter=impact.tours %}{{ counter }} tour stays but loses its artist.{% plural %}{{ counter }} tours stay but lose their artist.{% endblocktranslate %}{% endif %}</p>
         <form method="post" class="d-flex gap-2">
           {% csrf_token %}
-          <button class="btn btn-danger" type="submit">Delete artist</button>
-          <a class="btn btn-outline-secondary" href="{{ artist.get_absolute_url }}">Cancel</a>
+          <button class="btn btn-danger" type="submit">{% translate "Delete artist" %}</button>
+          <a class="btn btn-outline-secondary" href="{{ artist.get_absolute_url }}">{% translate "Cancel" %}</a>
         </form>
       </div></div>
     </div>

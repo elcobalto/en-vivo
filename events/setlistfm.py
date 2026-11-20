@@ -16,6 +16,7 @@ from urllib.request import HTTPSHandler, ProxyHandler, Request, build_opener
 
 from django.conf import settings
 from django.db import transaction
+from django.utils.translation import gettext
 
 from .models import Event, EventArtist, Artist, Setlist, SetlistSong, Song
 
@@ -75,9 +76,9 @@ def _request_json(path: str, query: dict[str, str] | None = None) -> dict[str, A
             body = e.read().decode("utf-8")
         except Exception:
             body = ""
-        raise SetlistFmError(f"Setlist.fm error {e.code}: {body or e.reason}") from e
+        raise SetlistFmError(gettext("Setlist.fm error %(code)s: %(message)s") % {"code": e.code, "message": body or e.reason}) from e
     except URLError as e:
-        raise SetlistFmError(f"Setlist.fm request failed: {e.reason}") from e
+        raise SetlistFmError(gettext("Setlist.fm request failed: %(reason)s") % {"reason": e.reason}) from e
 
 
 def search_setlists(
@@ -108,7 +109,7 @@ def search_setlists(
 def get_setlist(setlist_id: str) -> dict[str, Any]:
     payload = _request_json(f"/rest/1.0/setlist/{quote(setlist_id, safe='')}")
     if not payload:
-        raise SetlistFmError("Setlist not found on setlist.fm.")
+        raise SetlistFmError(gettext("Setlist not found on setlist.fm."))
     return payload
 
 
@@ -187,7 +188,7 @@ def import_setlist(event: Event, payload: dict[str, Any]) -> Setlist:
 
     existing = Setlist.objects.filter(setlistfm_id=setlistfm_id).exclude(event=event).first()
     if existing:
-        raise SetlistFmError(f"This setlist is already attached to “{existing.event}”.")
+        raise SetlistFmError(gettext("This setlist is already attached to “%(event)s”.") % {"event": existing.event})
 
     artist = _match_artist(payload.get("artist") or {})
 

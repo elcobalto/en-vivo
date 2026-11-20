@@ -1,17 +1,18 @@
 {% extends "base.html" %}
+{% load i18n %}
 
-{% block title %}Lists · En Vivo{% endblock %}
+{% block title %}{% translate "Lists" %} · En Vivo{% endblock %}
 
 {% block content %}
   <div class="d-flex align-items-center justify-content-between mb-3">
-    <h1 class="h4 m-0">Lists</h1>
-    {% if user.is_authenticated %}<a class="btn btn-sm btn-success" href="{% url 'events:list_create' %}">+ New list</a>{% endif %}
+    <h1 class="h4 m-0">{% translate "Lists" %}</h1>
+    {% if user.is_authenticated %}<a class="btn btn-sm btn-success" href="{% url 'events:list_create' %}">{% translate "+ New list" %}</a>{% endif %}
   </div>
   {% if lists %}
     <div class="row row-cols-1 row-cols-sm-2 row-cols-lg-3 g-4">
       {% for event_list in lists %}<div class="col">{% include "events/_list_card.html" with show_owner=True %}</div>{% endfor %}
     </div>
   {% else %}
-    <p class="text-body-secondary">No lists yet. Lists are collections like “Best concerts of 2025” or “Every comedy special I've seen”.</p>
+    <p class="text-body-secondary">{% translate "No lists yet. Lists are collections like “Best concerts of 2025” or “Every comedy special I've seen”." %}</p>
   {% endif %}
 {% endblock %}

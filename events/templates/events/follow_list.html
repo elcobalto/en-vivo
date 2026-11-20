@@ -1,10 +1,11 @@
 {% extends "base.html" %}
+{% load i18n %}
 
-{% block title %}{{ owner.get_username }} · {{ tab|capfirst }} · En Vivo{% endblock %}
+{% block title %}{{ owner.get_username }} · {% if tab == "followers" %}{% translate "Followers" %}{% else %}{% translate "Following" %}{% endif %} · En Vivo{% endblock %}
 
 {% block content %}
   {% include "events/_profile_nav.html" %}
   {% for person in people %}{% include "events/_person_row.html" %}{% empty %}
-    <p class="text-body-secondary">{% if tab == 'followers' %}No followers yet.{% else %}Not following anyone yet. <a href="{% url 'events:people' %}">Find people</a>.{% endif %}</p>
+    <p class="text-body-secondary">{% if tab == 'followers' %}{% translate "No followers yet." %}{% else %}{% url 'events:people' as people_url %}{% blocktranslate %}Not following anyone yet. <a href="{{ people_url }}">Find people</a>.{% endblocktranslate %}{% endif %}</p>
   {% endfor %}
 {% endblock %}

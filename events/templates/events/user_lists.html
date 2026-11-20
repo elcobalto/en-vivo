@@ -1,15 +1,16 @@
 {% extends "base.html" %}
+{% load i18n %}
 
-{% block title %}{{ owner.get_username }}'s lists · En Vivo{% endblock %}
+{% block title %}{% blocktranslate with username=owner.get_username %}{{ username }}'s lists{% endblocktranslate %} · En Vivo{% endblock %}
 
 {% block content %}
   {% include "events/_profile_nav.html" %}
-  {% if owner == user %}<a class="btn btn-sm btn-success mb-3" href="{% url 'events:list_create' %}">+ New list</a>{% endif %}
+  {% if owner == user %}<a class="btn btn-sm btn-success mb-3" href="{% url 'events:list_create' %}">{% translate "+ New list" %}</a>{% endif %}
   {% if lists %}
     <div class="row row-cols-1 row-cols-sm-2 row-cols-lg-3 g-4">
       {% for event_list in lists %}<div class="col">{% include "events/_list_card.html" %}</div>{% endfor %}
     </div>
   {% else %}
-    <p class="text-body-secondary">No lists yet.</p>
+    <p class="text-body-secondary">{% translate "No lists yet." %}</p>
   {% endif %}
 {% endblock %}

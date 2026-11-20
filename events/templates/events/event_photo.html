@@ -1,7 +1,7 @@
 {% extends "base.html" %}
-{% load static %}
+{% load i18n static %}
 
-{% block title %}Find a photo · {{ subject_title }} · En Vivo{% endblock %}
+{% block title %}{% translate "Find a photo" %} · {{ subject_title }} · En Vivo{% endblock %}
 
 {% block scripts %}
   <script src="{% static 'events/photo-drop.js' %}" defer></script>
@@ -23,8 +23,8 @@
 
 {% block content %}
   <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
-    <h1 class="h4 m-0">Find a photo for “{{ subject_title }}”</h1>
-    <a class="btn btn-sm btn-outline-secondary" href="{{ back_url }}">Back</a>
+    <h1 class="h4 m-0">{% blocktranslate %}Find a photo for “{{ subject_title }}”{% endblocktranslate %}</h1>
+    <a class="btn btn-sm btn-outline-secondary" href="{{ back_url }}">{% translate "Back" %}</a>
   </div>
   <p class="small text-body-secondary mb-3">
     {{ hint }}
@@ -34,29 +34,29 @@
     {# Applies to whichever photo is picked below (every form on the page sends it). On unless unticked. #}
     <div class="form-check form-switch mb-3">
       <input class="form-check-input" type="checkbox" role="switch" id="photo-all-days" checked>
-      <label class="form-check-label" for="photo-all-days">Use this photo for {{ photo_share.label }} ({{ photo_share.count }} other {{ photo_share.unit }}{{ photo_share.count|pluralize }})</label>
+      <label class="form-check-label" for="photo-all-days">{% blocktranslate with what=photo_share.label others=photo_share.others %}Use this photo for {{ what }} ({{ others }}){% endblocktranslate %}</label>
     </div>
   {% endif %}
 
   <form method="get" class="d-flex gap-2 mb-3">
-    <input class="form-control" type="search" name="q" value="{{ query }}" aria-label="Search for a photo" />
-    <button class="btn btn-primary" type="submit">Search</button>
+    <input class="form-control" type="search" name="q" value="{{ query }}" aria-label="{% translate 'Search for a photo' %}" />
+    <button class="btn btn-primary" type="submit">{% translate "Search" %}</button>
   </form>
 
   <div class="card mb-4" data-photo-drop><div class="card-body">
     <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
-      <a class="btn btn-light btn-sm" href="{{ google_url }}" target="_blank" rel="noreferrer">Search “{{ query }}” on Google Images ↗</a>
-      <span class="small text-body-secondary">Click a photo there to open it large, then drag it onto this page. Or right-click it → “Copy image address” and paste it below.</span>
+      <a class="btn btn-light btn-sm" href="{{ google_url }}" target="_blank" rel="noreferrer">{% blocktranslate %}Search “{{ query }}” on Google Images ↗{% endblocktranslate %}</a>
+      <span class="small text-body-secondary">{% translate "Click a photo there to open it large, then drag it onto this page. Or right-click it → “Copy image address” and paste it below." %}</span>
     </div>
     <div class="photo-drop-zone rounded-3 mb-2" data-drop-zone>
-      <img class="photo-drop-preview" alt="Photo to use" referrerpolicy="no-referrer" hidden />
-      <span class="photo-drop-label">Drop a photo here</span>
+      <img class="photo-drop-preview" alt="{% translate 'Photo to use' %}" referrerpolicy="no-referrer" hidden />
+      <span class="photo-drop-label">{% translate "Drop a photo here" %}</span>
     </div>
     <div class="small mb-2" data-drop-message role="status" hidden></div>
     <form method="post" class="d-flex gap-2">
       {% csrf_token %}
-      <input class="form-control" type="url" name="url" placeholder="https://…" required aria-label="Image link" data-drop-input />
-      <button class="btn btn-success text-nowrap" type="submit" data-drop-submit>Use this link</button>
+      <input class="form-control" type="url" name="url" placeholder="https://…" required aria-label="{% translate 'Image link' %}" data-drop-input />
+      <button class="btn btn-success text-nowrap" type="submit" data-drop-submit>{% translate "Use this link" %}</button>
     </form>
   </div></div>
 
@@ -67,21 +67,21 @@
       {% for c in candidates %}{% include "events/_photo_candidate.html" %}{% endfor %}
     </div>
   {% elif query and not errors %}
-    <p class="text-body-secondary">Nothing on Deezer or Wikimedia Commons. Try a shorter search, like just the artist's name.</p>
+    <p class="text-body-secondary">{% translate "Nothing on Deezer or Wikimedia Commons. Try a shorter search, like just the artist's name." %}</p>
   {% endif %}
 
   {% if query %}
     {# Filled from the browser: Openverse is free and allows it, but a new search can take ~15 seconds. #}
     <section class="mt-4" data-openverse data-query="{{ query }}" data-artist="{{ artist }}">
-      <h2 class="h6 mb-1">Openverse <span class="small fw-normal text-body-secondary">· openly licensed photos, mostly from Flickr</span></h2>
-      <p class="small text-body-secondary mb-2" data-openverse-status role="status">Looking for photos…</p>
+      <h2 class="h6 mb-1">Openverse <span class="small fw-normal text-body-secondary">· {% translate "openly licensed photos, mostly from Flickr" %}</span></h2>
+      <p class="small text-body-secondary mb-2" data-openverse-status role="status">{% translate "Looking for photos…" %}</p>
       <div class="row row-cols-2 row-cols-sm-3 row-cols-lg-5 g-3" data-openverse-grid></div>
       <template data-candidate-template>{% include "events/_photo_candidate.html" with c=None %}</template>
     </section>
   {% endif %}
 
   <p class="small text-body-secondary mt-4">
-    Photos stay on their original site; En Vivo only saves the link. Make sure you're happy to use the image.
-    {% if edit_url %}You can always paste your own link in <a href="{{ edit_url }}">the edit page</a>.{% endif %}
+    {% translate "Photos stay on their original site; En Vivo only saves the link. Make sure you're happy to use the image." %}
+    {% if edit_url %}{% blocktranslate %}You can always paste your own link in <a href="{{ edit_url }}">the edit page</a>.{% endblocktranslate %}{% endif %}
   </p>
 {% endblock %}

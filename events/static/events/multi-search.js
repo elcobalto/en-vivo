@@ -20,7 +20,7 @@
     box.className = "form-control";
     box.setAttribute("list", listId);
     box.setAttribute("autocomplete", "off");
-    box.placeholder = select.dataset.placeholder || "Type to search…";
+    box.placeholder = select.dataset.placeholder || gettext("Type to search…");
     if (select.id) {
       box.id = select.id + "-search";
       var label = document.querySelector('label[for="' + select.id + '"]');
@@ -39,7 +39,7 @@
         remove.type = "button";
         remove.className = "btn-close btn-close-white";
         remove.style.fontSize = ".55rem";
-        remove.setAttribute("aria-label", "Remove " + option.text);
+        remove.setAttribute("aria-label", interpolate(gettext("Remove %s"), [option.text]));
         remove.addEventListener("click", function () { option.selected = false; render(); });
         tag.appendChild(remove);
         tags.appendChild(tag);
@@ -56,7 +56,7 @@
         hint.classList.add("d-none");
         render();
       } else {
-        hint.textContent = "“" + text + "” isn't in the list.";
+        hint.textContent = interpolate(gettext("“%s” isn't in the list."), [text]);
         hint.classList.remove("d-none");
       }
     }

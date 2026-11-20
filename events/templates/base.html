@@ -1,6 +1,6 @@
 <!doctype html>
-{% load social static event_extras %}
-<html lang="en" data-bs-theme="dark">
+{% load i18n social static event_extras %}{% get_current_language as LANGUAGE_CODE %}
+<html lang="{{ LANGUAGE_CODE }}" data-bs-theme="dark">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -75,46 +75,47 @@
       a { color: #fff; }
       a:hover { color: var(--ev-accent); }
     </style>
+    <script src="{% url 'javascript-catalog' %}"></script>
     <script src="{% static 'events/poster-auto.js' %}"></script>
   </head>
   <body>
     <div class="beta-banner small text-center px-3 py-1">
       <span class="badge text-bg-warning me-1">Beta</span>
-      En Vivo is in beta, so things may break or change.
-      {% if request.resolver_match.url_name != "feedback" %}<a href="{% url 'events:feedback' %}?next={{ request.get_full_path|urlencode }}">Report a bug or send feedback</a>{% endif %}
+      {% translate "En Vivo is in beta, so things may break or change." %}
+      {% if request.resolver_match.url_name != "feedback" %}<a href="{% url 'events:feedback' %}?next={{ request.get_full_path|urlencode }}">{% translate "Report a bug or send feedback" %}</a>{% endif %}
     </div>
     <nav class="navbar navbar-expand-lg navbar-dark">
       <div class="container">
         <a class="navbar-brand" href="{% url 'events:home' %}">EN <span>VIVO</span></a>
-        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#nav" aria-controls="nav" aria-expanded="false" aria-label="Menu">
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#nav" aria-controls="nav" aria-expanded="false" aria-label="{% translate 'Menu' %}">
           <span class="navbar-toggler-icon"></span>
         </button>
         <div class="collapse navbar-collapse" id="nav">
           <ul class="navbar-nav me-auto text-nowrap">
-            <li class="nav-item"><a class="nav-link" href="{% url 'events:event_list' %}">Events</a></li>
-            <li class="nav-item"><a class="nav-link" href="{% url 'events:artist_list' %}">Artists</a></li>
-            <li class="nav-item"><a class="nav-link" href="{% url 'events:list_index' %}">Lists</a></li>
-            <li class="nav-item"><a class="nav-link" href="{% url 'events:people' %}">People</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'events:event_list' %}">{% translate "Events" %}</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'events:artist_list' %}">{% translate "Artists" %}</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'events:list_index' %}">{% translate "Lists" %}</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'events:people' %}">{% translate "People" %}</a></li>
             {% if user.is_authenticated %}
-              <li class="nav-item"><a class="nav-link" href="{% url 'events:activity' %}">Activity</a></li>
-              <li class="nav-item"><a class="nav-link" href="{% url 'events:diary' %}">Diary</a></li>
+              <li class="nav-item"><a class="nav-link" href="{% url 'events:activity' %}">{% translate "Activity" %}</a></li>
+              <li class="nav-item"><a class="nav-link" href="{% url 'events:diary' %}">{% translate "Diary" %}</a></li>
             {% endif %}
           </ul>
           <form class="d-flex me-lg-2 my-2 my-lg-0" method="get" action="{% url 'events:search' %}">
-            <input class="form-control form-control-sm" type="search" name="q" placeholder="Search events, artists, venues" aria-label="Search" />
+            <input class="form-control form-control-sm" type="search" name="q" placeholder="{% translate 'Search events, artists, venues' %}" aria-label="{% translate 'Search' %}" />
           </form>
           <div class="d-flex gap-2 text-nowrap">
             {% if user.is_authenticated %}
-              {% if user|is_admin %}{% open_feedback_count as open_feedback %}<a class="btn btn-sm btn-outline-info" href="{% url 'events:feedback_inbox' %}" title="Bug reports and ideas from beta users">Feedback{% if open_feedback %} <span class="badge text-bg-info">{{ open_feedback }}</span>{% endif %}</a>{% endif %}
-              <a class="btn btn-sm btn-outline-warning" href="{% url 'events:setlistfm_shows' %}" title="Create events from setlist.fm">+ From setlist.fm</a>
-              <a class="btn btn-sm btn-success" href="{% url 'events:event_create' %}">+ Event</a>
+              {% if user|is_admin %}{% open_feedback_count as open_feedback %}<a class="btn btn-sm btn-outline-info" href="{% url 'events:feedback_inbox' %}" title="{% translate 'Bug reports and ideas from beta users' %}">{% translate "Feedback" %}{% if open_feedback %} <span class="badge text-bg-info">{{ open_feedback }}</span>{% endif %}</a>{% endif %}
+              <a class="btn btn-sm btn-outline-warning" href="{% url 'events:setlistfm_shows' %}" title="{% translate 'Create events from setlist.fm' %}">{% translate "+ From setlist.fm" %}</a>
+              <a class="btn btn-sm btn-success" href="{% url 'events:event_create' %}">{% translate "+ Event" %}</a>
               <a class="btn btn-sm btn-outline-light d-flex align-items-center gap-2" href="{% url 'events:profile' user.get_username %}">{% avatar user 20 %}{{ user|display_name }}</a>
               <form method="post" action="{% url 'logout' %}">
                 {% csrf_token %}
-                <button class="btn btn-sm btn-outline-secondary" type="submit">Logout</button>
+                <button class="btn btn-sm btn-outline-secondary" type="submit">{% translate "Logout" %}</button>
               </form>
             {% else %}
-              <a class="btn btn-sm btn-outline-light" href="{% url 'login' %}">Login</a>
+              <a class="btn btn-sm btn-outline-light" href="{% url 'login' %}">{% translate "Login" %}</a>
             {% endif %}
           </div>
         </div>

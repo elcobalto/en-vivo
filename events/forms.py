@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 from django import forms
+from django.conf import settings
 from django.forms import BaseInlineFormSet, inlineformset_factory
+from django.utils import formats
+from django.utils.translation import gettext, gettext_lazy as _, ngettext
 from django_countries import countries
 
 from .models import (
@@ -41,10 +44,11 @@ class BootstrapMixin:
 
 class EventForm(BootstrapMixin, forms.ModelForm):
     photo_for_all_days = forms.BooleanField(required=False)
-    new_venue_name = forms.CharField(label="New venue name", max_length=200, required=False)
-    new_venue_city = forms.CharField(label="City", max_length=120, required=False)
+    new_venue_name = forms.CharField(label=_("New venue name"), max_length=200, required=False)
+    new_venue_city = forms.CharField(label=_("City"), max_length=120, required=False)
     new_venue_country = forms.ChoiceField(
-        label="Country", required=False, choices=[("", "—")] + list(countries)
+        # A callable, so country names follow the language of each page.
+        label=_("Country"), required=False, choices=lambda: [("", "—")] + list(countries)
     )
 
     class Meta:
@@ -65,31 +69,30 @@ class EventForm(BootstrapMixin, forms.ModelForm):
             "date": forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d"),
             "description": forms.Textarea(attrs={"rows": 4}),
         }
-        labels = {"event_type": "Type", "image_url": "Poster / image URL"}
-        help_texts = {"play": "Only for theater: the original play this staging is of. Its name becomes the event's name.",
-                      "production": "Only for festivals: the festival this day belongs to. Tours are set per act in the lineup."}
+        labels = {"title": _("Title"), "event_type": _("Type"), "date": _("Date"), "venue": _("Venue"),
+                  "description": _("Description"), "image_url": _("Poster / image URL")}
+        help_texts = {"play": _("Only for theater: the original play this staging is of. Its name becomes the event's name."),
+                      "production": _("Only for festivals: the festival this day belongs to. Tours are set per act in the lineup.")}
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["production"].queryset = Production.objects.filter(event_type=EventType.FESTIVAL)
-        self.fields["production"].label = "Festival"
+        self.fields["production"].label = _("Festival")
         self.fields["image_display"].required = False
         from .merge import photo_siblings
 
         siblings = photo_siblings(self.instance)
         if siblings:
-            self.fields["photo_for_all_days"].label = (
-                f"Use this photo for {siblings['label']} ({siblings['count']} other {siblings['unit']}"
-                f"{'s' if siblings['count'] != 1 else ''})"
-            )
+            self.fields["photo_for_all_days"].label = gettext("Use this photo for %(what)s (%(others)s)") % {
+                "what": siblings["label"], "others": siblings["others"]}
             # On by default, unless one of them has a different photo of its own: then saving other edits
             # shouldn't replace it (ticking the box still does).
             self.fields["photo_for_all_days"].initial = not siblings["own_photos"]
             if siblings["own_photos"]:
                 n = siblings["own_photos"]
-                self.fields["photo_for_all_days"].help_text = (
-                    f"Off because {n} of them {'has' if n == 1 else 'have'} a different photo; tick it to replace "
-                    f"{'it' if n == 1 else 'them'}.")
+                self.fields["photo_for_all_days"].help_text = ngettext(
+                    "Off because %(n)s of them has a different photo; tick it to replace it.",
+                    "Off because %(n)s of them have a different photo; tick it to replace them.", n) % {"n": n}
         else:
             del self.fields["photo_for_all_days"]
         order = [n for n in self.fields if n != "photo_for_all_days"]
@@ -97,11 +100,11 @@ class EventForm(BootstrapMixin, forms.ModelForm):
             order.insert(order.index("image_url") + 1, "photo_for_all_days")
         self.order_fields(order)
         self.fields["title"].required = False
-        placeholder = "Leave blank to use the headliner's name"
+        placeholder = gettext("Leave blank to use the headliner's name")
         if self.instance.pk and self.instance.title_is_auto:
             # Keep generated titles blank in the form so they keep following lineup/venue/date.
             self.initial["title"] = ""
-            placeholder = f"Automatic: {self.instance.title}"
+            placeholder = gettext("Automatic: %(title)s") % {"title": self.instance.title}
         self.fields["title"].widget.attrs["placeholder"] = placeholder
 
     def clean_title(self) -> str:
@@ -115,7 +118,7 @@ class EventForm(BootstrapMixin, forms.ModelForm):
     def clean(self):
         cleaned = super().clean()
         if cleaned.get("venue") and (cleaned.get("new_venue_name") or "").strip():
-            self.add_error("new_venue_name", "Pick an existing venue or add a new one, not both.")
+            self.add_error("new_venue_name", gettext("Pick an existing venue or add a new one, not both."))
         # City/country only matter when a new venue name is typed (they may be pre-filled from the profile).
         return cleaned
 
@@ -167,14 +170,15 @@ class LazySelect(forms.Select):
 
 class EventArtistForm(BootstrapMixin, forms.ModelForm):
     new_artist = forms.CharField(
-        label="New artist", max_length=200, required=False,
-        widget=forms.TextInput(attrs={"placeholder": "…or type a new artist", "class": "form-control form-control-sm mt-1"}),
+        label=_("New artist"), max_length=200, required=False,
+        widget=forms.TextInput(attrs={"placeholder": _("…or type a new artist"), "class": "form-control form-control-sm mt-1"}),
     )
 
     class Meta:
         model = EventArtist
         fields = ["artist", "role", "billing_order", "start_time", "production"]
-        labels = {"billing_order": "Order", "start_time": "Time", "production": "Tour"}
+        labels = {"artist": _("Artist"), "role": _("Role"), "billing_order": _("Order"), "start_time": _("Time"),
+                  "production": _("Tour")}
         widgets = {"start_time": forms.TimeInput(attrs={"type": "time"}, format="%H:%M")}
 
     def __init__(self, *args, **kwargs):
@@ -189,7 +193,7 @@ class EventArtistForm(BootstrapMixin, forms.ModelForm):
         tours = self.fields["production"]
         tours.queryset = Production.objects.exclude(event_type=EventType.FESTIVAL).select_related("artist")
         tours.label_from_instance = lambda p: f"{p.title} ({p.artist.name})" if p.artist_id else p.title
-        tours.empty_label = "No tour"
+        tours.empty_label = gettext("No tour")
 
     def has_changed(self) -> bool:
         # A new row without a artist (picked or typed) is an unused blank row, whatever role/order say.
@@ -202,9 +206,9 @@ class EventArtistForm(BootstrapMixin, forms.ModelForm):
         cleaned = super().clean()
         name = (cleaned.get("new_artist") or "").strip()
         if cleaned.get("artist") and name:
-            self.add_error("new_artist", "Pick an artist or type a new one, not both.")
+            self.add_error("new_artist", gettext("Pick an artist or type a new one, not both."))
         elif not cleaned.get("artist") and not name and not cleaned.get("DELETE"):
-            self.add_error("artist", "Pick an artist or type a new one.")
+            self.add_error("artist", gettext("Pick an artist or type a new one."))
         return cleaned
 
     def save(self, commit: bool = True):
@@ -255,10 +259,12 @@ class ArtistForm(BootstrapMixin, forms.ModelForm):
     class Meta:
         model = Artist
         fields = ["name", "kind", "country", "member_of", "bio", "image_url", "mbid"]
-        widgets = {"bio": forms.Textarea(attrs={"rows": 4}), "member_of": forms.SelectMultiple(attrs={"data-search-multi": "", "data-placeholder": "Search bands…"})}
-        help_texts = {"mbid": "Optional. Helps match setlist.fm imports to this artist.",
-                      "member_of": "Bands this artist was in. Their songs played as "
-                                   "covers get the band's own album chart."}
+        widgets = {"bio": forms.Textarea(attrs={"rows": 4}), "member_of": forms.SelectMultiple(attrs={"data-search-multi": "", "data-placeholder": _("Search bands…")})}
+        labels = {"name": _("Name"), "kind": _("Kind"), "country": _("Country"), "bio": _("Bio"),
+                  "image_url": _("Image URL"), "mbid": _("MusicBrainz ID")}
+        help_texts = {"mbid": _("Optional. Helps match setlist.fm imports to this artist."),
+                      "member_of": _("Bands this artist was in. Their songs played as "
+                                     "covers get the band's own album chart.")}
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -272,6 +278,8 @@ class VenueForm(BootstrapMixin, forms.ModelForm):
     class Meta:
         model = Venue
         fields = ["name", "address", "city", "region", "country", "capacity"]
+        labels = {"name": _("Name"), "address": _("Address"), "city": _("City"), "region": _("Region"),
+                  "country": _("Country"), "capacity": _("Capacity")}
 
 
 class PlayForm(BootstrapMixin, forms.ModelForm):
@@ -279,8 +287,9 @@ class PlayForm(BootstrapMixin, forms.ModelForm):
         model = Play
         fields = ["title", "authors", "description", "image_url"]
         widgets = {"description": forms.Textarea(attrs={"rows": 4}), "authors": forms.SelectMultiple(attrs={"size": 6})}
-        labels = {"authors": "Author(s)", "image_url": "Poster / image URL"}
-        help_texts = {"authors": "Who wrote it. Hold Ctrl/Cmd to pick more than one."}
+        labels = {"title": _("Title"), "authors": _("Author(s)"), "description": _("Description"),
+                  "image_url": _("Poster / image URL")}
+        help_texts = {"authors": _("Who wrote it. Hold Ctrl/Cmd to pick more than one.")}
 
 
 class ProductionForm(BootstrapMixin, forms.ModelForm):
@@ -288,8 +297,9 @@ class ProductionForm(BootstrapMixin, forms.ModelForm):
         model = Production
         fields = ["title", "event_type", "artist", "description", "image_url"]
         widgets = {"description": forms.Textarea(attrs={"rows": 4})}
-        labels = {"event_type": "Type", "image_url": "Poster / image URL", "artist": "Artist"}
-        help_texts = {"artist": "Whose tour or run this is. Leave empty for a festival."}
+        labels = {"title": _("Title"), "event_type": _("Type"), "image_url": _("Poster / image URL"),
+                  "artist": _("Artist"), "description": _("Description")}
+        help_texts = {"artist": _("Whose tour or run this is. Leave empty for a festival.")}
 
     def clean_title(self) -> str:
         from django.utils.html import format_html
@@ -298,25 +308,25 @@ class ProductionForm(BootstrapMixin, forms.ModelForm):
         existing = Production.find_by_name(title, exclude_pk=self.instance.pk)
         if existing:
             raise forms.ValidationError(
-                format_html('“{}” already exists: <a href="{}">open it</a> instead of creating a new one.',
+                format_html(gettext('“{}” already exists: <a href="{}">open it</a> instead of creating a new one.'),
                             existing.title, existing.get_absolute_url())
             )
         return title
 
 
-RATING_CHOICES = [("", "No rating")] + [(i, stars(i)) for i in range(1, 11)]
+RATING_CHOICES = [("", _("No rating"))] + [(i, stars(i)) for i in range(1, 11)]
 
 
 class LogForm(BootstrapMixin, forms.ModelForm):
     rating = forms.TypedChoiceField(
-        choices=RATING_CHOICES, coerce=int, empty_value=None, required=False
+        label=_("Rating"), choices=RATING_CHOICES, coerce=int, empty_value=None, required=False
     )
 
     class Meta:
         model = Log
         fields = ["rating", "liked", "review", "contains_spoilers"]
-        widgets = {"review": forms.Textarea(attrs={"rows": 5, "placeholder": "Add a review…"})}
-        labels = {"liked": "♥ Liked it", "contains_spoilers": "Contains spoilers"}
+        widgets = {"review": forms.Textarea(attrs={"rows": 5, "placeholder": _("Add a review…")})}
+        labels = {"liked": _("♥ Liked it"), "review": _("Review"), "contains_spoilers": _("Contains spoilers")}
 
 
 class EventListForm(BootstrapMixin, forms.ModelForm):
@@ -324,6 +334,7 @@ class EventListForm(BootstrapMixin, forms.ModelForm):
         model = EventList
         fields = ["title", "description", "is_ranked"]
         widgets = {"description": forms.Textarea(attrs={"rows": 3})}
+        labels = {"title": _("Title"), "description": _("Description")}
 
 
 USERNAME_RE = r"^[A-Za-z0-9_.-]{3,30}$"
@@ -334,22 +345,28 @@ class ProfileForm(BootstrapMixin, forms.ModelForm):
         regex=USERNAME_RE,
         min_length=3,
         max_length=30,
-        help_text="3–30 letters, numbers, dots, hyphens or underscores. Your profile lives at /u/<username>/.",
-        error_messages={"invalid": "Use only letters, numbers, dots, hyphens or underscores (3–30 characters)."},
+        label=_("Username"),
+        help_text=_("3–30 letters, numbers, dots, hyphens or underscores. Your profile lives at /u/<username>/."),
+        error_messages={"invalid": _("Use only letters, numbers, dots, hyphens or underscores (3–30 characters).")},
     )
+    # Not required: a form posted without it keeps the profile's language.
+    language = forms.ChoiceField(label=_("Language"), choices=settings.LANGUAGES, required=False,
+                                 help_text=_("The language En Vivo is shown in for you."))
 
     class Meta:
         model = Profile
-        fields = ["display_name", "location", "home_city", "home_country", "avatar_url", "bio", "thumbnail_display",
-                  "import_as_attended"]
+        fields = ["display_name", "location", "home_city", "home_country", "language", "avatar_url", "bio",
+                  "thumbnail_display", "import_as_attended"]
         widgets = {"bio": forms.Textarea(attrs={"rows": 4})}
-        labels = {"avatar_url": "Avatar image URL"}
+        labels = {"display_name": _("Display name"), "location": _("Location"), "avatar_url": _("Avatar image URL"),
+                  "bio": _("Bio")}
         help_texts = {
-            "home_city": "Upcoming events on the home page are shown for this city (or your country).",
-            "home_country": "Also the default country for setlist.fm searches and new venues.",
+            "home_city": _("Upcoming events on the home page are shown for this city (or your country)."),
+            "home_country": _("Also the default country for setlist.fm searches and new venues."),
         }
 
-    field_order = ["username", "display_name", "location", "home_city", "home_country", "avatar_url", "bio"]
+    field_order = ["username", "display_name", "location", "home_city", "home_country", "language", "avatar_url",
+                   "bio"]
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -358,13 +375,16 @@ class ProfileForm(BootstrapMixin, forms.ModelForm):
             {"autocomplete": "username", "autocapitalize": "none", "spellcheck": "false"}
         )
 
+    def clean_language(self) -> str:
+        return self.cleaned_data.get("language") or self.instance.language or settings.LANGUAGE_CODE
+
     def clean_username(self) -> str:
         from django.contrib.auth import get_user_model
 
         username = self.cleaned_data["username"].strip()
         taken = get_user_model().objects.filter(username__iexact=username).exclude(pk=self.instance.user_id)
         if taken.exists():
-            raise forms.ValidationError("That username is taken.")
+            raise forms.ValidationError(gettext("That username is taken."))
         return username
 
     def save(self, commit: bool = True):
@@ -393,7 +413,8 @@ class EventChoiceField(forms.ModelChoiceField):
     def label_from_instance(self, event):
         details = " · ".join(
             bit for bit in [event.venue.name if event.venue_id else "",
-                            f"{event.date.day} {event.date:%b %Y}" if event.date else "date not added"] if bit
+                            formats.date_format(event.date, "j M Y") if event.date else gettext("date not added")]
+            if bit
         )
         return f"{event.title} — {details}"
 
@@ -427,13 +448,13 @@ class FavoritesForm(BootstrapMixin, forms.Form):
                 self.lineups.setdefault(link.event_id, []).append({"id": link.artist_id, "name": link.artist.name})
         for i in range(1, FavoriteEvent.MAX + 1):
             self.fields[f"slot_{i}"] = EventChoiceField(
-                queryset=events, required=False, label=f"Favourite {i}", empty_label="—"
+                queryset=events, required=False, label=gettext("Favourite %(number)s") % {"number": i}, empty_label="—"
             )
             self.fields[f"slot_{i}"].widget.attrs.update({"class": "form-select", "data-favorite-slot": i})
             lineup = self.lineups.get(self._picked_event_id(i), [])
             for n in range(1, self.ACTS + 1):
-                empty = "Headliners" if n == 1 else "—"
-                field = forms.CharField(required=False, label=f"Act {n}", widget=forms.Select(
+                empty = gettext("Headliners") if n == 1 else "—"
+                field = forms.CharField(required=False, label=gettext("Act %(number)s") % {"number": n}, widget=forms.Select(
                     choices=[("", empty)] + [(str(a["id"]), a["name"]) for a in lineup]))
                 field.widget.attrs.update({"class": "form-select form-select-sm", "data-favorite-act": i})
                 self.fields[f"slot_{i}_act_{n}"] = field
@@ -455,7 +476,7 @@ class FavoritesForm(BootstrapMixin, forms.Form):
         chosen = [cleaned.get(f"slot_{i}") for i in range(1, FavoriteEvent.MAX + 1)]
         picked = [e.pk for e in chosen if e]
         if len(picked) != len(set(picked)):
-            raise forms.ValidationError("Each favourite must be a different event.")
+            raise forms.ValidationError(gettext("Each favourite must be a different event."))
         acts = {}
         for i, event in enumerate(chosen, start=1):
             lineup = {a["id"] for a in self.lineups.get(event.pk, [])} if event else set()
@@ -509,7 +530,7 @@ class CommentForm(BootstrapMixin, forms.ModelForm):
     class Meta:
         model = Comment
         fields = ["body"]
-        widgets = {"body": forms.Textarea(attrs={"rows": 3, "placeholder": "Reply…", "maxlength": 2000})}
+        widgets = {"body": forms.Textarea(attrs={"rows": 3, "placeholder": _("Reply…"), "maxlength": 2000})}
         labels = {"body": ""}
 
 
@@ -517,9 +538,9 @@ class FeedbackForm(BootstrapMixin, forms.ModelForm):
     class Meta:
         model = Feedback
         fields = ["kind", "message"]
-        labels = {"kind": "What is it?", "message": "Tell us"}
+        labels = {"kind": _("What is it?"), "message": _("Tell us")}
         widgets = {
             "kind": forms.RadioSelect,
-            "message": forms.Textarea(attrs={"rows": 6, "placeholder": "What happened, or what would you like? "
-                                                                       "For bugs: what you did and what you expected."}),
+            "message": forms.Textarea(attrs={"rows": 6, "placeholder": _("What happened, or what would you like? "
+                                                                         "For bugs: what you did and what you expected.")}),
         }

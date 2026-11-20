@@ -1,18 +1,18 @@
 {% extends "base.html" %}
-{% load event_extras %}
+{% load i18n event_extras %}
 
 {% block title %}{{ event_list.title }} · En Vivo{% endblock %}
 
 {% block content %}
   <div class="mb-4">
-    <div class="small text-body-secondary">List by <a href="{% url 'events:user_lists' event_list.user.get_username %}">{{ event_list.user.get_username }}</a></div>
+    <div class="small text-body-secondary">{% translate "List by" %} <a href="{% url 'events:user_lists' event_list.user.get_username %}">{{ event_list.user.get_username }}</a></div>
     <h1 class="h3 fw-bold">{{ event_list.title }}</h1>
     {% if event_list.description %}<p>{{ event_list.description|linebreaksbr }}</p>{% endif %}
     {% if is_owner %}
       <div class="d-flex gap-2">
-        <a class="btn btn-sm btn-outline-secondary" href="{% url 'events:list_edit' event_list.pk %}">Edit list</a>
-        <form method="post" action="{% url 'events:list_delete' event_list.pk %}" onsubmit="return confirm('Delete this list? This cannot be undone.');">
-          {% csrf_token %}<button class="btn btn-sm btn-outline-danger" type="submit">Delete list</button>
+        <a class="btn btn-sm btn-outline-secondary" href="{% url 'events:list_edit' event_list.pk %}">{% translate "Edit list" %}</a>
+        <form method="post" action="{% url 'events:list_delete' event_list.pk %}" onsubmit="return confirm('{% filter escapejs %}{% translate "Delete this list? This cannot be undone." %}{% endfilter %}');">
+          {% csrf_token %}<button class="btn btn-sm btn-outline-danger" type="submit">{% translate "Delete list" %}</button>
         </form>
       </div>
     {% endif %}
@@ -33,13 +33,13 @@
       </div>
       {% if is_owner %}
         <div class="d-flex gap-1">
-          {% if not forloop.first %}<form method="post" action="{% url 'events:list_item_move' event_list.pk item.pk %}">{% csrf_token %}<input type="hidden" name="direction" value="up" /><button class="btn btn-sm btn-outline-secondary" title="Move up" aria-label="Move up">↑</button></form>{% endif %}
-          {% if not forloop.last %}<form method="post" action="{% url 'events:list_item_move' event_list.pk item.pk %}">{% csrf_token %}<input type="hidden" name="direction" value="down" /><button class="btn btn-sm btn-outline-secondary" title="Move down" aria-label="Move down">↓</button></form>{% endif %}
-          <form method="post" action="{% url 'events:list_item_remove' event_list.pk item.pk %}">{% csrf_token %}<button class="btn btn-sm btn-outline-danger" title="Remove" aria-label="Remove">×</button></form>
+          {% if not forloop.first %}<form method="post" action="{% url 'events:list_item_move' event_list.pk item.pk %}">{% csrf_token %}<input type="hidden" name="direction" value="up" /><button class="btn btn-sm btn-outline-secondary" title="{% translate 'Move up' %}" aria-label="{% translate 'Move up' %}">↑</button></form>{% endif %}
+          {% if not forloop.last %}<form method="post" action="{% url 'events:list_item_move' event_list.pk item.pk %}">{% csrf_token %}<input type="hidden" name="direction" value="down" /><button class="btn btn-sm btn-outline-secondary" title="{% translate 'Move down' %}" aria-label="{% translate 'Move down' %}">↓</button></form>{% endif %}
+          <form method="post" action="{% url 'events:list_item_remove' event_list.pk item.pk %}">{% csrf_token %}<button class="btn btn-sm btn-outline-danger" title="{% translate 'Remove' %}" aria-label="{% translate 'Remove' %}">×</button></form>
         </div>
       {% endif %}
     </div>
   {% empty %}
-    <p class="text-body-secondary">This list is empty.{% if is_owner %} Open any event and use “Add to list”.{% endif %}</p>
+    <p class="text-body-secondary">{% translate "This list is empty." %}{% if is_owner %} {% translate "Open any event and use “Add to a list”." %}{% endif %}</p>
   {% endfor %}
 {% endblock %}

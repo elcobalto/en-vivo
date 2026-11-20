@@ -1,7 +1,7 @@
-{# The favourites form: in the profile page's modal or on its own page. Needs favorites_form. #}
+{% load i18n %}{# The favourites form: in the profile page's modal or on its own page. Needs favorites_form. #}
 <form method="post" action="{% url 'events:favorites_edit' %}" data-favorites-form>
   {% csrf_token %}
-  <p class="small text-body-secondary">Up to four, shown at the top of your profile in this order. For a festival, you can pick up to two acts you saw to show on its card.</p>
+  <p class="small text-body-secondary">{% translate "Up to four, shown at the top of your profile in this order. For a festival, you can pick up to two acts you saw to show on its card." %}</p>
   {% for error in favorites_form.non_field_errors %}<div class="alert alert-danger py-2">{{ error }}</div>{% endfor %}
   <div class="row g-3">
     {% for slot in favorites_form.slots %}
@@ -16,7 +16,7 @@
   </div>
   {{ favorites_form.lineups|json_script:"favorite-lineups" }}
   <div class="d-flex gap-2 mt-4">
-    <button class="btn btn-success" type="submit">Save favourites</button>
-    <a class="btn btn-outline-secondary" href="{% url 'events:profile_edit' %}" data-bs-dismiss="modal">Cancel</a>
+    <button class="btn btn-success" type="submit">{% translate "Save favourites" %}</button>
+    <a class="btn btn-outline-secondary" href="{% url 'events:profile_edit' %}" data-bs-dismiss="modal">{% translate "Cancel" %}</a>
   </div>
 </form>

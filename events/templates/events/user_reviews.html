@@ -1,8 +1,9 @@
 {% extends "base.html" %}
+{% load i18n %}
 
-{% block title %}{{ owner.get_username }}'s reviews · En Vivo{% endblock %}
+{% block title %}{% blocktranslate with username=owner.get_username %}{{ username }}'s reviews{% endblocktranslate %} · En Vivo{% endblock %}
 
 {% block content %}
   {% include "events/_profile_nav.html" %}
-  {% for log in reviews %}{% include "events/_review.html" with show_event=True %}{% empty %}<p class="text-body-secondary">No reviews yet.</p>{% endfor %}
+  {% for log in reviews %}{% include "events/_review.html" with show_event=True %}{% empty %}<p class="text-body-secondary">{% translate "No reviews yet." %}</p>{% endfor %}
 {% endblock %}

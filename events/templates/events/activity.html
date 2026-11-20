@@ -1,26 +1,27 @@
 {% extends "base.html" %}
+{% load i18n %}
 
-{% block title %}Activity · En Vivo{% endblock %}
+{% block title %}{% translate "Activity" %} · En Vivo{% endblock %}
 
 {% block content %}
   <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
-    <h1 class="h4 m-0">Activity</h1>
+    <h1 class="h4 m-0">{% translate "Activity" %}</h1>
     <ul class="nav nav-pills nav-sm">
-      <li class="nav-item"><a class="nav-link py-1 {% if mode == 'friends' %}active{% endif %}" href="?show=friends">Friends</a></li>
-      <li class="nav-item"><a class="nav-link py-1 {% if mode == 'you' %}active{% endif %}" href="?show=you">You</a></li>
+      <li class="nav-item"><a class="nav-link py-1 {% if mode == 'friends' %}active{% endif %}" href="?show=friends">{% translate "Friends" %}</a></li>
+      <li class="nav-item"><a class="nav-link py-1 {% if mode == 'you' %}active{% endif %}" href="?show=you">{% translate "You" %}</a></li>
     </ul>
   </div>
 
   {% for item in items %}{% include "events/_activity_item.html" %}{% empty %}
     {% if mode == 'friends' %}
-      <p class="text-body-secondary">Follow people to see their logs, reviews and lists here.</p>
+      <p class="text-body-secondary">{% translate "Follow people to see their logs, reviews and lists here." %}</p>
       {% if suggestions %}
-        <h2 class="section-title mt-4 mb-1">People to follow</h2>
+        <h2 class="section-title mt-4 mb-1">{% translate "People to follow" %}</h2>
         {% for person in suggestions %}{% include "events/_person_row.html" %}{% endfor %}
       {% endif %}
-      <a class="btn btn-sm btn-outline-secondary mt-3" href="{% url 'events:people' %}">Browse people</a>
+      <a class="btn btn-sm btn-outline-secondary mt-3" href="{% url 'events:people' %}">{% translate "Browse people" %}</a>
     {% else %}
-      <p class="text-body-secondary">You haven't done anything yet. Log an event!</p>
+      <p class="text-body-secondary">{% translate "You haven't done anything yet. Log an event!" %}</p>
     {% endif %}
   {% endfor %}
 {% endblock %}

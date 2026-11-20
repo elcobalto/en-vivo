@@ -105,6 +105,8 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    # Spanish for visitors; each signed-in user's own language from their profile.
+    'events.languages.ProfileLanguageMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'allauth.account.middleware.AccountMiddleware',
@@ -166,7 +168,10 @@ AUTH_PASSWORD_VALIDATORS = [
 # Internationalization
 # https://docs.djangoproject.com/en/4.2/topics/i18n/
 
-LANGUAGE_CODE = 'en-us'
+# Spanish first (the beta is mostly Chilean); each user can switch to English on their profile.
+LANGUAGE_CODE = "es"
+LANGUAGES = [("es", "Español"), ("en", "English")]
+LOCALE_PATHS = [BASE_DIR / "locale"]
 
 TIME_ZONE = 'UTC'
 

@@ -14,6 +14,7 @@ from django.http import HttpRequest, HttpResponse
 from django.shortcuts import redirect, render
 from django.urls import reverse
 from django.utils.html import format_html
+from django.utils.translation import gettext, ngettext
 
 from .models import Event, EventArtist, EventType, Artist, Venue, normalize_name
 from .roles import can_edit_event
@@ -58,18 +59,19 @@ def parse_lines(text: str) -> list[Row]:
         parts = [p.strip() for p in next(csv.reader(io.StringIO(raw), skipinitialspace=True))]
         row = Row(line=number, raw=raw.strip())
         if len(parts) < 2 or not parts[1]:
-            row.error = "Needs at least a date and an event name."
+            row.error = gettext("Needs at least a date and an event name.")
         else:
             row.date = parse_date(parts[0])
             row.title = parts[1][:240]
             if row.date is None:
-                row.error = f"Couldn't read the date “{parts[0]}” (use 2019-03-20 or 20-03-2019)."
+                row.error = gettext("Couldn't read the date “%(date)s” (use 2019-03-20 or 20-03-2019).") % {"date": parts[0]}
             if len(parts) > 2 and parts[2]:
                 kind = TYPE_ALIASES.get(normalize_name(parts[2]))
                 if kind:
                     row.event_type = kind
                 else:
-                    row.error = row.error or f"Unknown type “{parts[2]}” (music, theater, comedy, dance, festival, other)."
+                    row.error = row.error or gettext(
+                        "Unknown type “%(type)s” (music, theater, comedy, dance, festival, other).") % {"type": parts[2]}
         rows.append(row)
     return rows
 
@@ -94,9 +96,15 @@ def bulk_import(request: HttpRequest) -> HttpResponse:
                 event = Event.objects.create(title=row.title, date=row.date, event_type=row.event_type,
                                              created_by=request.user)
                 ids.append(event.pk)
-        messages.success(request, f"{len(ids) - reused} event{'s' if len(ids) - reused != 1 else ''} created"
-                                  + (f", {reused} already existed" if reused else "")
-                                  + ". Now add venues and lineups.")
+        new = len(ids) - reused
+        if reused:
+            text = gettext("%(created)s, %(existing)s. Now add venues and lineups.") % {
+                "created": ngettext("%(n)s event created", "%(n)s events created", new) % {"n": new},
+                "existing": ngettext("%(n)s already existed", "%(n)s already existed", reused) % {"n": reused}}
+        else:
+            text = ngettext("%(n)s event created. Now add venues and lineups.",
+                            "%(n)s events created. Now add venues and lineups.", new) % {"n": new}
+        messages.success(request, text)
         return redirect(f"{reverse('events:bulk_review')}?ids={','.join(map(str, ids))}")
 
     return render(request, "events/bulk_import.html", {
@@ -145,7 +153,7 @@ def bulk_review(request: HttpRequest) -> HttpResponse:
                         changed |= created
                     event.order_bill()
                 updated += changed
-        messages.success(request, f"Updated {updated} event{'s' if updated != 1 else ''}.")
+        messages.success(request, ngettext("Updated %(n)s event.", "Updated %(n)s events.", updated) % {"n": updated})
         return redirect(f"{reverse('events:bulk_review')}?ids={','.join(str(e.pk) for e in events)}")
 
     rows = [{

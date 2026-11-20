@@ -1,16 +1,16 @@
 {% extends "base.html" %}
-{% load event_extras %}
+{% load i18n event_extras %}
 
-{% block title %}Events · En Vivo{% endblock %}
+{% block title %}{% translate "Events" %} · En Vivo{% endblock %}
 
 {% block content %}
   <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
-    <h1 class="h4 m-0">Events{% if f.q %} matching “{{ f.q }}”{% endif %}</h1>
+    <h1 class="h4 m-0">{% if f.q %}{% blocktranslate with q=f.q %}Events matching “{{ q }}”{% endblocktranslate %}{% else %}{% translate "Events" %}{% endif %}</h1>
     <div class="d-flex gap-2">
       {% if user.is_authenticated %}
-        <a class="btn btn-sm btn-outline-warning" href="{% url 'events:setlistfm_shows' %}">Import from setlist.fm</a>
-        <a class="btn btn-sm btn-outline-secondary" href="{% url 'events:bulk_import' %}">Import a list</a>
-        <a class="btn btn-sm btn-success" href="{% url 'events:event_create' %}">+ Add event</a>
+        <a class="btn btn-sm btn-outline-warning" href="{% url 'events:setlistfm_shows' %}">{% translate "Import from setlist.fm" %}</a>
+        <a class="btn btn-sm btn-outline-secondary" href="{% url 'events:bulk_import' %}">{% translate "Import a list" %}</a>
+        <a class="btn btn-sm btn-success" href="{% url 'events:event_create' %}">{% translate "+ Add event" %}</a>
       {% endif %}
     </div>
   </div>
@@ -18,41 +18,41 @@
   <form method="get" class="row g-2 align-items-end mb-4" id="filters">
     {% if f.q %}<input type="hidden" name="q" value="{{ f.q }}" />{% endif %}
     <div class="col-6 col-md">
-      <label class="form-label small text-body-secondary mb-1" for="f-type">Type</label>
+      <label class="form-label small text-body-secondary mb-1" for="f-type">{% translate "Type" %}</label>
       <select class="form-select form-select-sm" id="f-type" name="type" onchange="this.form.submit()">
-        <option value="">All types</option>
+        <option value="">{% translate "All types" %}</option>
         {% for value, label in event_types %}<option value="{{ value }}" {% if f.type == value %}selected{% endif %}>{{ label }}</option>{% endfor %}
       </select>
     </div>
     <div class="col-6 col-md">
-      <label class="form-label small text-body-secondary mb-1" for="f-when">When</label>
+      <label class="form-label small text-body-secondary mb-1" for="f-when">{% translate "When" %}</label>
       <select class="form-select form-select-sm" id="f-when" name="when" onchange="this.form.sort.selectedIndex = -1; this.form.submit()">
         {% for value, label in whens %}<option value="{{ value }}" {% if f.when == value %}selected{% endif %}>{{ label }}</option>{% endfor %}
       </select>
     </div>
     <div class="col-6 col-md">
-      <label class="form-label small text-body-secondary mb-1" for="f-year">Year</label>
+      <label class="form-label small text-body-secondary mb-1" for="f-year">{% translate "Year" %}</label>
       <select class="form-select form-select-sm" id="f-year" name="year" onchange="this.form.submit()">
-        <option value="">Any year</option>
+        <option value="">{% translate "Any year" %}</option>
         {% for y in years %}<option value="{{ y }}" {% if f.year == y|stringformat:"d" %}selected{% endif %}>{{ y }}</option>{% endfor %}
       </select>
     </div>
     <div class="col-6 col-md">
-      <label class="form-label small text-body-secondary mb-1" for="f-city">City</label>
+      <label class="form-label small text-body-secondary mb-1" for="f-city">{% translate "City" %}</label>
       <select class="form-select form-select-sm" id="f-city" name="city" onchange="this.form.submit()">
-        <option value="">Any city</option>
+        <option value="">{% translate "Any city" %}</option>
         {% for c in cities %}<option value="{{ c }}" {% if f.city|lower == c|lower %}selected{% endif %}>{{ c }}</option>{% endfor %}
       </select>
     </div>
     <div class="col-6 col-md">
-      <label class="form-label small text-body-secondary mb-1" for="f-sort">Sort by</label>
+      <label class="form-label small text-body-secondary mb-1" for="f-sort">{% translate "Sort by" %}</label>
       <select class="form-select form-select-sm" id="f-sort" name="sort" onchange="this.form.submit()">
         {% for value, label in sorts %}<option value="{{ value }}" {% if f.sort == value %}selected{% endif %}>{{ label }}</option>{% endfor %}
       </select>
     </div>
     <div class="col-6 col-md-auto d-flex gap-2">
-      <noscript><button class="btn btn-sm btn-primary" type="submit">Apply</button></noscript>
-      {% if querystring and querystring != "sort=newest" %}<a class="btn btn-sm btn-outline-secondary" href="{% url 'events:event_list' %}">Clear</a>{% endif %}
+      <noscript><button class="btn btn-sm btn-primary" type="submit">{% translate "Apply" %}</button></noscript>
+      {% if querystring and querystring != "sort=newest" %}<a class="btn btn-sm btn-outline-secondary" href="{% url 'events:event_list' %}">{% translate "Clear" %}</a>{% endif %}
     </div>
   </form>
 
@@ -61,13 +61,13 @@
       {% for event in page.object_list %}<div class="col">{% include "events/_event_card.html" %}</div>{% endfor %}
     </div>
     {% if page.has_other_pages %}
-      <nav class="mt-4 d-flex justify-content-center gap-2" aria-label="Pages">
-        {% if page.has_previous %}<a class="btn btn-sm btn-outline-secondary" href="?{{ querystring }}&page={{ page.previous_page_number }}">← Previous</a>{% endif %}
-        <span class="align-self-center small text-body-secondary">Page {{ page.number }} of {{ page.paginator.num_pages }}</span>
-        {% if page.has_next %}<a class="btn btn-sm btn-outline-secondary" href="?{{ querystring }}&page={{ page.next_page_number }}">Next →</a>{% endif %}
+      <nav class="mt-4 d-flex justify-content-center gap-2" aria-label="{% translate 'Pages' %}">
+        {% if page.has_previous %}<a class="btn btn-sm btn-outline-secondary" href="?{{ querystring }}&page={{ page.previous_page_number }}">{% translate "← Previous" %}</a>{% endif %}
+        <span class="align-self-center small text-body-secondary">{% blocktranslate with number=page.number total=page.paginator.num_pages %}Page {{ number }} of {{ total }}{% endblocktranslate %}</span>
+        {% if page.has_next %}<a class="btn btn-sm btn-outline-secondary" href="?{{ querystring }}&page={{ page.next_page_number }}">{% translate "Next →" %}</a>{% endif %}
       </nav>
     {% endif %}
   {% else %}
-    <p class="text-body-secondary">No events match these filters.</p>
+    <p class="text-body-secondary">{% translate "No events match these filters." %}</p>
   {% endif %}
 {% endblock %}

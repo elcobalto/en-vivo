@@ -10,6 +10,7 @@ from django.db.models import Count, Max, Prefetch, Q
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
+from django.utils.translation import gettext
 from django.views.decorators.http import require_POST
 
 from .forms import EventListForm
@@ -41,12 +42,12 @@ def want_to_go_toggle(request: HttpRequest, pk: int) -> HttpResponse:
     event = get_object_or_404(Event, pk=pk)
     deleted, _ = WantToGo.objects.filter(user=request.user, event=event).delete()
     if not deleted and not event.is_upcoming:
-        messages.error(request, "Want to go is only for upcoming events.")
+        messages.error(request, gettext("Want to go is only for upcoming events."))
     elif not deleted:
         WantToGo.objects.create(user=request.user, event=event)
-        messages.success(request, "Added to your Want to go.")
+        messages.success(request, gettext("Added to your Want to go."))
     else:
-        messages.info(request, "Removed from your Want to go.")
+        messages.info(request, gettext("Removed from your Want to go."))
     return redirect(_safe_next(request, event.get_absolute_url()))
 
 
@@ -105,7 +106,7 @@ def list_form(request: HttpRequest, pk: int | None = None) -> HttpResponse:
         saved = form.save(commit=False)
         saved.user = request.user
         saved.save()
-        messages.success(request, "List saved.")
+        messages.success(request, gettext("List saved."))
         return redirect(saved)
     return render(request, "events/list_form.html", {"form": form, "event_list": event_list})
 
@@ -115,7 +116,7 @@ def list_form(request: HttpRequest, pk: int | None = None) -> HttpResponse:
 def list_delete(request: HttpRequest, pk: int) -> HttpResponse:
     event_list = _own_list(request, pk)
     event_list.delete()
-    messages.success(request, f"Deleted list “{event_list.title}”.")
+    messages.success(request, gettext("Deleted list “%(title)s”.") % {"title": event_list.title})
     return redirect("events:user_lists", username=request.user.get_username())
 
 
@@ -133,7 +134,7 @@ def list_add_event(request: HttpRequest, pk: int) -> HttpResponse:
             event_list = _own_list(request, int(request.POST.get("list_id") or 0))
 
         if event_list.items.filter(event=event).exists():
-            messages.info(request, f"Already in “{event_list.title}”.")
+            messages.info(request, gettext("Already in “%(title)s”.") % {"title": event_list.title})
         else:
             last = event_list.items.aggregate(m=Max("position"))["m"] or 0
             EventListItem.objects.create(
@@ -143,7 +144,7 @@ def list_add_event(request: HttpRequest, pk: int) -> HttpResponse:
                 note=(request.POST.get("note") or "").strip()[:300],
             )
             event_list.save(update_fields=["updated_at"])
-            messages.success(request, f"Added to “{event_list.title}”.")
+            messages.success(request, gettext("Added to “%(title)s”.") % {"title": event_list.title})
     return redirect(event)
 
 

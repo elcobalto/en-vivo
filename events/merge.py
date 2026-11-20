@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from django.db import transaction
 from django.db.models import Max
+from django.utils.translation import gettext, ngettext
 
 from .models import (
     Event,
@@ -272,14 +273,15 @@ def headliner_shows_for_photo(event: Event):
 
 def photo_siblings(event: Event) -> dict | None:
     """Other events that should usually get the same photo, for the "use it for…" option:
-    {"events", "count", "unit" ("day"/"show"), "label", "own_photos"}; None when there are none.
-    ``own_photos``: how many of them have a photo of their own that isn't this event's."""
+    {"events", "count", "unit" ("day"/"show"), "label", "others" ("3 other days"), "own_photos"}; None when there
+    are none. ``own_photos``: how many of them have a photo of their own that isn't this event's."""
     if not event.pk:
         return None
     days = festival_days_for_photo(event)
     if days is not None:
         count = days.count()
-        label = f"every day of {event.production.title} in {event.date.year}"
+        label = gettext("every day of %(festival)s in %(year)s") % {
+            "festival": event.production.title, "year": event.date.year}
         unit = "day"
         events = days
     else:
@@ -288,12 +290,15 @@ def photo_siblings(event: Event) -> dict | None:
             return None
         count = events.count()
         place = event.venue.city or event.venue.name
-        label = f"{event.headliner.name}'s other show{'s' if count != 1 else ''} in {place} in {event.date.year}"
+        label = ngettext("%(artist)s's other show in %(place)s in %(year)s",
+                         "%(artist)s's other shows in %(place)s in %(year)s", count) % {
+            "artist": event.headliner.name, "place": place, "year": event.date.year}
         unit = "show"
     if not count:
         return None
     own_photos = events.exclude(image_url="").exclude(image_url=event.image_url).count()
-    return {"events": events, "count": count, "unit": unit, "label": label, "own_photos": own_photos}
+    return {"events": events, "count": count, "unit": unit, "label": label, "others": other_count(count, unit),
+            "own_photos": own_photos}
 
 
 def share_photo(user, event: Event) -> tuple[int, str]:
@@ -308,6 +313,13 @@ def share_photo(user, event: Event) -> tuple[int, str]:
     return len(updated), siblings["unit"]
 
 
+def other_count(count: int, unit: str) -> str:
+    """“1 other day”, “3 other shows”."""
+    if unit == "day":
+        return ngettext("%(count)s other day", "%(count)s other days", count) % {"count": count}
+    return ngettext("%(count)s other show", "%(count)s other shows", count) % {"count": count}
+
+
 def shared_photo_message(count: int, unit: str) -> str:
-    return f"Photo also used for {count} other {unit}{'s' if count != 1 else ''}."
+    return gettext("Photo also used for %(others)s.") % {"others": other_count(count, unit)}
 
