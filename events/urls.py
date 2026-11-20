@@ -1,6 +1,6 @@
 from django.urls import path
 
-from . import views, views_bulk, views_discovery, views_merge, views_social, views_venues
+from . import views, views_bulk, views_discovery, views_feedback, views_merge, views_social, views_venues
 
 app_name = "events"
 
@@ -87,4 +87,7 @@ urlpatterns = [
     path("reviews/<int:pk>/like/", views_social.review_like_toggle, name="review_like_toggle"),
     path("reviews/<int:pk>/comments/", views_social.comment_add, name="comment_add"),
     path("reviews/<int:pk>/comments/<int:comment_pk>/delete/", views_social.comment_delete, name="comment_delete"),
+    path("feedback/", views_feedback.feedback, name="feedback"),
+    path("feedback/inbox/", views_feedback.feedback_inbox, name="feedback_inbox"),
+    path("feedback/<int:pk>/resolve/", views_feedback.feedback_resolve, name="feedback_resolve"),
 ]

@@ -720,7 +720,7 @@ def festival_add_artists(request: HttpRequest, pk: int) -> HttpResponse:
             return redirect(request.get_full_path())
         return redirect(event)
     on_bill = {normalize_name(n) for n in event.eventartist_set.values_list("artist__name", flat=True)}
-    candidates, error = [], ""
+    candidates, error, capped = [], "", False
     # How to search setlist.fm (it has no festival filter): the city, a venue name or a tour name, plus the date.
     defaults = {
         "city": event.venue.city if event.venue_id else "",
@@ -733,7 +733,8 @@ def festival_add_artists(request: HttpRequest, pk: int) -> HttpResponse:
         where = {mode: term}
         seen = set()
         try:
-            for page_no in (1, 2, 3):  # 20 per page; big festivals need a few pages
+            # 20 per page; big festivals need a few pages. Beta: one setlist.fm call per search for non-admins.
+            for page_no in ((1, 2, 3) if is_admin(request.user) else (1,)):
                 results = search_setlists(on_date=event.date, page=page_no, **where)
                 for item in results:
                     sfm_artist = item.get("artist") or {}
@@ -748,6 +749,8 @@ def festival_add_artists(request: HttpRequest, pk: int) -> HttpResponse:
                                        normalize_name(venue_name) == normalize_name(event.venue.name)})
                 if len(results) < 20:
                     break
+            else:  # every page asked for was full: setlist.fm may have more
+                capped = not is_admin(request.user)
         except SetlistFmError as e:
             error = str(e)
         candidates.sort(key=lambda c: (not c["same_venue"], c["venue"].casefold(), c["name"].casefold()))
@@ -786,6 +789,7 @@ def festival_add_artists(request: HttpRequest, pk: int) -> HttpResponse:
         v["count"] += 1
     return render(request, "events/festival_add_artists.html", {
         "event": event, "candidates": candidates, "error": error, "mode": mode, "term": term, "defaults": defaults,
+        "capped": capped,
         "venues": sorted(venues.values(), key=lambda v: (not v["same_venue"], -v["count"], v["name"].casefold())),
     })
 

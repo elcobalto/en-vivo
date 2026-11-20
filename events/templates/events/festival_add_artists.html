@@ -89,6 +89,7 @@
           <button class="btn btn-success" type="submit">Add to lineup</button>
         </div>
       </div></form>
+      {% if capped %}<p class="small text-body-secondary mt-2 mb-0">During the beta this shows setlist.fm's first 20 results. Missing someone? Type them with “Type the artists instead” above.</p>{% endif %}
       <p class="small text-body-secondary mt-2">Acts setlist.fm lists at this festival's venue are ticked; others aren't. Headliners are billed above support acts, and each artist's setlist is added too when setlist.fm has one. Anyone else can be added from <a href="{% url 'events:event_edit' event.pk %}">Edit event</a>.</p>
     {% else %}
       <p class="text-body-secondary">setlist.fm has no other artists for that search. Try another option above. You can add them from <a href="{% url 'events:event_edit' event.pk %}">Edit event</a>.</p>

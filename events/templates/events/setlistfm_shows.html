@@ -42,10 +42,11 @@
       <form method="post">
         {% csrf_token %}
         <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
-          <div class="form-check">
+          {% if max_imports > 1 %}<div class="form-check">
             <input class="form-check-input" type="checkbox" id="select-all" />
             <label class="form-check-label small" for="select-all">Select all on this page (max {{ max_imports }} per import)</label>
           </div>
+          {% else %}<div class="small text-body-secondary">During the beta, shows are imported one at a time.</div>{% endif %}
           <div class="d-flex align-items-center gap-3">
             <div class="form-check m-0">
               <input class="form-check-input" type="checkbox" id="attended" name="attended" value="1"{% if attended_default %} checked{% endif %} />
@@ -93,7 +94,7 @@
 <script>
   (function () {
     var all = document.getElementById("select-all");
-    if (!all) return;
+    if (!document.getElementById("import-btn")) return;
     var max = {{ max_imports }};
     var picks = function () { return Array.prototype.slice.call(document.querySelectorAll(".pick")); };
     function limit() {
@@ -102,7 +103,7 @@
       document.getElementById("import-btn").textContent =
         checked.length ? "Create " + checked.length + " event" + (checked.length === 1 ? "" : "s") : "Create selected events";
     }
-    all.addEventListener("change", function () {
+    if (all) all.addEventListener("change", function () {
       var n = 0;
       picks().forEach(function (p) { p.disabled = false; p.checked = all.checked && n++ < max; });
       limit();

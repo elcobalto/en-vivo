@@ -100,11 +100,17 @@ def venue_link_place(request: HttpRequest, pk: int) -> HttpResponse:
 MAX_IMPORTS_PER_REQUEST = 10  # each import ~1-2 s; keeps requests under the 30 s worker timeout
 
 
+def max_setlist_imports(user) -> int:
+    """How many setlists one import may fetch: admins up to MAX_IMPORTS_PER_REQUEST, everyone else one at a
+    time (beta: each one is a setlist.fm API call)."""
+    return MAX_IMPORTS_PER_REQUEST if is_admin(user) else 1
+
+
 @login_required
 def setlistfm_shows(request: HttpRequest) -> HttpResponse:
     """Search setlist.fm and create music events (venue, tour, lineup, songs) from the results."""
     if request.method == "POST":
-        ids = [i.strip() for i in request.POST.getlist("setlist_id") if i.strip()][:MAX_IMPORTS_PER_REQUEST]
+        ids = [i.strip() for i in request.POST.getlist("setlist_id") if i.strip()][:max_setlist_imports(request.user)]
         if not ids:
             messages.error(request, "Select at least one setlist.")
         else:
@@ -172,7 +178,7 @@ def setlistfm_shows(request: HttpRequest) -> HttpResponse:
         request,
         "events/setlistfm_shows.html",
         {"f": filters, "page": page, "results": results, "error": error, "searched": searched,
-         "max_imports": MAX_IMPORTS_PER_REQUEST,
+         "max_imports": max_setlist_imports(request.user),
          # The profile setting picks whether "I attended these shows" starts ticked.
          "attended_default": get_profile(request.user).import_as_attended},
     )

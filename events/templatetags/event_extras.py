@@ -86,3 +86,11 @@ def poster_mode(context, event) -> str:
         if profile is not None and profile.thumbnail_display:
             return profile.thumbnail_display
     return event.image_display
+
+
+@register.simple_tag
+def open_feedback_count() -> int:
+    """How many bug reports and ideas no admin has resolved yet (for the admins' navbar link)."""
+    from ..models import Feedback
+
+    return Feedback.objects.filter(resolved=False).count()

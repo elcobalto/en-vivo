@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+
+{% block title %}Report a bug or send feedback · En Vivo{% endblock %}
+
+{% block content %}
+  <div class="row justify-content-center"><div class="col-12 col-md-8 col-lg-6">
+    <h1 class="h4 mb-1">Report a bug or send feedback</h1>
+    <p class="small text-body-secondary mb-3">En Vivo is in beta. Tell us what broke, what confused you or what you'd like to see; the team reads every message.</p>
+    <form method="post" class="card"><div class="card-body">
+      {% csrf_token %}
+      <input type="hidden" name="next" value="{{ back }}">
+      <fieldset class="mb-3">
+        <legend class="form-label fs-6">{{ form.kind.label }}</legend>
+        {% for choice in form.kind %}
+          <div class="form-check form-check-inline">{{ choice.tag }} <label class="form-check-label" for="{{ choice.id_for_label }}">{{ choice.choice_label }}</label></div>
+        {% endfor %}
+      </fieldset>
+      <div class="mb-3">
+        <label class="form-label" for="{{ form.message.id_for_label }}">{{ form.message.label }}</label>
+        {{ form.message }}
+        {% for error in form.message.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
+      </div>
+      {% if back %}<p class="small text-body-secondary">We'll note that you were on <code>{{ back }}</code>.</p>{% endif %}
+      <div class="d-flex gap-2">
+        <button class="btn btn-success" type="submit">Send</button>
+        <a class="btn btn-outline-secondary" href="{{ back }}">Cancel</a>
+      </div>
+    </div></form>
+  </div></div>
+{% endblock %}

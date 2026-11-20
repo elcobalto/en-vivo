@@ -13,6 +13,7 @@ from .models import (
     EventList,
     EventArtist,
     FavoriteEvent,
+    Feedback,
     Log,
     Artist,
     Play,
@@ -30,7 +31,7 @@ class BootstrapMixin:
         super().__init__(*args, **kwargs)
         for field in self.fields.values():
             widget = field.widget
-            if isinstance(widget, forms.CheckboxInput):
+            if isinstance(widget, (forms.CheckboxInput, forms.RadioSelect, forms.CheckboxSelectMultiple)):
                 widget.attrs.setdefault("class", "form-check-input")
             elif isinstance(widget, forms.Select):
                 widget.attrs.setdefault("class", "form-select")
@@ -510,3 +511,15 @@ class CommentForm(BootstrapMixin, forms.ModelForm):
         fields = ["body"]
         widgets = {"body": forms.Textarea(attrs={"rows": 3, "placeholder": "Reply…", "maxlength": 2000})}
         labels = {"body": ""}
+
+
+class FeedbackForm(BootstrapMixin, forms.ModelForm):
+    class Meta:
+        model = Feedback
+        fields = ["kind", "message"]
+        labels = {"kind": "What is it?", "message": "Tell us"}
+        widgets = {
+            "kind": forms.RadioSelect,
+            "message": forms.Textarea(attrs={"rows": 6, "placeholder": "What happened, or what would you like? "
+                                                                       "For bugs: what you did and what you expected."}),
+        }

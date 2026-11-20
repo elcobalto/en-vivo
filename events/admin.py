@@ -1,4 +1,6 @@
 from django.contrib import admin
+from django.contrib.auth import get_user_model
+from django.contrib.auth.admin import UserAdmin
 
 from .models import (
     Event,
@@ -15,6 +17,7 @@ from .models import (
     WantToGo,
     Comment,
     FavoriteEvent,
+    Feedback,
     Follow,
     Profile,
     ReviewLike,
@@ -128,3 +131,24 @@ class CommentAdmin(admin.ModelAdmin):
 
 admin.site.register(ReviewLike)
 admin.site.register(FavoriteEvent)
+
+
+@admin.register(Feedback)
+class FeedbackAdmin(admin.ModelAdmin):
+    list_display = ["created_at", "kind", "user", "page", "resolved"]
+    list_filter = ["kind", "resolved"]
+    search_fields = ["message", "page", "user__username"]
+
+
+# Users: when each account was created (Django's date_joined), newest first.
+admin.site.unregister(get_user_model())
+
+
+@admin.register(get_user_model())
+class EnVivoUserAdmin(UserAdmin):
+    list_display = ["username", "email", "first_name", "last_name", "is_staff", "created_at"]
+    ordering = ["-date_joined"]
+
+    @admin.display(description="Created at", ordering="date_joined")
+    def created_at(self, user):
+        return user.date_joined

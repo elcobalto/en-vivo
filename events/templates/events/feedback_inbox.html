@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+
+{% block title %}Feedback inbox · En Vivo{% endblock %}
+
+{% block content %}
+  <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+    <h1 class="h4 m-0">Feedback inbox</h1>
+    <div class="d-flex flex-wrap gap-2">
+      <div class="btn-group btn-group-sm" role="group" aria-label="Status">
+        <a class="btn btn-outline-secondary{% if status == 'open' %} active{% endif %}" href="?status=open{% if kind %}&kind={{ kind }}{% endif %}">Open ({{ counts.open }})</a>
+        <a class="btn btn-outline-secondary{% if status == 'resolved' %} active{% endif %}" href="?status=resolved{% if kind %}&kind={{ kind }}{% endif %}">Resolved ({{ counts.resolved }})</a>
+        <a class="btn btn-outline-secondary{% if status == 'all' %} active{% endif %}" href="?status=all{% if kind %}&kind={{ kind }}{% endif %}">All ({{ counts.all }})</a>
+      </div>
+      <div class="btn-group btn-group-sm" role="group" aria-label="Kind">
+        <a class="btn btn-outline-secondary{% if not kind %} active{% endif %}" href="?status={{ status }}">Bugs and ideas</a>
+        {% for value, label in kinds %}<a class="btn btn-outline-secondary{% if kind == value %} active{% endif %}" href="?status={{ status }}&kind={{ value }}">{{ label }}</a>{% endfor %}
+      </div>
+    </div>
+  </div>
+
+  {% for item in items %}
+    <div class="card mb-2{% if item.resolved %} opacity-75{% endif %}"><div class="card-body py-2">
+      <div class="d-flex flex-wrap align-items-center gap-2 small text-body-secondary mb-1">
+        <span class="badge {% if item.kind == 'bug' %}text-bg-danger{% else %}text-bg-info{% endif %}">{{ item.get_kind_display }}</span>
+        {% if item.user %}<a href="{% url 'events:profile' item.user.get_username %}">@{{ item.user.get_username }}</a>{% else %}<span>someone</span>{% endif %}
+        <span title="{{ item.created_at|date:'j M Y H:i' }}">{{ item.created_at|timesince }} ago</span>
+        {% if item.page %}<span>· on <a href="{{ item.page }}"><code>{{ item.page|truncatechars:60 }}</code></a></span>{% endif %}
+        <form method="post" action="{% url 'events:feedback_resolve' item.pk %}" class="ms-auto">
+          {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
+          <button class="btn btn-sm {% if item.resolved %}btn-outline-secondary{% else %}btn-outline-success{% endif %}" type="submit">{% if item.resolved %}Reopen{% else %}Mark resolved{% endif %}</button>
+        </form>
+      </div>
+      <p class="mb-1" style="white-space: pre-wrap">{{ item.message }}</p>
+      {% if item.user_agent %}<div class="small text-body-secondary text-truncate" title="{{ item.user_agent }}">{{ item.user_agent }}</div>{% endif %}
+    </div></div>
+  {% empty %}
+    <p class="text-body-secondary">{% if status == "open" %}Nothing open. 🎉{% else %}No messages here.{% endif %}</p>
+  {% endfor %}
+{% endblock %}

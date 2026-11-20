@@ -3538,3 +3538,109 @@ class AlbumColourTests(BaseTestCase):
         self.assertIsNone(rows["No album"])
         self.assertContains(page, 'id="color-albums"')
         self.assertContains(page, 'data-album-color style="--album-color: hsl(215 70% 58%)"')
+
+
+class BetaSetlistFmLimitTests(BaseTestCase):
+    def setUp(self):
+        super().setUp()
+        self.admin = get_user_model().objects.create_user("mod", password="pw-test-000")
+        call_command("make_admin", "mod", stdout=open("/dev/null", "w"))
+
+    def _import(self, user, ids):
+        self.client.force_login(user)
+        with mock.patch("events.views_venues.setlistfm_events.import_many", return_value=[]) as many:
+            self.client.post(reverse("events:setlistfm_shows"), {"setlist_id": ids})
+        return many.call_args.args[0]
+
+    def test_non_admins_import_one_show_at_a_time(self):
+        self.assertEqual(self._import(self.user, ["a", "b", "c"]), ["a"])
+        self.assertEqual(self._import(self.admin, ["a", "b", "c"]), ["a", "b", "c"])
+        self.client.force_login(self.user)
+        with mock.patch("events.views_venues.search_setlists", return_value=[_setlist()]):
+            page = self.client.get(reverse("events:setlistfm_shows"), {"artist": "Paul McCartney"})
+        self.assertNotContains(page, 'id="select-all"')
+        self.assertContains(page, "imported one at a time")
+
+    def test_festival_search_is_one_setlist_fm_call_for_non_admins(self):
+        fest = Event.objects.create(title="Lolla", event_type=EventType.FESTIVAL, venue=self.venue,
+                                    date=date(2024, 3, 15), created_by=self.user)
+        full_page = lambda page, **kw: [{"artist": {"name": f"Band {page}-{i}", "mbid": ""},  # noqa: E731
+                                         "venue": {"name": "Parque"}} for i in range(20)]
+        url = reverse("events:festival_add_artists", args=[fest.pk])
+        for user, calls in [(self.user, 1), (self.admin, 3)]:
+            self.client.force_login(user)
+            with mock.patch("events.views.search_setlists", side_effect=full_page) as search:
+                page = self.client.get(url)
+            self.assertEqual(search.call_count, calls, user)
+            self.assertEqual(len(page.context["candidates"]), 20 * calls)
+        self.client.force_login(self.user)
+        with mock.patch("events.views.search_setlists", side_effect=full_page):
+            self.assertContains(self.client.get(url), "first 20 results")
+
+
+from .models import Feedback  # noqa: E402
+
+
+class BetaFeedbackTests(BaseTestCase):
+    def test_banner_links_to_the_feedback_form_with_the_page(self):
+        page = self.client.get(reverse("events:event_list"))
+        self.assertContains(page, "En Vivo is in beta")
+        self.assertContains(page, reverse("events:feedback") + "?next=/events/")
+        self.assertRedirects(self.client.get(reverse("events:feedback")),
+                             reverse("login") + "?next=" + reverse("events:feedback"), fetch_redirect_response=False)
+
+    def test_send_feedback_and_go_back(self):
+        self.client.force_login(self.user)
+        form = self.client.get(reverse("events:feedback") + "?next=/events/")
+        self.assertContains(form, 'name="next" value="/events/"')
+        response = self.client.post(reverse("events:feedback"), {
+            "kind": "bug", "message": "The poster didn't load.", "next": "/events/"}, HTTP_USER_AGENT="TestBrowser/1.0")
+        self.assertRedirects(response, "/events/", fetch_redirect_response=False)
+        item = Feedback.objects.get()
+        self.assertEqual((item.user, item.kind, item.page, item.user_agent, item.resolved),
+                         (self.user, "bug", "/events/", "TestBrowser/1.0", False))
+        # Somewhere else is never a place to go back to (or to record).
+        self.client.post(reverse("events:feedback"), {"kind": "idea", "message": "Hi", "next": "https://evil.example/"})
+        self.assertEqual(Feedback.objects.filter(kind="idea").get().page, "/")
+
+    def test_too_much_feedback_in_an_hour_is_held_back(self):
+        from django.core.cache import cache
+        cache.clear()
+        self.client.force_login(self.user)
+        for i in range(12):
+            self.client.post(reverse("events:feedback"), {"kind": "idea", "message": f"Idea {i}"})
+        self.assertEqual(Feedback.objects.count(), 10)
+        cache.clear()
+
+    def test_only_admins_see_the_inbox_and_resolve(self):
+        bug = Feedback.objects.create(user=self.user, kind="bug", message="Broken button", page="/events/")
+        Feedback.objects.create(user=self.user, kind="idea", message="Dark mode please", resolved=True)
+        self.client.force_login(self.user)
+        self.assertEqual(self.client.get(reverse("events:feedback_inbox")).status_code, 403)
+        self.assertEqual(self.client.post(reverse("events:feedback_resolve", args=[bug.pk])).status_code, 403)
+        self.assertNotContains(self.client.get(reverse("events:home")), reverse("events:feedback_inbox"))
+        admin = get_user_model().objects.create_user("mod", password="pw-test-000")
+        call_command("make_admin", "mod", stdout=open("/dev/null", "w"))
+        self.client.force_login(admin)
+        self.assertContains(self.client.get(reverse("events:home")), reverse("events:feedback_inbox"))
+        inbox = self.client.get(reverse("events:feedback_inbox"))
+        self.assertContains(inbox, "Broken button")
+        self.assertNotContains(inbox, "Dark mode please")  # resolved: not in "Open"
+        self.assertContains(self.client.get(reverse("events:feedback_inbox") + "?status=all"), "Dark mode please")
+        self.client.post(reverse("events:feedback_resolve", args=[bug.pk]), {"next": reverse("events:feedback_inbox")})
+        bug.refresh_from_db()
+        self.assertTrue(bug.resolved)
+        self.assertContains(self.client.get(reverse("events:feedback_inbox")), "Nothing open")
+
+
+class UserAdminTests(BaseTestCase):
+    def test_users_list_shows_when_they_were_created_newest_first(self):
+        from datetime import timedelta
+        from django.utils import timezone
+        User = get_user_model()
+        User.objects.filter(pk=self.user.pk).update(date_joined=timezone.now() - timedelta(days=30))
+        boss = User.objects.create_superuser("boss", "boss@example.com", "pw-test-999")
+        self.client.force_login(boss)
+        page = self.client.get(reverse("admin:auth_user_changelist"))
+        self.assertContains(page, "Created at")
+        self.assertEqual([u.username for u in page.context["cl"].result_list], ["boss", "ana"])

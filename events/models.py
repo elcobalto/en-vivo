@@ -751,3 +751,25 @@ class EventVideo(TimestampedModel):
     @property
     def embed_url(self) -> str:
         return f"https://www.youtube-nocookie.com/embed/{self.youtube_id}"
+
+
+class Feedback(TimestampedModel):
+    """A bug report or idea sent from the beta banner, for admins to read in the feedback inbox."""
+
+    class Kind(models.TextChoices):
+        BUG = "bug", "Bug"
+        IDEA = "idea", "Idea or feedback"
+
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+                             related_name="feedback")
+    kind = models.CharField(max_length=10, choices=Kind.choices, default=Kind.BUG)
+    message = models.TextField(max_length=4000)
+    page = models.CharField("Page", max_length=500, blank=True, default="")  # where they were when they wrote
+    user_agent = models.CharField(max_length=300, blank=True, default="")  # browser and device, for bugs
+    resolved = models.BooleanField(default=False)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self) -> str:
+        return f"{self.get_kind_display()} from {self.user or 'someone'}: {self.message[:40]}"
