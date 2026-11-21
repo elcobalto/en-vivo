@@ -152,8 +152,11 @@
       }
 
       function tiles(map) {
+        // OpenStreetMap refuses tiles without a Referer, and the site's policy (same-origin) sends none to other sites:
+        // tiles send just our origin.
         L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
-          maxZoom: 18, attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+          maxZoom: 18, referrerPolicy: "strict-origin-when-cross-origin",
+          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
         }).addTo(map);
       }
 
