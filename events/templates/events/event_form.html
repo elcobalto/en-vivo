@@ -3,7 +3,59 @@
 
 {% block title %}{% if event %}{% blocktranslate with title=event.title %}Edit {{ title }}{% endblocktranslate %}{% else %}{% translate "New event" %}{% endif %} · En Vivo{% endblock %}
 
-{% block scripts %}<script src="{% static 'events/venue-search.js' %}"></script><script src="{% static 'events/lineup-order.js' %}"></script><script src="{% static 'events/poster-lineup.js' %}"></script>{% endblock %}
+{% block scripts %}<script src="{% static 'events/venue-search.js' %}"></script><script src="{% static 'events/lineup-order.js' %}"></script><script src="{% static 'events/poster-lineup.js' %}"></script>
+{{ type_rules|json_script:"event-type-rules" }}
+<script>
+  // Fields and lineup labels follow the event type: "Original play" for theater and dance, "Festival" for
+  // festivals, and each type's own roles (a label the type doesn't use switches to the closest one).
+  (function () {
+    var rules = JSON.parse(document.getElementById("event-type-rules").textContent),
+        typeSelect = document.getElementById("id_event_type"), rows = document.getElementById("lineup-rows");
+    if (!typeSelect) return;
+    function fit(role, type) {
+      var allowed = rules.roles[type] || rules.all;
+      if (allowed.indexOf(role) >= 0) return role;
+      return role === "headliner" && allowed.indexOf("cast") >= 0 ? "cast" : "none";
+    }
+    function apply() {
+      var type = typeSelect.value, allowed = rules.roles[type] || rules.all;
+      document.querySelectorAll("[data-field=play]").forEach(function (el) { el.hidden = rules.play_types.indexOf(type) < 0; });
+      document.querySelectorAll("[data-field=production]").forEach(function (el) { el.hidden = type !== "festival"; });
+      document.querySelectorAll('#lineup-rows select[name$="-role"]').forEach(function (select) {
+        Array.prototype.forEach.call(select.options, function (o) {
+          var off = o.value !== "" && allowed.indexOf(o.value) < 0;
+          o.hidden = off; o.disabled = off;
+        });
+        if (select.value && allowed.indexOf(select.value) < 0) select.value = fit(select.value, type);
+      });
+    }
+    typeSelect.addEventListener("change", apply);
+    // A show with other dates: when something changed, ask before saving whether it applies to all of them.
+    var runModal = document.getElementById("runModal"), applyInput = document.getElementById("apply-to-run");
+    if (runModal && applyInput && window.bootstrap) {
+      var form = applyInput.form, changed = false, asked = false, modal = new bootstrap.Modal(runModal);
+      form.addEventListener("input", function () { changed = true; });
+      form.addEventListener("change", function () { changed = true; });
+      document.getElementById("lineup-rows") && new MutationObserver(function () { changed = true; })
+        .observe(document.getElementById("lineup-rows"), {childList: true, subtree: true});
+      form.addEventListener("submit", function (e) {
+        if (!changed || asked) return;
+        e.preventDefault();
+        modal.show();
+      });
+      runModal.querySelectorAll("[data-apply]").forEach(function (button) {
+        button.addEventListener("click", function () {
+          applyInput.value = button.dataset.apply;
+          asked = true;
+          modal.hide();
+          form.requestSubmit();
+        });
+      });
+    }
+    if (rows && window.MutationObserver) new MutationObserver(apply).observe(rows, {childList: true});
+    apply();
+  })();
+</script>{% endblock %}
 
 {% block content %}
   <div class="row justify-content-center g-4">
@@ -43,7 +95,7 @@
               <div class="form-text">{{ field.help_text }}</div>
             </div>
             {% elif field.name|slice:":10" != "new_venue_" %}
-            <div class="{% if field.name in 'title description image_url' %}col-12{% else %}col-12 col-md-6{% endif %}">
+            <div class="{% if field.name in 'title description image_url' %}col-12{% else %}col-12 col-md-6{% endif %}" data-field="{{ field.name }}">
               <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
               {{ field }}
               {% if field.name == 'title' %}<div class="form-text">{% translate "Optional. Leave blank to use the headliner's name; it follows changes to the lineup." %}</div>{% endif %}
@@ -81,6 +133,21 @@
 
 
 
+        {% if other_dates_count %}
+          {# The show has other dates: saving asks whether the changes go to all of them (see the script below). #}
+          <input type="hidden" name="apply_to_run" id="apply-to-run" value="this" />
+          <div class="modal fade" id="runModal" tabindex="-1" aria-labelledby="runModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered"><div class="modal-content">
+              <div class="modal-header"><h2 class="modal-title fs-5" id="runModalLabel">{% translate "Apply to the other dates?" %}</h2>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{% translate 'Close' %}"></button></div>
+              <div class="modal-body">{% blocktranslate count counter=other_dates_count %}This show has {{ counter }} other date. Make the same changes there too (the date itself isn't copied)?{% plural %}This show has {{ counter }} other dates. Make the same changes there too (the dates themselves aren't copied)?{% endblocktranslate %}</div>
+              <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-apply="this">{% translate "Only this date" %}</button>
+                <button type="button" class="btn btn-success" data-apply="all">{% blocktranslate count counter=other_dates_count|add:1 %}All {{ counter }} date{% plural %}All {{ counter }} dates{% endblocktranslate %}</button>
+              </div>
+            </div></div>
+          </div>
+        {% endif %}
         <div class="d-flex gap-2 mt-4">
           <button class="btn btn-success" type="submit">{% translate "Save event" %}</button>
           <a class="btn btn-outline-secondary" href="{% if event %}{{ event.get_absolute_url }}{% else %}{% url 'events:event_list' %}{% endif %}">{% translate "Cancel" %}</a>

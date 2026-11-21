@@ -111,7 +111,9 @@ def max_setlist_imports(user) -> int:
 def setlistfm_shows(request: HttpRequest) -> HttpResponse:
     """Search setlist.fm and create music events (venue, tour, lineup, songs) from the results."""
     if request.method == "POST":
-        ids = [i.strip() for i in request.POST.getlist("setlist_id") if i.strip()][:max_setlist_imports(request.user)]
+        single = (request.POST.get("single_id") or "").strip()  # a show's own Import button (everyone)
+        ids = [single] if single else \
+            [i.strip() for i in request.POST.getlist("setlist_id") if i.strip()][:max_setlist_imports(request.user)]
         if not ids:
             messages.error(request, gettext("Select at least one setlist."))
         else:

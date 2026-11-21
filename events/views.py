@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import re
+from datetime import date
 from urllib.parse import quote, urlencode
 
 from django.contrib import messages
@@ -25,6 +26,10 @@ from django.views.decorators.http import require_POST
 from .forms import RATING_CHOICES, EventForm, EventArtistFormSet, LogForm, ArtistForm, PlayForm, ProductionForm, VenueForm
 from .models import (
     CREDIT_ROLES,
+    HEADLINED_TYPES,
+    PLAY_TYPES,
+    ROLES_BY_TYPE,
+    added_act_role,
     Album,
     normalize_name,
     ActLog,
@@ -51,6 +56,7 @@ SORTS = {
     "added": (gettext_lazy("Recently added"), ["-created_at", "-pk"]),
 }
 WHEN = {"": gettext_lazy("Any time"), "upcoming": gettext_lazy("Upcoming"), "past": gettext_lazy("Past")}
+from . import runs
 from .roles import can_delete_event, can_edit_event, home_place, is_admin
 from .albums import (album_colors, album_groups, album_rows, choose_album, mark_album_choices, played_by_album,
                      remember_album,
@@ -231,6 +237,8 @@ def event_detail(request: HttpRequest, pk: int) -> HttpResponse:
             "my_log": my_log,
             "log_form": LogForm(instance=my_log),
             "can_edit": _can_edit(request.user, event),
+            "can_add_dates": runs.can_add_dates(event) and _can_edit(request.user, event),
+            "other_dates": runs.other_dates(event),
             "can_delete": can_delete_event(request.user, event),
             "slot_suggestions": suggestions_for(request.user, event),
             "act_rows": act_rows,
@@ -633,6 +641,7 @@ def event_form(request: HttpRequest, pk: int | None = None) -> HttpResponse:
 
     form = EventForm(request.POST or None, instance=event, initial=initial)
     formset = EventArtistFormSet(request.POST or None, instance=event or Event())
+    formset.event_type = request.POST.get("event_type", "") if request.method == "POST" else ""
 
     if request.method == "POST" and form.is_valid() and formset.is_valid():
         with transaction.atomic():
@@ -648,9 +657,15 @@ def event_form(request: HttpRequest, pk: int | None = None) -> HttpResponse:
             # Headliners go above support acts; with no headliner, whoever is first on the bill is one.
             saved.order_bill()
             first = saved.acts_on_stage().order_by("billing_order", "pk").first()
-            if first and first.role != EventArtist.Role.HEADLINER:
+            if first and first.role != EventArtist.Role.HEADLINER and saved.event_type in HEADLINED_TYPES:
                 first.role = EventArtist.Role.HEADLINER
                 first.save(update_fields=["role"])
+            if event and request.POST.get("apply_to_run") == "all":
+                fields = list(form.changed_data) + (["venue"] if form.cleaned_data.get("new_venue_name") else [])
+                dates = runs.apply_to_other_dates(saved, fields, formset.has_changed(), request.user)
+                if dates:
+                    messages.info(request, ngettext("The change was also made to %(n)s other date.",
+                                                    "The changes were also made to %(n)s other dates.", dates) % {"n": dates})
             merged = merge_into_same_festival_day(saved)
             # Whenever the box is ticked (it starts unticked when another show has a different photo of its own).
             if not merged and form.cleaned_data.get("photo_for_all_days") and saved.image_url:
@@ -666,6 +681,8 @@ def event_form(request: HttpRequest, pk: int | None = None) -> HttpResponse:
 
     return render(request, "events/event_form.html", {
         "form": form, "formset": formset, "event": event,
+        "other_dates_count": runs.other_dates(event).count() if event else 0,
+        "type_rules": {"roles": ROLES_BY_TYPE, "all": [v for v, _ in EventArtist.Role.choices], "play_types": PLAY_TYPES},
         # Sent once for every lineup row's artist/tour picker (rows only render their current choice).
         "artist_options": list(Artist.objects.order_by("name").values_list("pk", "name")),
         "tour_options": [
@@ -715,7 +732,7 @@ def festival_add_artists(request: HttpRequest, pk: int) -> HttpResponse:
         raise PermissionDenied
     if request.method == "POST" and "typed" in request.POST:  # "Type the artists instead": no setlist.fm search
         role = (EventArtist.Role.HEADLINER if request.POST.get("typed_role") == "headliner"
-                else EventArtist.Role.SUPPORT)
+                else added_act_role(event.event_type))
         added, skipped = add_typed_artists(event, request.POST["typed"], role)
         if added:
             text = ngettext("Added %(n)s artist to the lineup.", "Added %(n)s artists to the lineup.", added) % {"n": added}
@@ -769,7 +786,7 @@ def festival_add_artists(request: HttpRequest, pk: int) -> HttpResponse:
             for i, c in enumerate(chosen, start=1):
                 artist = _match_artist(c["sfm_artist"])
                 role = (EventArtist.Role.HEADLINER if request.POST.get(f"role_{c['key']}") == "headliner"
-                        else EventArtist.Role.SUPPORT)
+                        else added_act_role(event.event_type))
                 EventArtist.objects.get_or_create(
                     event=event, artist=artist, defaults={"role": role, "billing_order": last + i},
                 )
@@ -1226,3 +1243,24 @@ def setlist_import(request: HttpRequest, pk: int) -> HttpResponse:
     messages.success(request, ngettext("Imported %(n)s song for %(artist)s.", "Imported %(n)s songs for %(artist)s.",
                                        count) % {"n": count, "artist": setlist.artist})
     return redirect(event)
+
+
+@login_required
+@require_POST
+def event_add_date(request: HttpRequest, pk: int) -> HttpResponse:
+    """Theater, comedy and dance: the same show on another date (a copy of this event, linked to it)."""
+    event = get_object_or_404(Event, pk=pk)
+    if not runs.can_add_dates(event) or not _can_edit(request.user, event):
+        raise PermissionDenied
+    try:
+        on = date.fromisoformat((request.POST.get("date") or "").strip())
+    except ValueError:
+        messages.error(request, gettext("Pick a date."))
+        return redirect(event)
+    other, created = runs.add_date(event, on, request.user)
+    if created:
+        messages.success(request, gettext("Added %(date)s. Edit it if anything is different that day.") % {
+            "date": date_format(on)})
+    else:
+        messages.info(request, gettext("The show already has that date."))
+    return redirect(other)

@@ -9,6 +9,8 @@ from django_countries import countries
 
 from .models import (
     CREDIT_ROLES,
+    PLAY_TYPES,
+    allowed_roles,
     ActLog,
     Comment,
     Event,
@@ -71,7 +73,7 @@ class EventForm(BootstrapMixin, forms.ModelForm):
         }
         labels = {"title": _("Title"), "event_type": _("Type"), "date": _("Date"), "venue": _("Venue"),
                   "description": _("Description"), "image_url": _("Poster / image URL")}
-        help_texts = {"play": _("Only for theater: the original play this staging is of. Its name becomes the event's name."),
+        help_texts = {"play": _("Only for theater and dance: the original play this staging is of. Its name becomes the event's name."),
                       "production": _("Only for festivals: the festival this day belongs to. Tours are set per act in the lineup.")}
 
     def __init__(self, *args, **kwargs):
@@ -119,6 +121,12 @@ class EventForm(BootstrapMixin, forms.ModelForm):
         cleaned = super().clean()
         if cleaned.get("venue") and (cleaned.get("new_venue_name") or "").strip():
             self.add_error("new_venue_name", gettext("Pick an existing venue or add a new one, not both."))
+        # The original play is for theater and dance, the festival field for festivals (hidden for other types).
+        event_type = cleaned.get("event_type")
+        if event_type not in PLAY_TYPES:
+            cleaned["play"] = None
+        if event_type != EventType.FESTIVAL:
+            cleaned["production"] = None
         # City/country only matter when a new venue name is typed (they may be pre-filled from the profile).
         return cleaned
 
@@ -231,6 +239,23 @@ class EventArtistForm(BootstrapMixin, forms.ModelForm):
 class BaseEventArtistFormSet(BaseInlineFormSet):
     """Acts added to a lineup start as Support: the rows "+ Add another act" adds (``empty_form``) and the
     blank row of an event that already has acts. A new event's first row stays Headliner."""
+
+    event_type = ""  # set by the view from the event form, so each act's label can be checked against it
+
+    def clean(self):
+        super().clean()
+        if not self.event_type:
+            return
+        allowed = allowed_roles(self.event_type)
+        labels = dict(EventArtist.Role.choices)
+        type_label = dict(EventType.choices).get(self.event_type, self.event_type)
+        for form in self.forms:
+            if not hasattr(form, "cleaned_data") or form.cleaned_data.get("DELETE") or not form.has_changed() and not form.instance.pk:
+                continue
+            role = form.cleaned_data.get("role")
+            if role and role not in allowed:
+                form.add_error("role", gettext("%(role)s isn't a label for %(type)s events.") % {
+                    "role": labels.get(role, role), "type": str(type_label).lower()})
 
     def _construct_form(self, i, **kwargs):
         form = super()._construct_form(i, **kwargs)

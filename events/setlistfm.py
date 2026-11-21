@@ -20,7 +20,7 @@ from django.core.cache import cache
 from django.db import transaction
 from django.utils.translation import gettext
 
-from .models import Event, EventArtist, Artist, Setlist, SetlistSong, Song
+from .models import Event, EventArtist, Artist, Setlist, SetlistSong, Song, added_act_role, fit_role
 
 FALSY = {"0", "false", "no", "off"}
 
@@ -271,7 +271,7 @@ def import_setlist(event: Event, payload: dict[str, Any]) -> Setlist:
         EventArtist.objects.create(
             event=event,
             artist=artist,
-            role=EventArtist.Role.SUPPORT if current.exists() else EventArtist.Role.HEADLINER,
+            role=added_act_role(event.event_type) if current.exists() else fit_role("headliner", event.event_type),
             billing_order=current.count() + 1,
         )
         event.order_bill()

@@ -1362,7 +1362,7 @@ class SameSlotTests(BaseTestCase):
         self.assertEqual(kept.title, "Green Day & Foo Fighters")  # kept event's headliner billed first
         self.assertEqual(kept.image_url, "https://img.example/foo.jpg")
         roles = dict(kept.eventartist_set.values_list("artist__name", "role"))
-        self.assertEqual(roles, {"Green Day": "headliner", "Foo Fighters": "headliner", "Opener Band": "support"})
+        self.assertEqual(roles, {"Green Day": "headliner", "Foo Fighters": "headliner", "Opener Band": "none"})
 
         bob_log = Log.objects.get(user=bob, event=kept)  # one entry, gaps filled
         self.assertEqual((bob_log.rating, bob_log.review), (8, "Both were great"))
@@ -2642,8 +2642,8 @@ class FestivalAddArtistsTests(BaseTestCase):
         search.assert_not_called()
         self.assertRedirects(response, fest.get_absolute_url(), fetch_redirect_response=False)
         bill = list(fest.eventartist_set.order_by("billing_order").values_list("artist__name", "role"))
-        self.assertEqual(bill, [("Pearl Jam", "headliner"), ("Foals", "support"), ("Alabama Shakes", "support"),
-                                ("Crosby, Stills & Nash", "support")])
+        self.assertEqual(bill, [("Pearl Jam", "headliner"), ("Foals", "none"), ("Alabama Shakes", "none"),
+                                ("Crosby, Stills & Nash", "none")])  # festival acts that aren't headliners: "–"
         self.assertTrue(fest.eventartist_set.filter(artist=foals).exists())  # the known artist, not a copy
         self.assertEqual(Artist.objects.filter(name__iexact="foals").count(), 1)
         # As headliners they go above the support acts.
@@ -2672,7 +2672,7 @@ class FestivalAddArtistsTests(BaseTestCase):
             self.assertTrue(page.context["candidates"][0]["same_venue"])
             key = page.context["candidates"][0]["key"]
             self.client.post(url, {f"add_{key}": "1"})
-        self.assertTrue(fest.eventartist_set.filter(artist__name="Same Venue Band", role="support").exists())
+        self.assertTrue(fest.eventartist_set.filter(artist__name="Same Venue Band", role="none").exists())
         imported = fest.setlists.get(artist__name="Same Venue Band")
         self.assertEqual(list(imported.entries.values_list("song__title", flat=True)), ["Opening song", "Closer"])
         self.assertFalse(fest.eventartist_set.filter(artist__name="City Band").exists())
@@ -2680,7 +2680,7 @@ class FestivalAddArtistsTests(BaseTestCase):
             key = self.client.get(url).context["candidates"][0]["key"]  # City Band now
             self.client.post(url, {f"add_{key}": "1", f"role_{key}": "headliner"})
         self.assertEqual(list(fest.eventartist_set.order_by("billing_order").values_list("artist__name", "role")),
-                         [("Already On", "headliner"), ("City Band", "headliner"), ("Same Venue Band", "support")])
+                         [("Already On", "headliner"), ("City Band", "headliner"), ("Same Venue Band", "none")])
 
     def test_venues_found_that_day_are_listed_to_tick_all_their_artists(self):
         fest = Event.objects.create(title="Lolla", event_type=EventType.FESTIVAL, venue=self.venue, date=date(2024, 3, 15),
@@ -3569,7 +3569,7 @@ class BetaSetlistFmLimitTests(BaseTestCase):
         with mock.patch("events.views_venues.search_setlists", return_value=[_setlist()]):
             page = self.client.get(reverse("events:setlistfm_shows"), {"artist": "Paul McCartney"})
         self.assertNotContains(page, 'id="select-all"')
-        self.assertContains(page, "imported one at a time")
+        self.assertNotContains(page, 'name="setlist_id"')  # one show at a time: its own Import button
 
     def test_festival_search_is_one_setlist_fm_call_for_non_admins(self):
         fest = Event.objects.create(title="Lolla", event_type=EventType.FESTIVAL, venue=self.venue,
@@ -4055,3 +4055,214 @@ class ArtistImportTests(BaseTestCase):
                          paused["processed"])  # paused: no more work
         resumed = self.client.post(reverse("events:artist_import_step", args=[job.pk]), {"action": "resume"}).json()
         self.assertNotEqual(resumed["status"], "paused")
+
+
+class SetlistSingleImportTests(BaseTestCase):
+    """Everyone imports one show with its own button; only admins get checkboxes and "Create selected events"."""
+
+    def setUp(self):
+        super().setUp()
+        self.results = [_setlist(), _setlist(id="43b8e1c8", eventDate="21-03-2019")]
+
+    def _page(self):
+        with mock.patch("events.views_venues.search_setlists", return_value=self.results):
+            return self.client.get(reverse("events:setlistfm_shows"), {"artist": "Paul McCartney"})
+
+    def test_non_admins_get_one_button_per_show(self):
+        self.client.force_login(self.user)
+        page = self._page()
+        self.assertNotContains(page, "Create selected events")
+        self.assertNotContains(page, 'name="setlist_id"')
+        self.assertContains(page, 'name="single_id" value="3b8e1c4c"')
+        self.assertContains(page, 'name="single_id" value="43b8e1c8"')
+        with mock.patch("events.setlistfm_events.get_setlist", side_effect=lambda i: next(r for r in self.results if r["id"] == i)):
+            self.client.post(reverse("events:setlistfm_shows") + "?artist=Paul+McCartney", {"single_id": "43b8e1c8"})
+        self.assertEqual(list(Setlist.objects.values_list("setlistfm_id", flat=True)), ["43b8e1c8"])
+
+    def test_admins_single_button_ignores_ticked_boxes(self):
+        boss = get_user_model().objects.create_superuser("boss", "boss@example.com", "pw-test-999")
+        self.client.force_login(boss)
+        page = self._page()
+        self.assertContains(page, "Create selected events")
+        self.assertContains(page, 'name="single_id"')
+        with mock.patch("events.setlistfm_events.get_setlist", side_effect=lambda i: next(r for r in self.results if r["id"] == i)):
+            self.client.post(reverse("events:setlistfm_shows") + "?artist=Paul+McCartney",
+                             {"setlist_id": ["3b8e1c4c", "43b8e1c8"], "single_id": "3b8e1c4c"})
+        self.assertEqual(list(Setlist.objects.values_list("setlistfm_id", flat=True)), ["3b8e1c4c"])
+
+
+class PossibleFestivalTests(BaseTestCase):
+    def setUp(self):
+        super().setUp()
+        self.boss = get_user_model().objects.create_superuser("boss", "boss@example.com", "pw-test-999")
+        roles = ["headliner", "support", "support", "guest", "host"]
+        for i, role in enumerate(roles, start=1):
+            EventArtist.objects.create(event=self.event, artist=Artist.objects.create(name=f"Band {i}"), role=role,
+                                       billing_order=i)
+        small = Event.objects.create(title="Small show", event_type=EventType.MUSIC, date=date(2020, 1, 1))
+        for i in range(3):
+            EventArtist.objects.create(event=small, artist=Artist.objects.create(name=f"Duo {i}"), billing_order=i + 1)
+
+    def test_only_admins(self):
+        self.client.force_login(self.user)
+        self.assertEqual(self.client.get(reverse("events:possible_festivals")).status_code, 403)
+
+    def test_lists_music_events_with_four_or_more_acts(self):
+        self.client.force_login(self.boss)
+        page = self.client.get(reverse("events:possible_festivals"))
+        self.assertEqual([e.pk for e in page.context["events"]], [self.event.pk])
+        self.assertContains(page, "Green Day in Chile")  # the typed title is the suggested name
+        self.assertContains(self.client.get(reverse("events:admin_tools")), "1 music event with 4 or more acts")
+
+    def test_not_a_festival_moves_it_to_its_own_tab_and_back(self):
+        self.client.force_login(self.boss)
+        url = reverse("events:possible_festivals")
+        self.client.post(url, {"event": self.event.pk, "action": "dismiss"})
+        self.assertEqual(list(self.client.get(url).context["events"]), [])
+        dismissed = self.client.get(url, {"tab": "dismissed"})
+        self.assertEqual([e.pk for e in dismissed.context["events"]], [self.event.pk])
+        self.client.post(url + "?tab=dismissed", {"event": self.event.pk, "action": "restore"})
+        self.assertEqual(len(self.client.get(url).context["events"]), 1)
+
+    def test_make_it_a_festival(self):
+        self.client.force_login(self.boss)
+        self.client.post(reverse("events:possible_festivals"),
+                         {"event": self.event.pk, "action": "festival", "name": "Lollapalooza Chile"})
+        self.event.refresh_from_db()
+        self.assertEqual(self.event.event_type, EventType.FESTIVAL)
+        self.assertEqual(self.event.production.title, "Lollapalooza Chile")
+        self.assertEqual(self.event.production.event_type, EventType.FESTIVAL)
+        roles = dict(self.event.eventartist_set.values_list("artist__name", "role"))
+        self.assertEqual(roles, {"Band 1": "headliner", "Band 2": "none", "Band 3": "none", "Band 4": "none",
+                                 "Band 5": "host"})
+        self.assertEqual(list(self.client.get(reverse("events:possible_festivals")).context["events"]), [])
+
+
+class EventTypeRulesTests(BaseTestCase):
+    """Each event type has its own lineup labels and fields."""
+
+    def _post(self, event_type, roles, **extra):
+        artists = [Artist.objects.create(name=f"Act {i}") for i in range(len(roles))]
+        data = {"title": "Show", "event_type": event_type, "date": "2024-05-01",
+                "eventartist_set-TOTAL_FORMS": str(len(roles)), "eventartist_set-INITIAL_FORMS": "0",
+                "eventartist_set-MIN_NUM_FORMS": "0", "eventartist_set-MAX_NUM_FORMS": "1000", **extra}
+        for i, (artist, role) in enumerate(zip(artists, roles)):
+            data.update({f"eventartist_set-{i}-artist": str(artist.pk), f"eventartist_set-{i}-role": role,
+                         f"eventartist_set-{i}-billing_order": str(i + 1)})
+        return self.client.post(reverse("events:event_create"), data)
+
+    def setUp(self):
+        super().setUp()
+        self.client.force_login(self.user)
+
+    def test_rules(self):
+        from .models import allowed_roles
+
+        self.assertEqual(allowed_roles("festival"), ("headliner", "host", "none"))
+        for role in ("cast", "director", "author", "choreographer"):
+            self.assertNotIn(role, allowed_roles("music"))
+            self.assertNotIn(role, allowed_roles("festival"))
+        for event_type in ("theater", "dance"):
+            self.assertNotIn("headliner", allowed_roles(event_type))
+            self.assertIn("choreographer", allowed_roles(event_type))
+        self.assertNotIn("choreographer", allowed_roles("comedy"))
+        self.assertIn("headliner", allowed_roles("comedy"))
+        for event_type in ("other", "multicultural"):
+            self.assertEqual(len(allowed_roles(event_type)), len(EventArtist.Role.choices))
+
+    def test_labels_a_type_doesnt_use_are_refused(self):
+        for event_type, roles in [("festival", ["headliner", "support"]), ("music", ["headliner", "cast"]),
+                                  ("theater", ["headliner"])]:
+            response = self._post(event_type, roles)
+            self.assertEqual(response.status_code, 200, event_type)  # the form again, with the error
+            self.assertContains(response, "isn&#x27;t a label for")
+        self.assertRedirects(self._post("festival", ["headliner", "none", "host"]),
+                             Event.objects.order_by("-pk").first().get_absolute_url(), fetch_redirect_response=False)
+
+    def test_theater_and_dance_have_no_headliner(self):
+        self._post("dance", ["cast", "choreographer"])
+        event = Event.objects.order_by("-pk").first()
+        self.assertEqual(sorted(event.eventartist_set.values_list("role", flat=True)), ["cast", "choreographer"])
+
+    def test_play_only_for_theater_and_dance_festival_only_for_festivals(self):
+        from .models import Play
+
+        play = Play.objects.create(title="Hamlet")
+        fest = Production.objects.create(title="Lollapalooza", event_type=EventType.FESTIVAL)
+        self._post("music", ["headliner"], play=str(play.pk), production=str(fest.pk))
+        event = Event.objects.order_by("-pk").first()
+        self.assertEqual((event.play, event.production), (None, None))
+        self._post("dance", ["cast"], play=str(play.pk))
+        self.assertEqual(Event.objects.order_by("-pk").first().play, play)
+        form = self.client.get(reverse("events:event_create"))
+        self.assertContains(form, 'data-field="play"')
+        self.assertContains(form, '"festival": ["headliner", "host", "none"]')
+
+    def test_multicultural_events(self):
+        self._post("multicultural", ["headliner", "choreographer", "cast"])
+        event = Event.objects.order_by("-pk").first()
+        self.assertEqual(event.event_type, "multicultural")
+        self.assertEqual(event.eventartist_set.count(), 3)
+
+
+class ShowDatesTests(BaseTestCase):
+    """Theater, comedy and dance: add the same show on another date, and edit all dates at once."""
+
+    def setUp(self):
+        super().setUp()
+        self.client.force_login(self.user)
+        self.show = Event.objects.create(title="Hamlet", event_type=EventType.THEATER, venue=self.venue,
+                                         date=date(2024, 5, 1), created_by=self.user, description="Act I")
+        self.actor = Artist.objects.create(name="Actor")
+        EventArtist.objects.create(event=self.show, artist=self.actor, role="cast")
+
+    def _edit(self, event, apply_to_run, **changes):
+        links = list(event.eventartist_set.all())
+        data = {"title": event.title, "event_type": event.event_type, "date": event.date.isoformat(),
+                "venue": str(event.venue_id or ""), "description": event.description, "image_display": "fit",
+                "apply_to_run": apply_to_run,
+                "eventartist_set-TOTAL_FORMS": str(len(links)), "eventartist_set-INITIAL_FORMS": str(len(links)),
+                "eventartist_set-MIN_NUM_FORMS": "0", "eventartist_set-MAX_NUM_FORMS": "1000", **changes}
+        for i, link in enumerate(links):
+            data.update({f"eventartist_set-{i}-id": str(link.pk), f"eventartist_set-{i}-event": str(event.pk),
+                         f"eventartist_set-{i}-artist": str(link.artist_id), f"eventartist_set-{i}-role": link.role,
+                         f"eventartist_set-{i}-billing_order": str(link.billing_order)})
+        return self.client.post(reverse("events:event_edit", args=[event.pk]), data)
+
+    def test_add_a_date_copies_the_show(self):
+        page = self.client.get(self.show.get_absolute_url())
+        self.assertContains(page, reverse("events:event_add_date", args=[self.show.pk]))
+        response = self.client.post(reverse("events:event_add_date", args=[self.show.pk]), {"date": "2024-05-02"})
+        second = Event.objects.get(date=date(2024, 5, 2))
+        self.assertRedirects(response, second.get_absolute_url())
+        self.assertEqual((second.title, second.venue, second.description, second.event_type),
+                         ("Hamlet", self.venue, "Act I", "theater"))
+        self.assertEqual(list(second.eventartist_set.values_list("artist__name", "role")), [("Actor", "cast")])
+        self.assertTrue(second.run_key and second.run_key == Event.objects.get(pk=self.show.pk).run_key)
+        self.assertContains(self.client.get(self.show.get_absolute_url()), "2 May 2024")  # "Other dates"
+        self.client.post(reverse("events:event_add_date", args=[self.show.pk]), {"date": "2024-05-02"})
+        self.assertEqual(Event.objects.filter(date=date(2024, 5, 2)).count(), 1)  # not twice
+
+    def test_only_theater_comedy_and_dance(self):
+        response = self.client.post(reverse("events:event_add_date", args=[self.event.pk]), {"date": "2024-05-02"})
+        self.assertEqual(response.status_code, 403)  # a music event
+        self.assertNotContains(self.client.get(self.event.get_absolute_url()), "+ Add date")
+
+    def test_edits_go_to_all_dates_only_when_asked(self):
+        from . import runs
+
+        second, _ = runs.add_date(self.show, date(2024, 5, 2), self.user)
+        third, _ = runs.add_date(self.show, date(2024, 5, 3), self.user)
+        other_venue = Venue.objects.create(name="Teatro Municipal", city="Santiago")
+        form = self.client.get(reverse("events:event_edit", args=[self.show.pk]))
+        self.assertContains(form, 'id="runModal"')
+        self.assertContains(form, "This show has 2 other dates")
+
+        self._edit(Event.objects.get(pk=self.show.pk), "this", description="Only the premiere")
+        self.assertEqual(Event.objects.get(pk=second.pk).description, "Act I")
+
+        self._edit(Event.objects.get(pk=self.show.pk), "all", venue=str(other_venue.pk))
+        for pk in (self.show.pk, second.pk, third.pk):
+            self.assertEqual(Event.objects.get(pk=pk).venue, other_venue)
+        self.assertEqual(Event.objects.get(pk=second.pk).description, "Act I")  # unchanged fields stay
+        self.assertEqual(Event.objects.get(pk=second.pk).date, date(2024, 5, 2))  # dates never copied

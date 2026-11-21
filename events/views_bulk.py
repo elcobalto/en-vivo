@@ -16,7 +16,7 @@ from django.urls import reverse
 from django.utils.html import format_html
 from django.utils.translation import gettext, ngettext
 
-from .models import Event, EventArtist, EventType, Artist, Venue, normalize_name
+from .models import Event, EventArtist, EventType, Artist, Venue, added_act_role, fit_role, normalize_name
 from .roles import can_edit_event
 
 MAX_ROWS = 200
@@ -147,7 +147,8 @@ def bulk_review(request: HttpRequest) -> HttpResponse:
                         _, created = EventArtist.objects.get_or_create(
                             event=event, artist=artist,
                             defaults={"billing_order": order,
-                                      "role": EventArtist.Role.HEADLINER if order == 1 else EventArtist.Role.SUPPORT},
+                                      "role": fit_role("headliner", event.event_type) if order == 1
+                                      else added_act_role(event.event_type)},
                         )
                         order += created
                         changed |= created

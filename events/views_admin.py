@@ -8,7 +8,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.translation import gettext
 from django.views.decorators.http import require_POST
 
-from . import artist_import as importer, setlistfm_quota, site_stats
+from . import artist_import as importer, festivals, setlistfm_quota, site_stats
 from .models import ArtistImport, Feedback
 from .setlistfm import SetlistFmError, search_artists
 from .views_feedback import _require_admin
@@ -26,6 +26,7 @@ def admin_tools(request: HttpRequest) -> HttpResponse:
         "u": setlistfm_quota.usage(),
         "s": site_stats.site_stats(),
         "imports": ArtistImport.objects.select_related("started_by")[:5],
+        "possible_festivals": festivals.candidates().count(),
     })
 
 
@@ -96,3 +97,38 @@ def artist_import_step(request: HttpRequest, pk: int) -> JsonResponse:
         return JsonResponse(importer.as_json(job))
     worked = importer.run_step(job)
     return JsonResponse(importer.as_json(job, busy=not worked))
+
+
+@login_required
+def possible_festivals(request: HttpRequest) -> HttpResponse:
+    """Music events with four or more acts: turn them into festivals, or mark them as not festivals."""
+    _require_admin(request)
+    from .models import Event
+
+    if request.method == "POST":
+        pk = request.POST.get("event") or ""
+        event = get_object_or_404(Event, pk=int(pk) if pk.isdigit() else 0, event_type="music")
+        action = request.POST.get("action")
+        if action == "festival":
+            name = " ".join((request.POST.get("name") or "").split())[:240]
+            if not name:
+                messages.error(request, gettext("Give the festival a name."))
+            else:
+                festivals.make_festival(event, name)
+                messages.success(request, gettext("“%(event)s” is now a festival day of %(name)s.") % {
+                    "event": event.title, "name": event.production.title})
+        elif action in ("dismiss", "restore"):
+            event.not_festival = action == "dismiss"
+            event.save(update_fields=["not_festival", "updated_at"])
+        return redirect(request.get_full_path())
+
+    tab = "dismissed" if request.GET.get("tab") == "dismissed" else "possible"
+    possible, dismissed = festivals.candidates(), festivals.candidates(dismissed=True)
+    events = list((dismissed if tab == "dismissed" else possible)[:100])
+    for event in events:
+        event.suggested_name = festivals.suggested_name(event)
+        event.some_acts = [l.artist.name for l in event.acts_on_stage().select_related("artist")[:6]]
+    return render(request, "events/possible_festivals.html", {
+        "tab": tab, "events": events, "possible_count": possible.count(), "dismissed_count": dismissed.count(),
+        "festival_names": festivals.festival_names(), "min_acts": festivals.MIN_ACTS,
+    })

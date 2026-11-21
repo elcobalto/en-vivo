@@ -49,24 +49,24 @@
           {% if max_imports > 1 %}<div class="form-check">
             <input class="form-check-input" type="checkbox" id="select-all" />
             <label class="form-check-label small" for="select-all">{% blocktranslate %}Select all on this page (max {{ max_imports }} per import){% endblocktranslate %}</label>
-          </div>
-          {% else %}<div class="small text-body-secondary">{% translate "During the beta, shows are imported one at a time." %}</div>{% endif %}
+          </div>{% endif %}
           <div class="d-flex align-items-center gap-3">
             <div class="form-check m-0">
               <input class="form-check-input" type="checkbox" id="attended" name="attended" value="1"{% if attended_default %} checked{% endif %} />
               <label class="form-check-label small" for="attended">{% translate "I attended these shows (add to my diary)" %}</label>
             </div>
-            <button class="btn btn-success" type="submit" id="import-btn">{% translate "Create selected events" %}</button>
+            {% if max_imports > 1 %}<button class="btn btn-success" type="submit" id="import-btn">{% translate "Create selected events" %}</button>{% endif %}
           </div>
         </div>
         <div class="list-group mb-3">
           {% for s in results %}
-            <label class="list-group-item d-flex gap-3 align-items-start {% if s.imported_event %}opacity-75{% endif %}">
-              {% if s.imported_event %}
+            {# Admins pick several with checkboxes; everyone imports one show with its own button. #}
+            <{% if max_imports > 1 %}label{% else %}div{% endif %} class="list-group-item d-flex gap-3 align-items-start {% if s.imported_event %}opacity-75{% endif %}">
+              {% if max_imports > 1 %}{% if s.imported_event %}
                 <input class="form-check-input mt-1" type="checkbox" disabled aria-label="{% translate 'Already imported' %}" />
               {% else %}
                 <input class="form-check-input mt-1 pick" type="checkbox" name="setlist_id" value="{{ s.id }}" aria-label="{% translate 'Import this setlist' %}" />
-              {% endif %}
+              {% endif %}{% endif %}
               <span class="flex-grow-1">
                 <span class="fw-semibold">{{ s.artist.name }}</span>
                 {% if s.venue.name %}<span class="text-body-secondary"> · {{ s.venue.name }}</span>{% endif %}
@@ -78,8 +78,11 @@
                 </span>
                 {% if s.imported_event %}<span class="d-block small mt-1">{% translate "Already imported:" %} <a href="{{ s.imported_event.get_absolute_url }}">{{ s.imported_event.title }}</a></span>{% endif %}
               </span>
-              <span class="event-date">{% if s.parsed_date %}{{ s.parsed_date|date:"j M Y" }}{% endif %}</span>
-            </label>
+              <span class="d-flex flex-column align-items-end gap-1">
+                <span class="event-date">{% if s.parsed_date %}{{ s.parsed_date|date:"j M Y" }}{% endif %}</span>
+                {% if not s.imported_event %}<button class="btn btn-sm btn-outline-success single-import" type="submit" name="single_id" value="{{ s.id }}">{% translate "Import" %}</button>{% endif %}
+              </span>
+            </{% if max_imports > 1 %}label{% else %}div{% endif %}>
           {% endfor %}
         </div>
       </form>
@@ -95,9 +98,18 @@
 {% endblock %}
 
 {% block scripts %}
-{% translate "Create %(n)s event" as create_one %}{% translate "Create %(n)s events" as create_many %}{% translate "Create selected events" as create_selected %}{% translate "Importing… (a few seconds per show)" as importing %}
+{% if max_imports > 1 %}{% translate "Create %(n)s event" as create_one %}{% translate "Create %(n)s events" as create_many %}{% translate "Create selected events" as create_selected %}{% endif %}{% translate "Importing… (a few seconds per show)" as importing %}{% translate "Importing…" as importing_one %}
 <script>
   (function () {
+    var form = document.querySelector("form[method=post]");
+    if (form) form.addEventListener("submit", function (e) {
+      var b = e.submitter;
+      if (b && b.classList.contains("single-import")) {  // one show: only that button shows it's working
+        setTimeout(function () { b.disabled = true; }, 0);
+        b.textContent = "{{ importing_one|escapejs }}";
+      }
+    });
+    {% if max_imports > 1 %}
     var all = document.getElementById("select-all");
     if (!document.getElementById("import-btn")) return;
     var max = {{ max_imports }};
@@ -115,11 +127,13 @@
       limit();
     });
     picks().forEach(function (p) { p.addEventListener("change", limit); });
-    document.querySelector("form[method=post]").addEventListener("submit", function () {
+    form.addEventListener("submit", function (e) {
+      if (e.submitter && e.submitter.classList.contains("single-import")) return;
       var b = document.getElementById("import-btn");
       b.disabled = true;
       b.textContent = "{{ importing|escapejs }}";
     });
+    {% endif %}
   })();
 </script>
 {% endblock %}

@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block title %}{% translate "Possible festivals" %} · En Vivo{% endblock %}
+
+{% block content %}
+  <a class="small text-body-secondary" href="{% url 'events:admin_tools' %}">← {% translate "Admin" %}</a>
+  <h1 class="h4 mt-1">{% translate "Possible festivals" %}</h1>
+  <p class="small text-body-secondary">
+    {% blocktranslate trimmed with n=min_acts %}
+      Music events with {{ n }} or more acts. Turning one into a festival keeps Headliner and Host labels and
+      shows everyone else as “–”.
+    {% endblocktranslate %}
+  </p>
+
+  <ul class="nav nav-underline mb-3">
+    <li class="nav-item"><a class="nav-link{% if tab == 'possible' %} active{% endif %}" href="?tab=possible">{% blocktranslate with n=possible_count %}To review ({{ n }}){% endblocktranslate %}</a></li>
+    <li class="nav-item"><a class="nav-link{% if tab == 'dismissed' %} active{% endif %}" href="?tab=dismissed">{% blocktranslate with n=dismissed_count %}Not festivals ({{ n }}){% endblocktranslate %}</a></li>
+  </ul>
+
+  <datalist id="festival-names">{% for name in festival_names %}<option value="{{ name }}"></option>{% endfor %}</datalist>
+
+  {% for event in events %}
+    <div class="card mb-2"><div class="card-body py-2">
+      <div class="d-flex flex-wrap align-items-baseline justify-content-between gap-2">
+        <a class="fw-semibold" href="{{ event.get_absolute_url }}">{{ event.title }}</a>
+        <span class="event-date">{% if event.date %}{{ event.date|date:"j M Y" }}{% endif %}</span>
+      </div>
+      <div class="small text-body-secondary mb-2">
+        {% if event.venue %}{{ event.venue.name }}{% if event.venue.city %}, {{ event.venue.city }}{% endif %} · {% endif %}
+        {% blocktranslate count counter=event.act_count %}{{ counter }} act{% plural %}{{ counter }} acts{% endblocktranslate %}:
+        {{ event.some_acts|join:", " }}{% if event.act_count > 6 %}…{% endif %}
+      </div>
+      <div class="d-flex flex-wrap align-items-center gap-2">
+        <form method="post" class="d-flex flex-wrap gap-2 flex-grow-1" style="max-width: 30rem">
+          {% csrf_token %}<input type="hidden" name="event" value="{{ event.pk }}" /><input type="hidden" name="action" value="festival" />
+          <input class="form-control form-control-sm flex-grow-1" style="min-width: 12rem; width: auto" name="name" value="{{ event.suggested_name }}" list="festival-names"
+                 aria-label="{% translate 'Festival name' %}" placeholder="{% translate 'Festival name' %}" required />
+          <button class="btn btn-sm btn-success" type="submit">{% translate "Make it a festival" %}</button>
+        </form>
+        <form method="post">
+          {% csrf_token %}<input type="hidden" name="event" value="{{ event.pk }}" />
+          {% if tab == "dismissed" %}
+            <input type="hidden" name="action" value="restore" /><button class="btn btn-sm btn-outline-secondary" type="submit">{% translate "Review again" %}</button>
+          {% else %}
+            <input type="hidden" name="action" value="dismiss" /><button class="btn btn-sm btn-outline-secondary" type="submit">{% translate "Not a festival" %}</button>
+          {% endif %}
+        </form>
+      </div>
+    </div></div>
+  {% empty %}
+    <p class="text-body-secondary">{% if tab == "dismissed" %}{% translate "No events marked as not festivals." %}{% else %}{% translate "Nothing to review." %}{% endif %}</p>
+  {% endfor %}
+{% endblock %}

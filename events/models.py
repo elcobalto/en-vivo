@@ -27,6 +27,7 @@ class EventType(models.TextChoices):
     COMEDY = "comedy", _("Comedy")
     DANCE = "dance", _("Dance")
     FESTIVAL = "festival", _("Festival")
+    MULTICULTURAL = "multicultural", _("Multicultural")  # a mix: music, theater, dance… in one event
     OTHER = "other", _("Other")
 
 
@@ -37,6 +38,7 @@ AUTO_TITLES = {
     EventType.COMEDY: _("Comedy event"),
     EventType.DANCE: _("Dance event"),
     EventType.FESTIVAL: _("Festival event"),
+    EventType.MULTICULTURAL: _("Multicultural event"),
     EventType.OTHER: _("Other event"),
 }
 
@@ -236,6 +238,10 @@ class Event(TimestampedModel):
         Venue, on_delete=models.SET_NULL, null=True, blank=True, related_name="events"
     )
     date = models.DateField(null=True, blank=True, db_index=True)
+    # An admin looked at this music event with many acts (a possible festival) and said it isn't one.
+    not_festival = models.BooleanField(default=False)
+    # Dates of the same theater, comedy or dance show share this key (see ``runs``); empty for one-offs.
+    run_key = models.CharField(max_length=32, blank=True, default="", db_index=True)
     description = models.TextField(blank=True, default="")
     image_url = models.URLField(max_length=1000, blank=True, default="")
     class Thumbnail(models.TextChoices):
@@ -399,8 +405,54 @@ class Event(TimestampedModel):
 
 
 
-# Roles that credit someone without them being an act you watch (theater authors, directors).
-CREDIT_ROLES = ("author", "director")
+# Roles that credit someone without them being an act you watch (theater authors, directors, choreographers).
+CREDIT_ROLES = ("author", "director", "choreographer")
+
+# Which event types use the "Original play" and "Festival" fields.
+PLAY_TYPES = ("theater", "dance")
+# Shows that run on several dates (one event per date, linked by ``Event.run_key``).
+RUN_TYPES = ("theater", "comedy", "dance")
+# Only these have a Headliner; in theater and dance the cast simply appears in billing order.
+HEADLINED_TYPES = ("music", "festival", "comedy")
+
+_ALL_ROLES = ("headliner", "support", "guest", "cast", "host", "director", "author", "choreographer", "other", "none")
+# The lineup labels each event type offers (in this order). Other and multicultural events get them all.
+ROLES_BY_TYPE = {
+    "festival": ("headliner", "host", "none"),
+    "music": ("headliner", "support", "guest", "host", "other", "none"),
+    "comedy": ("headliner", "support", "guest", "cast", "host", "director", "author", "other", "none"),
+    "theater": ("cast", "support", "guest", "host", "director", "author", "choreographer", "other", "none"),
+    "dance": ("cast", "support", "guest", "host", "director", "author", "choreographer", "other", "none"),
+}
+
+
+def allowed_roles(event_type: str) -> tuple[str, ...]:
+    return ROLES_BY_TYPE.get(event_type, _ALL_ROLES)
+
+
+def added_act_role(event_type: str) -> str:
+    """The label for an act added below others: "–" at festivals, Cast in theater and dance, else Support."""
+    if event_type == "festival":
+        return "none"
+    return "cast" if event_type in PLAY_TYPES else "support"
+
+
+def fit_role(role: str, event_type: str) -> str:
+    """``role`` if this type of event uses it, else the closest label it does use."""
+    allowed = allowed_roles(event_type)
+    if role in allowed:
+        return role
+    return "cast" if role == "headliner" and "cast" in allowed else "none"
+
+
+def fit_roles(event: "Event") -> int:
+    """Relabel the event's acts whose label its type doesn't use (after a type change). Returns how many."""
+    changed = 0
+    for link in event.eventartist_set.exclude(role__in=allowed_roles(event.event_type)):
+        link.role = fit_role(link.role, event.event_type)
+        link.save(update_fields=["role"])
+        changed += 1
+    return changed
 
 class EventArtist(models.Model):
     class Role(models.TextChoices):
@@ -411,7 +463,9 @@ class EventArtist(models.Model):
         HOST = "host", _("Host")
         DIRECTOR = "director", _("Director")
         AUTHOR = "author", _("Author / playwright")
+        CHOREOGRAPHER = "choreographer", _("Choreographer")
         OTHER = "other", _("Other")
+        NONE = "none", "–"  # on the bill with no label (festival acts that aren't headliners or hosts)
 
     event = models.ForeignKey(Event, on_delete=models.CASCADE)
     artist = models.ForeignKey(Artist, on_delete=models.CASCADE)

@@ -94,6 +94,15 @@
     </div>
   </div>
 
+  {# ------------------------------------------------------------ possible festivals #}
+  <div class="card mt-3"><div class="card-body d-flex flex-wrap align-items-center justify-content-between gap-2">
+    <div>
+      <h2 class="h5 m-0">{% translate "Possible festivals" %}</h2>
+      <div class="small text-body-secondary">{% blocktranslate count counter=possible_festivals %}{{ counter }} music event with 4 or more acts to review{% plural %}{{ counter }} music events with 4 or more acts to review{% endblocktranslate %}</div>
+    </div>
+    <a class="btn btn-sm btn-outline-warning" href="{% url 'events:possible_festivals' %}">{% translate "Review" %}</a>
+  </div></div>
+
   {# ------------------------------------------------------------ artist imports #}
   <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mt-4 mb-2">
     <h2 class="h5 m-0">{% translate "Artist imports" %}</h2>

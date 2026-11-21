@@ -20,6 +20,8 @@ from .models import (
     Log,
     Setlist,
     WantToGo,
+    added_act_role,
+    fit_roles,
 )
 
 
@@ -114,7 +116,7 @@ def merge_events(keep: Event, remove: Event, *, mode: str) -> Event:
     elif mode == "duplicate":
         _move_lineup(keep, remove, None)  # the same show entered twice: acts keep their roles
     else:
-        _move_lineup(keep, remove, EventArtist.Role.SUPPORT)
+        _move_lineup(keep, remove, added_act_role(keep.event_type))
 
     _move_setlists(keep, remove)
     _move_logs(keep, remove)
@@ -129,6 +131,7 @@ def merge_events(keep: Event, remove: Event, *, mode: str) -> Event:
     keep.separate_from.add(*remove.separate_from.exclude(pk=keep.pk))
     remove.delete()
     keep.save()  # recomputes an automatic title from the new lineup
+    fit_roles(keep)  # a merge into a festival: acts become Headliner, Host or "–"
     return keep
 
 

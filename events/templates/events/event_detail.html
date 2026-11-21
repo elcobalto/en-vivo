@@ -55,6 +55,12 @@
         {% endif %}
       </div>
       {% if event.play %}<p class="small mb-2">{% translate "Staging of" %} <a href="{{ event.play.get_absolute_url }}">{{ event.play.title }}</a></p>{% endif %}
+      {% if other_dates %}
+        <div class="small mt-3">
+          <span class="text-body-secondary">{% translate "Other dates:" %}</span>
+          {% for other in other_dates %}<a href="{{ other.get_absolute_url }}">{% if other.date %}{{ other.date|date:"j M Y" }}{% else %}{% translate "no date" %}{% endif %}</a>{% if other.venue_id != event.venue_id and other.venue %} ({{ other.venue.name }}){% endif %}{% if not forloop.last %} · {% endif %}{% endfor %}
+        </div>
+      {% endif %}
       <h2 class="section-title mt-3 mb-2">{% if event.event_type == "theater" %}{% translate "Cast" %}{% else %}{% translate "Lineup" %}{% endif %}</h2>
       {% if credits %}
         <p class="small mb-2">
@@ -171,6 +177,13 @@
         {% if can_edit %}
           <a class="btn btn-sm {% if event.display_image %}btn-outline-secondary{% else %}btn-outline-warning{% endif %}" href="{% url 'events:event_photo' event.pk %}">{% if event.display_image %}{% translate "Change photo" %}{% else %}{% translate "Find photo" %}{% endif %}</a>
           <a class="btn btn-sm btn-outline-secondary" href="{% url 'events:event_edit' event.pk %}">{% translate "Edit event" %}</a>
+        {% endif %}
+        {% if can_add_dates %}
+          <form method="post" action="{% url 'events:event_add_date' event.pk %}" class="d-flex gap-2">
+            {% csrf_token %}
+            <input class="form-control form-control-sm" type="date" name="date" required aria-label="{% translate 'New date' %}" />
+            <button class="btn btn-sm btn-outline-success text-nowrap" type="submit" title="{% translate 'The same show on another date: venue, lineup and photo are copied' %}">{% translate "+ Add date" %}</button>
+          </form>
         {% endif %}
         {% if can_make_festival %}<button class="btn btn-sm btn-outline-warning" type="button" data-bs-toggle="modal" data-bs-target="#festivalModal">{% translate "Turn into festival" %}</button>{% endif %}
         {% if user|is_admin %}<button class="btn btn-sm btn-outline-warning" type="button" data-bs-toggle="modal" data-bs-target="#mergeModal">{% translate "Merge a duplicate" %}</button>{% endif %}
