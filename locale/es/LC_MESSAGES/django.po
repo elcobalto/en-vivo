@@ -3,7 +3,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: En Vivo\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-21 05:08+0000\n"
+"POT-Creation-Date: 2026-11-21 05:16+0000\n"
 "PO-Revision-Date: 2026-11-20 18:00-0300\n"
 "Last-Translator: En Vivo\n"
 "Language-Team: Spanish\n"
@@ -135,6 +135,7 @@ msgstr "…o escribe un artista nuevo"
 #: events/templates/events/_artist_imports.html:4
 #: events/templates/events/_lineup_editor.html:15
 #: events/templates/events/_lineup_row.html:7
+#: events/templates/events/artist_import.html:44
 #: events/templates/events/artist_import_new.html:18
 #: events/templates/events/setlistfm_shows.html:20
 msgid "Artist"
@@ -625,6 +626,7 @@ msgid "Page"
 msgstr "Página"
 
 #: events/models.py:872 events/templates/base.html:106
+#: events/templates/events/artist_import.html:45
 #: events/templates/events/artist_import_new.html:19
 #: events/templates/events/artist_list.html:20
 #: events/templates/events/event_photo.html:43
@@ -1973,29 +1975,38 @@ msgstr "Fallidos"
 msgid "See the imported events in the events list, latest added first →"
 msgstr "Ver los eventos importados en la lista de eventos, los últimos agregados primero →"
 
-#: events/templates/events/artist_import.html:41
+#: events/templates/events/artist_import.html:42
+msgid "Import finished. Import another artist?"
+msgstr "Importación terminada. ¿Importar otro artista?"
+
+#: events/templates/events/artist_import.html:44
+#: events/templates/events/artist_import_new.html:18
+msgid "Artist, e.g. The Beatles"
+msgstr "Artista, por ejemplo The Beatles"
+
+#: events/templates/events/artist_import.html:50
 msgid "Pause"
 msgstr "Pausar"
 
-#: events/templates/events/artist_import.html:42
+#: events/templates/events/artist_import.html:51
 msgid "Resume"
 msgstr "Reanudar"
 
-#: events/templates/events/artist_import.html:46
+#: events/templates/events/artist_import.html:55
 #, python-format
 msgid "%%(done)s of %%(total)s setlists"
 msgstr "%%(done)s de %%(total)s setlists"
 
-#: events/templates/events/artist_import.html:46
+#: events/templates/events/artist_import.html:55
 #, python-format
 msgid "%%(n)s setlist.fm requests left today"
 msgstr "Quedan %%(n)s consultas a setlist.fm hoy"
 
-#: events/templates/events/artist_import.html:47
+#: events/templates/events/artist_import.html:56
 msgid "Lost the connection; retrying…"
 msgstr "Se perdió la conexión; reintentando…"
 
-#: events/templates/events/artist_import.html:47
+#: events/templates/events/artist_import.html:56
 msgid "Paused: the connection kept failing. Press Resume to continue."
 msgstr "En pausa: la conexión siguió fallando. Presiona Reanudar para continuar."
 
@@ -2003,10 +2014,6 @@ msgstr "En pausa: la conexión siguió fallando. Presiona Reanudar para continua
 #, python-format
 msgid "Imports every setlist setlist.fm has for one artist: about one request per 20 setlists, at most 2 per second. If the day's requests run low (%(n)s left now) the import pauses; resume it later and it continues where it stopped. Everything imported until then is kept."
 msgstr "Importa todos los setlists que setlist.fm tiene de un artista: cerca de una consulta cada 20 setlists, con un máximo de 2 por segundo. Si quedan pocas consultas del día (quedan %(n)s) la importación se pausa; reanúdala después y sigue donde quedó. Todo lo importado hasta entonces se conserva."
-
-#: events/templates/events/artist_import_new.html:18
-msgid "Artist, e.g. The Beatles"
-msgstr "Artista, por ejemplo The Beatles"
 
 #: events/templates/events/artist_import_new.html:33
 msgid "Only shows in"

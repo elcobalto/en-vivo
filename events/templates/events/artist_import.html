@@ -37,6 +37,15 @@
   <div class="alert alert-warning small d-none" id="imp-error"></div>
   <p class="small"><a href="{% url 'events:event_list' %}?sort=added">{% translate "See the imported events in the events list, latest added first →" %}</a></p>
 
+  {# Shown once the import is done: start the next one from here. #}
+  <div class="card border-success mb-3{% if job.status != 'done' %} d-none{% endif %}" id="imp-next"><div class="card-body">
+    <h2 class="h6">{% translate "Import finished. Import another artist?" %}</h2>
+    <form method="get" action="{% url 'events:artist_import_new' %}" class="d-flex gap-2" style="max-width: 32rem">
+      <input class="form-control" type="search" name="artist" placeholder="{% translate 'Artist, e.g. The Beatles' %}" aria-label="{% translate 'Artist' %}" required />
+      <button class="btn btn-success" type="submit">{% translate "Search" %}</button>
+    </form>
+  </div></div>
+
   <div class="d-flex gap-2">
     <button class="btn btn-outline-warning d-none" type="button" id="imp-pause">{% translate "Pause" %}</button>
     <button class="btn btn-success d-none" type="button" id="imp-resume">{% translate "Resume" %}</button>
@@ -70,6 +79,11 @@
         errorEl.textContent = s.last_error || "";
         errorEl.classList.toggle("d-none", !s.last_error);
         pauseBtn.classList.toggle("d-none", s.status !== "running");
+        var next = document.getElementById("imp-next");
+        if (s.status === "done" && next.classList.contains("d-none")) {
+          next.classList.remove("d-none");
+          next.querySelector("input").focus();
+        }
         resumeBtn.classList.toggle("d-none", s.status !== "paused");
       }
 

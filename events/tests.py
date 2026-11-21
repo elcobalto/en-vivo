@@ -4110,6 +4110,14 @@ class ArtistImportTests(BaseTestCase):
         self.assertEqual(self.pages_read, [1, 2, 3])  # page 3 (all 1965) ends it
         self.assertEqual(Setlist.objects.count(), 30)
 
+    def test_a_finished_import_offers_another_artist(self):
+        self.client.force_login(self.boss)
+        running = self.client.get(reverse("events:artist_import", args=[self._job().pk]))
+        self.assertContains(running, 'class="card border-success mb-3 d-none" id="imp-next"')
+        done = self.client.get(reverse("events:artist_import", args=[self._job(status="done").pk]))
+        self.assertContains(done, 'class="card border-success mb-3" id="imp-next"')
+        self.assertContains(done, f'action="{reverse("events:artist_import_new")}"')
+
 
 class SetlistSingleImportTests(BaseTestCase):
     """Everyone imports one show with its own button; only admins get checkboxes and "Create selected events"."""
