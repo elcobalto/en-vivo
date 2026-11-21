@@ -8,7 +8,7 @@ once, one a second (MusicBrainz's limit), then the page reloads to show them. Us
     {{ counter }} song hasn't been looked up yet.
   {% plural %}
     {{ counter }} songs haven't been looked up yet.
-  {% endblocktranslate %}{% if pending|length > 50 %}{% widthratio pending|length 50 1 as minutes %} {% blocktranslate trimmed count minutes=minutes %}
+  {% endblocktranslate %}{% if pending|length > 50 %}{% widthratio pending|length 50 1 as minutes %} {% blocktranslate trimmed count minutes=minutes|add:0 %}
     Takes about {{ minutes }} minute; keep the page open.
   {% plural %}
     Takes about {{ minutes }} minutes; keep the page open.
