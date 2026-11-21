@@ -7,16 +7,17 @@
   <div class="row justify-content-center"><div class="col-12 col-lg-10">
     <h1 class="h4 mb-1">{% translate "Import a list of events" %}</h1>
     <p class="small text-body-secondary mb-3">
-      {% blocktranslate %}One event per line: <code>date, event name, type</code>. The type is optional (music by default):{% endblocktranslate %}
+      {% blocktranslate %}One event per line: <code>date, event name, type, venue</code>. The type is optional (music by default):{% endblocktranslate %}
       {% for value, label in types %}{{ label|lower }}{% if not forloop.last %}, {% endif %}{% endfor %}.
+      {% blocktranslate %}The venue is optional too: one already on en vivo is matched by name, a new name becomes a new venue in your home city. To give a venue without a type, leave the type empty: <code>2019-03-20, Paul McCartney, , Estadio Nacional</code>.{% endblocktranslate %}
       {% blocktranslate %}Dates like <code>2019-03-20</code> or <code>20-03-2019</code>. Put names containing commas in quotes. Up to {{ max_rows }} lines.{% endblocktranslate %}
-      {% translate "Next, you'll add a venue and lineup to each one." %}
+      {% translate "Next, you'll add the lineup (and any missing venue) to each one." %}
     </p>
 
     <form method="post">
       {% csrf_token %}
       <textarea class="form-control font-monospace mb-2" name="lines" rows="10" required
-                placeholder="{% translate '2019-03-20, Paul McCartney, music' %}&#10;{% translate '15-03-2024, Lollapalooza Chile, festival' %}&#10;{% translate '2023-11-02, Bill Burr, comedy' %}" aria-label="{% translate 'Events, one per line' %}">{{ text }}</textarea>
+                placeholder="{% translate '2019-03-20, Paul McCartney, music, Estadio Nacional' %}&#10;{% translate '15-03-2024, Lollapalooza Chile, festival' %}&#10;{% translate '2023-11-02, Bill Burr, comedy' %}" aria-label="{% translate 'Events, one per line' %}">{{ text }}</textarea>
       <div class="d-flex gap-2">
         <button class="btn btn-outline-secondary" type="submit">{% translate "Preview" %}</button>
         {% if rows and not has_errors and not too_many %}
@@ -29,7 +30,7 @@
     {% if rows %}
       <div class="table-responsive mt-3">
         <table class="table table-sm align-middle">
-          <thead><tr class="small text-body-secondary"><th>{% translate "Line" %}</th><th>{% translate "Date" %}</th><th>{% translate "Event" %}</th><th>{% translate "Type" %}</th><th></th></tr></thead>
+          <thead><tr class="small text-body-secondary"><th>{% translate "Line" %}</th><th>{% translate "Date" %}</th><th>{% translate "Event" %}</th><th>{% translate "Type" %}</th><th>{% translate "Venue" %}</th><th></th></tr></thead>
           <tbody>
             {% for r in rows %}
               <tr class="{% if r.error %}table-danger{% endif %}">
@@ -37,6 +38,7 @@
                 <td class="event-date">{% if r.date %}{{ r.date|date:"j M Y" }}{% endif %}</td>
                 <td>{{ r.title|default:r.raw }}</td>
                 <td class="small">{% for value, label in types %}{% if value == r.event_type %}{{ label }}{% endif %}{% endfor %}</td>
+                <td class="small">{% if r.venue %}{{ r.venue.name }}{% if r.venue.city %} <span class="text-body-secondary">· {{ r.venue.city }}</span>{% endif %}{% elif r.venue_name %}{{ r.venue_name }} <span class="badge text-bg-info">{% translate "new" %}</span>{% endif %}</td>
                 <td class="small text-danger">{{ r.error }}</td>
               </tr>
             {% endfor %}

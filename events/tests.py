@@ -4738,3 +4738,28 @@ class BilledLineupTests(BaseTestCase):
         play = Event.objects.create(title="Hamlet", event_type=EventType.THEATER, date=date(2020, 1, 1))
         EventArtist.objects.create(event=play, artist=Artist.objects.create(name="Actor"), role="cast")
         self.assertContains(self.client.get(play.get_absolute_url()), "Cast")
+
+
+class BulkImportVenueTests(BaseTestCase):
+    def test_optional_venue_column(self):
+        self.user.profile.home_city, self.user.profile.home_country = "Santiago", "CL"
+        self.user.profile.save()
+        Venue.objects.create(name="Teatro Caupolican", city="Valparaíso")  # same name elsewhere: home city wins
+        self.client.force_login(self.user)
+        lines = ("2019-03-20, Paul McCartney, music, teatro caupolicán\n"
+                 "2019-03-21, Paul McCartney, , Teatro Caupolicán\n"
+                 "2019-03-22, Paul McCartney, , Estadio Nuevo\n"
+                 "2019-03-23, Paul McCartney, music, Estadio Nuevo\n"
+                 "2019-03-24, Paul McCartney\n")
+        preview = self.client.post(reverse("events:bulk_import"), {"lines": lines})
+        rows = preview.context["rows"]
+        self.assertEqual([r.venue for r in rows[:2]], [self.venue, self.venue])
+        self.assertEqual((rows[2].venue, rows[2].venue_name), (None, "Estadio Nuevo"))
+        self.assertContains(preview, ">new<")
+        self.client.post(reverse("events:bulk_import"), {"lines": lines, "confirm": "1"})
+        events = {e.date.day: e for e in Event.objects.filter(title="Paul McCartney")}
+        self.assertEqual(events[20].venue, self.venue)
+        self.assertEqual(events[22].venue, events[23].venue)  # one new venue for both lines
+        self.assertEqual((events[22].venue.name, events[22].venue.city, events[22].venue.country.code),
+                         ("Estadio Nuevo", "Santiago", "CL"))
+        self.assertIsNone(events[24].venue)

@@ -1,4 +1,4 @@
-"""Bulk import: paste "date, event name, type" lines, then add a venue and lineup to each."""
+"""Bulk import: paste "date, event name, type, venue" lines (type and venue optional), then add the lineups."""
 from __future__ import annotations
 
 import csv
@@ -17,7 +17,7 @@ from django.utils.html import format_html
 from django.utils.translation import gettext, ngettext
 
 from .models import Event, EventArtist, EventType, Artist, Venue, added_act_role, fit_role, normalize_name
-from .roles import can_edit_event
+from .roles import can_edit_event, home_place
 
 MAX_ROWS = 200
 DATE_FORMATS = ("%Y-%m-%d", "%d-%m-%Y", "%d/%m/%Y", "%Y/%m/%d", "%d.%m.%Y")
@@ -38,6 +38,8 @@ class Row:
     date: date | None = None
     title: str = ""
     event_type: str = EventType.MUSIC
+    venue_name: str = ""  # as typed (optional)
+    venue: Venue | None = None  # the venue on en vivo with that name; None with a name: a new venue
     error: str = ""
 
 
@@ -50,8 +52,16 @@ def parse_date(text: str) -> date | None:
     return None
 
 
-def parse_lines(text: str) -> list[Row]:
-    """One event per line: `date, event name, type` (type optional; commas in names need quotes)."""
+def venue_named(name: str, home_city: str = "") -> Venue | None:
+    """The venue on en vivo with this name (ignoring capitals and accents); the one in ``home_city`` first."""
+    wanted = normalize_name(name)
+    matches = [v for v in Venue.objects.filter(name__icontains=name.strip()[:3]) if normalize_name(v.name) == wanted]
+    matches.sort(key=lambda v: (normalize_name(v.city) != normalize_name(home_city), v.pk))
+    return matches[0] if matches else None
+
+
+def parse_lines(text: str, home_city: str = "") -> list[Row]:
+    """One event per line: `date, event name, type, venue` (type and venue optional; commas in names need quotes)."""
     rows = []
     for number, raw in enumerate(text.splitlines(), start=1):
         if not raw.strip() or raw.strip().startswith("#"):
@@ -72,6 +82,9 @@ def parse_lines(text: str) -> list[Row]:
                 else:
                     row.error = row.error or gettext(
                         "Unknown type “%(type)s” (music, theater, comedy, dance, festival, other).") % {"type": parts[2]}
+            if len(parts) > 3 and parts[3]:
+                row.venue_name = parts[3][:200]
+                row.venue = venue_named(row.venue_name, home_city)
         rows.append(row)
     return rows
 
@@ -79,22 +92,33 @@ def parse_lines(text: str) -> list[Row]:
 @login_required
 def bulk_import(request: HttpRequest) -> HttpResponse:
     text = request.POST.get("lines", "") if request.method == "POST" else ""
-    rows = parse_lines(text) if text else []
+    home_city, home_country = home_place(request.user)
+    rows = parse_lines(text, home_city) if text else []
     too_many = len(rows) > MAX_ROWS
 
     if request.method == "POST" and request.POST.get("confirm") and rows and not too_many \
             and not any(r.error for r in rows):
         ids, reused = [], 0
+        new_venues: dict[str, Venue] = {}  # a venue typed on several lines is created once
         with transaction.atomic():
             for row in rows:
+                venue = row.venue
+                if row.venue_name and venue is None:
+                    key = normalize_name(row.venue_name)
+                    if key not in new_venues:
+                        new_venues[key] = Venue.objects.create(name=row.venue_name, city=home_city, country=home_country)
+                    venue = new_venues[key]
                 existing = next((e for e in Event.objects.filter(date=row.date, event_type=row.event_type)
                                  if normalize_name(e.title) == normalize_name(row.title)), None)
                 if existing:
+                    if venue and not existing.venue_id:  # the list knows where it was
+                        existing.venue = venue
+                        existing.save(update_fields=["venue", "updated_at"])
                     ids.append(existing.pk)
                     reused += 1
                     continue
                 event = Event.objects.create(title=row.title, date=row.date, event_type=row.event_type,
-                                             created_by=request.user)
+                                             venue=venue, created_by=request.user)
                 ids.append(event.pk)
         new = len(ids) - reused
         if reused:

@@ -3,7 +3,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: En Vivo\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-21 20:26+0000\n"
+"POT-Creation-Date: 2026-11-21 21:44+0000\n"
 "PO-Revision-Date: 2026-11-20 18:00-0300\n"
 "Last-Translator: En Vivo\n"
 "Language-Team: Spanish\n"
@@ -58,7 +58,7 @@ msgid "Title"
 msgstr "Título"
 
 #: events/forms.py:74 events/forms.py:325
-#: events/templates/events/bulk_import.html:32
+#: events/templates/events/bulk_import.html:33
 #: events/templates/events/diary.html:9 events/templates/events/diary.html:75
 #: events/templates/events/event_list.html:21
 #: events/templates/events/profile_stats.html:15
@@ -66,12 +66,13 @@ msgstr "Título"
 msgid "Type"
 msgstr "Tipo"
 
-#: events/forms.py:74 events/templates/events/bulk_import.html:32
+#: events/forms.py:74 events/templates/events/bulk_import.html:33
 #: events/templates/events/diary.html:75
 msgid "Date"
 msgstr "Fecha"
 
-#: events/forms.py:74 events/templates/events/bulk_review.html:26
+#: events/forms.py:74 events/templates/events/bulk_import.html:33
+#: events/templates/events/bulk_review.html:26
 #: events/templates/events/event_form.html:82
 #: events/templates/events/setlistfm_shows.html:28
 #: events/templates/events/venue_detail.html:8
@@ -2408,64 +2409,72 @@ msgid "Import a list of events"
 msgstr "Importar una lista de eventos"
 
 #: events/templates/events/bulk_import.html:10
-msgid "One event per line: <code>date, event name, type</code>. The type is optional (music by default):"
-msgstr "Un evento por línea: <code>fecha, nombre del evento, tipo</code>. El tipo es opcional (música por defecto):"
+msgid "One event per line: <code>date, event name, type, venue</code>. The type is optional (music by default):"
+msgstr "Un evento por línea: <code>fecha, nombre del evento, tipo, recinto</code>. El tipo es opcional (música por defecto):"
 
 #: events/templates/events/bulk_import.html:12
+msgid "The venue is optional too: one already on en vivo is matched by name, a new name becomes a new venue in your home city. To give a venue without a type, leave the type empty: <code>2019-03-20, Paul McCartney, , Estadio Nacional</code>."
+msgstr "El recinto también es opcional: si ya está en en vivo se reconoce por su nombre, y un nombre nuevo crea un recinto nuevo en tu ciudad. Para indicar el recinto sin tipo, deja el tipo vacío: <code>2019-03-20, Paul McCartney, , Estadio Nacional</code>."
+
+#: events/templates/events/bulk_import.html:13
 #, python-format
 msgid "Dates like <code>2019-03-20</code> or <code>20-03-2019</code>. Put names containing commas in quotes. Up to %(max_rows)s lines."
 msgstr "Fechas como <code>2019-03-20</code> o <code>20-03-2019</code>. Pon entre comillas los nombres que tengan comas. Hasta %(max_rows)s líneas."
 
-#: events/templates/events/bulk_import.html:13
-msgid "Next, you'll add a venue and lineup to each one."
-msgstr "Después vas a agregar el recinto y el line-up de cada uno."
+#: events/templates/events/bulk_import.html:14
+msgid "Next, you'll add the lineup (and any missing venue) to each one."
+msgstr "Después vas a agregar el line-up (y el recinto que falte) de cada uno."
 
-#: events/templates/events/bulk_import.html:19
-msgid "2019-03-20, Paul McCartney, music"
-msgstr "2019-03-20, Paul McCartney, música"
+#: events/templates/events/bulk_import.html:20
+msgid "2019-03-20, Paul McCartney, music, Estadio Nacional"
+msgstr "2019-03-20, Paul McCartney, música, Estadio Nacional"
 
-#: events/templates/events/bulk_import.html:19
+#: events/templates/events/bulk_import.html:20
 msgid "15-03-2024, Lollapalooza Chile, festival"
 msgstr "15-03-2024, Lollapalooza Chile, festival"
 
-#: events/templates/events/bulk_import.html:19
+#: events/templates/events/bulk_import.html:20
 msgid "2023-11-02, Bill Burr, comedy"
 msgstr "2023-11-02, Bill Burr, comedia"
 
-#: events/templates/events/bulk_import.html:19
+#: events/templates/events/bulk_import.html:20
 msgid "Events, one per line"
 msgstr "Eventos, uno por línea"
 
-#: events/templates/events/bulk_import.html:21
+#: events/templates/events/bulk_import.html:22
 msgid "Preview"
 msgstr "Vista previa"
 
-#: events/templates/events/bulk_import.html:23
+#: events/templates/events/bulk_import.html:24
 #, python-format
 msgid "Create %(counter)s event"
 msgid_plural "Create %(counter)s events"
 msgstr[0] "Crear %(counter)s evento"
 msgstr[1] "Crear %(counter)s eventos"
 
-#: events/templates/events/bulk_import.html:28
+#: events/templates/events/bulk_import.html:29
 #, python-format
 msgid "That's %(n)s lines; import up to %(max_rows)s at a time."
 msgstr "Son %(n)s líneas; importa hasta %(max_rows)s a la vez."
 
-#: events/templates/events/bulk_import.html:32
+#: events/templates/events/bulk_import.html:33
 msgid "Line"
 msgstr "Línea"
 
-#: events/templates/events/bulk_import.html:32
+#: events/templates/events/bulk_import.html:33
 #: events/templates/events/diary.html:75
 msgid "Event"
 msgstr "Evento"
 
-#: events/templates/events/bulk_import.html:46
+#: events/templates/events/bulk_import.html:41
+msgid "new"
+msgstr "nuevo"
+
+#: events/templates/events/bulk_import.html:48
 msgid "Fix the highlighted lines and preview again."
 msgstr "Corrige las líneas destacadas y vuelve a ver la vista previa."
 
-#: events/templates/events/bulk_import.html:47
+#: events/templates/events/bulk_import.html:49
 msgid "Events with the same name, date and type that already exist are reused, not duplicated."
 msgstr "Los eventos que ya existen con el mismo nombre, fecha y tipo se reutilizan, no se duplican."
 
@@ -4542,47 +4551,47 @@ msgstr "Ponle un nombre al festival."
 msgid "“%(event)s” is now a festival day of %(name)s."
 msgstr "“%(event)s” ahora es un día del festival %(name)s."
 
-#: events/views_bulk.py:62
+#: events/views_bulk.py:72
 msgid "Needs at least a date and an event name."
 msgstr "Necesita al menos una fecha y un nombre de evento."
 
-#: events/views_bulk.py:67
+#: events/views_bulk.py:77
 #, python-format
 msgid "Couldn't read the date “%(date)s” (use 2019-03-20 or 20-03-2019)."
 msgstr "No se pudo leer la fecha “%(date)s” (usa 2019-03-20 o 20-03-2019)."
 
-#: events/views_bulk.py:74
+#: events/views_bulk.py:84
 #, python-format
 msgid "Unknown type “%(type)s” (music, theater, comedy, dance, festival, other)."
 msgstr "Tipo desconocido “%(type)s” (música, teatro, comedia, danza, festival, otro)."
 
-#: events/views_bulk.py:101
+#: events/views_bulk.py:125
 #, python-format
 msgid "%(created)s, %(existing)s. Now add venues and lineups."
 msgstr "%(created)s, %(existing)s. Ahora agrega los recintos y line-ups."
 
-#: events/views_bulk.py:102 events/views_venues.py:150
+#: events/views_bulk.py:126 events/views_venues.py:150
 #, python-format
 msgid "%(n)s event created"
 msgid_plural "%(n)s events created"
 msgstr[0] "%(n)s evento creado"
 msgstr[1] "%(n)s eventos creados"
 
-#: events/views_bulk.py:103
+#: events/views_bulk.py:127
 #, python-format
 msgid "%(n)s already existed"
 msgid_plural "%(n)s already existed"
 msgstr[0] "%(n)s ya existía"
 msgstr[1] "%(n)s ya existían"
 
-#: events/views_bulk.py:105
+#: events/views_bulk.py:129
 #, python-format
 msgid "%(n)s event created. Now add venues and lineups."
 msgid_plural "%(n)s events created. Now add venues and lineups."
 msgstr[0] "%(n)s evento creado. Ahora agrega los recintos y line-ups."
 msgstr[1] "%(n)s eventos creados. Ahora agrega los recintos y line-ups."
 
-#: events/views_bulk.py:157
+#: events/views_bulk.py:181
 #, python-format
 msgid "Updated %(n)s event."
 msgid_plural "Updated %(n)s events."
