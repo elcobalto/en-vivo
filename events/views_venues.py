@@ -9,6 +9,7 @@ from django.db.models import Q
 from django.http import Http404, HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
+from django.utils.html import format_html
 from django.utils.translation import gettext, ngettext
 from django.views.decorators.http import require_GET, require_POST
 
@@ -107,6 +108,15 @@ def max_setlist_imports(user) -> int:
     return MAX_IMPORTS_PER_REQUEST if is_admin(user) else 1
 
 
+def _imported_link(events: list) -> str:
+    """A link to what an import made: the event itself, or the events list with the latest added first."""
+    if len(events) == 1:
+        return format_html('<a class="alert-link" href="{}">{}</a>', events[0].get_absolute_url(),
+                           gettext("Open “%(title)s” →") % {"title": events[0].title})
+    return format_html('<a class="alert-link" href="{}?sort=added">{}</a>', reverse("events:event_list"),
+                       gettext("See them in the events list, latest added first →"))
+
+
 @login_required
 def setlistfm_shows(request: HttpRequest) -> HttpResponse:
     """Search setlist.fm and create music events (venue, tour, lineup, songs) from the results."""
@@ -118,6 +128,7 @@ def setlistfm_shows(request: HttpRequest) -> HttpResponse:
             messages.error(request, gettext("Select at least one setlist."))
         else:
             created = joined = skipped = attended = 0
+            imported_events = []  # each event the import created, joined or found, for the links below
             mark_attended = request.POST.get("attended") == "1"
             for setlist_id, result, error in setlistfm_events.import_many(ids, request.user):
                 if error:
@@ -128,6 +139,8 @@ def setlistfm_shows(request: HttpRequest) -> HttpResponse:
                     attended += added
                     if not added:
                         add_all_acts(log)  # an act this import added to an event you'd logged
+                if result.event not in imported_events:
+                    imported_events.append(result.event)
                 if result.setlist_already_imported:
                     skipped += 1
                 elif result.created:
@@ -141,7 +154,8 @@ def setlistfm_shows(request: HttpRequest) -> HttpResponse:
                 summary.append(gettext("%(n)s already imported") % {"n": skipped})
             if attended:
                 summary.append(gettext("%(n)s added to your diary") % {"n": attended})
-            messages.success(request, ", ".join(summary) + ".")
+            if imported_events:
+                messages.success(request, format_html("{} {}", ", ".join(summary) + ".", _imported_link(imported_events)))
         return redirect(request.get_full_path())
 
     filters = {k: (request.GET.get(k) or "").strip() for k in ["artist", "city", "year", "venue", "country"]}

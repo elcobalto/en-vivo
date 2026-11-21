@@ -3,7 +3,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: En Vivo\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-21 04:22+0000\n"
+"POT-Creation-Date: 2026-11-21 04:28+0000\n"
 "PO-Revision-Date: 2026-11-20 18:00-0300\n"
 "Last-Translator: En Vivo\n"
 "Language-Team: Spanish\n"
@@ -1942,29 +1942,33 @@ msgstr "Sin canciones (omitidos)"
 msgid "Failed"
 msgstr "Fallidos"
 
-#: events/templates/events/artist_import.html:38
+#: events/templates/events/artist_import.html:36
+msgid "See the imported events in the events list, latest added first →"
+msgstr "Ver los eventos importados en la lista de eventos, los últimos agregados primero →"
+
+#: events/templates/events/artist_import.html:39
 msgid "Pause"
 msgstr "Pausar"
 
-#: events/templates/events/artist_import.html:39
+#: events/templates/events/artist_import.html:40
 msgid "Resume"
 msgstr "Reanudar"
 
-#: events/templates/events/artist_import.html:43
+#: events/templates/events/artist_import.html:44
 #, python-format
 msgid "%%(done)s of %%(total)s setlists"
 msgstr "%%(done)s de %%(total)s setlists"
 
-#: events/templates/events/artist_import.html:43
+#: events/templates/events/artist_import.html:44
 #, python-format
 msgid "%%(n)s setlist.fm requests left today"
 msgstr "Quedan %%(n)s consultas a setlist.fm hoy"
 
-#: events/templates/events/artist_import.html:44
+#: events/templates/events/artist_import.html:45
 msgid "Lost the connection; retrying…"
 msgstr "Se perdió la conexión; reintentando…"
 
-#: events/templates/events/artist_import.html:44
+#: events/templates/events/artist_import.html:45
 msgid "Paused: the connection kept failing. Press Resume to continue."
 msgstr "En pausa: la conexión siguió fallando. Presiona Reanudar para continuar."
 
@@ -4329,7 +4333,7 @@ msgstr "Tipo desconocido “%(type)s” (música, teatro, comedia, danza, festiv
 msgid "%(created)s, %(existing)s. Now add venues and lineups."
 msgstr "%(created)s, %(existing)s. Ahora agrega los recintos y line-ups."
 
-#: events/views_bulk.py:102 events/views_venues.py:137
+#: events/views_bulk.py:102 events/views_venues.py:150
 #, python-format
 msgid "%(n)s event created"
 msgid_plural "%(n)s events created"
@@ -4461,105 +4465,114 @@ msgstr "No puedes seguirte a ti mismo."
 msgid "Your reply can't be empty."
 msgstr "Tu respuesta no puede estar vacía."
 
-#: events/views_venues.py:60
+#: events/views_venues.py:61
 msgid "Too many searches, wait a moment."
 msgstr "Demasiadas búsquedas, espera un momento."
 
-#: events/views_venues.py:74
+#: events/views_venues.py:75
 msgid "Missing place."
 msgstr "Falta el lugar."
 
-#: events/views_venues.py:95
+#: events/views_venues.py:96
 #, python-format
 msgid "“%(name)s” now uses Google's data."
 msgstr "“%(name)s” ahora usa los datos de Google."
 
-#: events/views_venues.py:118
+#: events/views_venues.py:115
+#, python-format
+msgid "Open “%(title)s” →"
+msgstr "Abrir “%(title)s” →"
+
+#: events/views_venues.py:117
+msgid "See them in the events list, latest added first →"
+msgstr "Verlos en la lista de eventos, los últimos agregados primero →"
+
+#: events/views_venues.py:128
 msgid "Select at least one setlist."
 msgstr "Selecciona al menos un setlist."
 
-#: events/views_venues.py:139
+#: events/views_venues.py:152
 #, python-format
 msgid "%(n)s added to existing events"
 msgstr "%(n)s agregados a eventos existentes"
 
-#: events/views_venues.py:141
+#: events/views_venues.py:154
 #, python-format
 msgid "%(n)s already imported"
 msgstr "%(n)s ya importados"
 
-#: events/views_venues.py:143
+#: events/views_venues.py:156
 #, python-format
 msgid "%(n)s added to your diary"
 msgstr "%(n)s agregados a tu diario"
 
-#: events/views_venues.py:157
+#: events/views_venues.py:171
 msgid "Fill in at least one filter: artist, city, venue, year or country."
 msgstr "Completa al menos un filtro: artista, ciudad, recinto, año o país."
 
-#: events/views_venues.py:200
+#: events/views_venues.py:214
 msgid "That's a link to the search results, not to the photo. Drag the photo itself here, or right-click it → “Copy image address”."
 msgstr "Ese es un enlace a los resultados de búsqueda, no a la foto. Arrastra la foto misma aquí, o haz clic derecho → “Copiar dirección de la imagen”."
 
-#: events/views_venues.py:204
+#: events/views_venues.py:218
 msgid "That photo can't be used (it needs a secure https link)."
 msgstr "Esa foto no se puede usar (necesita un enlace https seguro)."
 
-#: events/views_venues.py:208
+#: events/views_venues.py:222
 msgid "Photo updated."
 msgstr "Foto actualizada."
 
-#: events/views_venues.py:222
+#: events/views_venues.py:236
 msgid "You've searched a lot in the last hour; try again later."
 msgstr "Has buscado mucho en la última hora; inténtalo más tarde."
 
-#: events/views_venues.py:253
+#: events/views_venues.py:267
 msgid "Pick the image that fits best: a poster, the artist, or the show itself."
 msgstr "Elige la imagen que mejor calce: un afiche, el artista o el show mismo."
 
-#: events/views_venues.py:271
+#: events/views_venues.py:285
 msgid "Pick the festival or tour poster. It's also used for its events that have no photo."
 msgstr "Elige el afiche del festival o de la gira. También se usa para sus eventos que no tienen foto."
 
-#: events/views_venues.py:285
+#: events/views_venues.py:299
 msgid "Pick a photo of the artist. It's also used for their events that have no photo."
 msgstr "Elige una foto del artista. También se usa para sus eventos que no tienen foto."
 
-#: events/views_venues.py:301
+#: events/views_venues.py:315
 msgid "That doesn't look like a YouTube link."
 msgstr "Eso no parece un enlace de YouTube."
 
-#: events/views_venues.py:308
+#: events/views_venues.py:322
 msgid "That video is already on this event."
 msgstr "Ese video ya está en este evento."
 
-#: events/views_venues.py:312
+#: events/views_venues.py:326
 msgid "Video added."
 msgstr "Video agregado."
 
-#: events/views_venues.py:325
+#: events/views_venues.py:339
 msgid "Video removed."
 msgstr "Video eliminado."
 
-#: events/views_venues.py:379
+#: events/views_venues.py:393
 msgid "Only https photos from public sites can be read."
 msgstr "Solo se pueden leer fotos https de sitios públicos."
 
-#: events/views_venues.py:404
+#: events/views_venues.py:418
 #, python-format
 msgid "The photo's site answered %(code)s."
 msgstr "El sitio de la foto respondió %(code)s."
 
-#: events/views_venues.py:407
+#: events/views_venues.py:421
 #, python-format
 msgid "Couldn't download the photo (%(error)s)."
 msgstr "No se pudo descargar la foto (%(error)s)."
 
-#: events/views_venues.py:410
+#: events/views_venues.py:424
 msgid "The photo is larger than 8 MB."
 msgstr "La foto pesa más de 8 MB."
 
-#: events/views_venues.py:414
+#: events/views_venues.py:428
 msgid "That link isn't an image."
 msgstr "Ese enlace no es una imagen."
 

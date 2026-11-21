@@ -4405,3 +4405,27 @@ class ArtistTabsTests(BaseTestCase):
         self.assertEqual(page.context["shows"], 20)
         self.assertEqual((page.context["songs"][0]["n"], page.context["songs"][0]["of"]), (20, 20))
         self.assertContains(page, reverse("events:artist_shows", args=[self.artist.pk]))  # the tabs
+
+
+class ImportMessageLinkTests(BaseTestCase):
+    """After a setlist.fm import the message links to the event, or to the events list (latest added first)."""
+
+    def _import(self, ids):
+        results = [_setlist(), _setlist(id="43b8e1c8", eventDate="21-03-2019")]
+        with mock.patch("events.setlistfm_events.get_setlist", side_effect=lambda i: next(r for r in results if r["id"] == i)):
+            response = self.client.post(reverse("events:setlistfm_shows") + "?artist=X", {"setlist_id": ids}, follow=True)
+        self.page = response.content.decode()
+        return [str(m) for m in response.context["messages"]]
+
+    def test_one_event_links_to_it(self):
+        self.client.force_login(self.user)
+        [message] = self._import(["3b8e1c4c"])
+        event = Setlist.objects.get(setlistfm_id="3b8e1c4c").event
+        self.assertIn(f'href="{event.get_absolute_url()}"', message)
+
+    def test_several_link_to_the_latest_added(self):
+        boss = get_user_model().objects.create_superuser("boss", "boss@example.com", "pw-test-999")
+        self.client.force_login(boss)
+        [message] = self._import(["3b8e1c4c", "43b8e1c8"])
+        self.assertIn(f'href="{reverse("events:event_list")}?sort=added"', message)
+        self.assertIn(f'<a class="alert-link" href="{reverse("events:event_list")}?sort=added">', self.page)  # not escaped

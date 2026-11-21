@@ -33,6 +33,7 @@
   </div>
 
   <div class="alert alert-warning small d-none" id="imp-error"></div>
+  <p class="small"><a href="{% url 'events:event_list' %}?sort=added">{% translate "See the imported events in the events list, latest added first →" %}</a></p>
 
   <div class="d-flex gap-2">
     <button class="btn btn-outline-warning d-none" type="button" id="imp-pause">{% translate "Pause" %}</button>
