@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block title %}{% blocktranslate with name=job.artist_name %}Importing {{ name }}{% endblocktranslate %} · En Vivo{% endblock %}
+
+{% block content %}
+  <a class="small text-body-secondary" href="{% url 'events:artist_import_new' %}">← {% translate "Imports" %}</a>
+  <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mt-1 mb-2">
+    <h1 class="h4 m-0">{% blocktranslate with name=job.artist_name %}All setlists of {{ name }}{% endblocktranslate %}</h1>
+    <span class="badge fs-6" id="imp-status"></span>
+  </div>
+  <p class="small text-body-secondary mb-3">
+    {% if job.only_with_songs %}{% translate "Only setlists with songs." %}{% else %}{% translate "Setlists with and without songs." %}{% endif %}
+    {% if job.look_up_venues %}{% translate "New venues are matched on Google." %}{% endif %}
+    {% translate "Keep this page open while it runs; closing it pauses the import, and nothing imported is lost." %}
+  </p>
+
+  <div class="progress mb-2" role="progressbar" aria-label="{% translate 'Import progress' %}" aria-valuemin="0" aria-valuemax="100" style="height: 22px">
+    <div class="progress-bar progress-bar-striped" id="imp-bar" style="width: 0%">0%</div>
+  </div>
+  <div class="d-flex flex-wrap justify-content-between gap-2 small text-body-secondary mb-3">
+    <span id="imp-count" aria-live="polite"></span>
+    <span id="imp-budget"></span>
+  </div>
+
+  <div class="row g-2 mb-3 small">
+    <div class="col-6 col-md"><div class="card"><div class="card-body py-2"><div class="text-body-secondary">{% translate "New events" %}</div><div class="h5 m-0" data-count="created">0</div></div></div></div>
+    <div class="col-6 col-md"><div class="card"><div class="card-body py-2"><div class="text-body-secondary">{% translate "Added to existing events" %}</div><div class="h5 m-0" data-count="joined">0</div></div></div></div>
+    <div class="col-6 col-md"><div class="card"><div class="card-body py-2"><div class="text-body-secondary">{% translate "Already imported" %}</div><div class="h5 m-0" data-count="already">0</div></div></div></div>
+    <div class="col-6 col-md"><div class="card"><div class="card-body py-2"><div class="text-body-secondary">{% translate "Without songs (skipped)" %}</div><div class="h5 m-0" data-count="empty">0</div></div></div></div>
+    <div class="col-6 col-md"><div class="card"><div class="card-body py-2"><div class="text-body-secondary">{% translate "Failed" %}</div><div class="h5 m-0" data-count="failed">0</div></div></div></div>
+  </div>
+
+  <div class="alert alert-warning small d-none" id="imp-error"></div>
+
+  <div class="d-flex gap-2">
+    <button class="btn btn-outline-warning d-none" type="button" id="imp-pause">{% translate "Pause" %}</button>
+    <button class="btn btn-success d-none" type="button" id="imp-resume">{% translate "Resume" %}</button>
+  </div>
+
+  {{ state|json_script:"imp-state" }}
+  {% translate "%(done)s of %(total)s setlists" as count_text %}{% translate "%(n)s setlist.fm requests left today" as budget_text %}
+  {% translate "Lost the connection; retrying…" as retry_text %}{% translate "Paused: the connection kept failing. Press Resume to continue." as gave_up_text %}
+  <script>
+    (function () {
+      var stepUrl = "{% url 'events:artist_import_step' job.pk %}",
+          csrf = (document.cookie.match(/csrftoken=([^;]+)/) || [])[1] || "",
+          bar = document.getElementById("imp-bar"), statusEl = document.getElementById("imp-status"),
+          errorEl = document.getElementById("imp-error"),
+          pauseBtn = document.getElementById("imp-pause"), resumeBtn = document.getElementById("imp-resume"),
+          stopped = false, failures = 0, state = JSON.parse(document.getElementById("imp-state").textContent);
+
+      function show(s) {
+        state = s;
+        bar.style.width = s.percent + "%";
+        bar.textContent = s.percent + "%";
+        bar.classList.toggle("progress-bar-animated", s.status === "running");
+        bar.classList.toggle("bg-success", s.status === "done");
+        bar.classList.toggle("bg-warning", s.status === "paused");
+        statusEl.textContent = s.status_label;
+        statusEl.className = "badge fs-6 " + (s.status === "done" ? "text-bg-success" : s.status === "running" ? "text-bg-info" : "text-bg-warning");
+        document.getElementById("imp-count").textContent =
+          "{{ count_text|escapejs }}".replace("%(done)s", s.processed).replace("%(total)s", s.total === null ? "?" : s.total);
+        document.getElementById("imp-budget").textContent = "{{ budget_text|escapejs }}".replace("%(n)s", s.remaining_requests);
+        document.querySelectorAll("[data-count]").forEach(function (el) { el.textContent = s[el.dataset.count]; });
+        errorEl.textContent = s.last_error || "";
+        errorEl.classList.toggle("d-none", !s.last_error);
+        pauseBtn.classList.toggle("d-none", s.status !== "running");
+        resumeBtn.classList.toggle("d-none", s.status !== "paused");
+      }
+
+      function post(action) {
+        var body = new FormData();
+        if (action) body.append("action", action);
+        return fetch(stepUrl, {method: "POST", headers: {"X-CSRFToken": csrf}, body: body})
+          .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); });
+      }
+
+      function loop() {
+        if (stopped || state.status !== "running") return;
+        post().then(function (s) {
+          failures = 0;
+          show(s);
+          setTimeout(loop, s.busy ? 3000 : 100);  // busy: another tab is running a step
+        }).catch(function () {
+          failures += 1;
+          if (failures > 5) {  // the server keeps failing: stop here, Resume picks it up
+            stopped = true;
+            errorEl.textContent = "{{ gave_up_text|escapejs }}";
+            errorEl.classList.remove("d-none");
+            pauseBtn.classList.add("d-none");
+            resumeBtn.classList.remove("d-none");
+            state.status = "paused";
+            return;
+          }
+          errorEl.textContent = "{{ retry_text|escapejs }}";
+          errorEl.classList.remove("d-none");
+          setTimeout(loop, 2000 * failures);
+        });
+      }
+
+      pauseBtn.addEventListener("click", function () {
+        pauseBtn.disabled = true;
+        post("pause").then(show).finally(function () { pauseBtn.disabled = false; });
+      });
+      resumeBtn.addEventListener("click", function () {
+        resumeBtn.disabled = true;
+        stopped = false; failures = 0;
+        post("resume").then(function (s) { show(s); loop(); }).catch(function () { resumeBtn.disabled = false; })
+          .finally(function () { resumeBtn.disabled = false; });
+      });
+
+      show(state);
+      loop();
+    })();
+  </script>
+{% endblock %}

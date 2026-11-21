@@ -108,6 +108,7 @@ MIDDLEWARE = [
     # Spanish for visitors; each signed-in user's own language from their profile.
     'events.languages.ProfileLanguageMiddleware',
     'events.setlistfm_quota.CurrentUserMiddleware',  # who each setlist.fm call is for
+    'events.site_stats.UserDayMiddleware',  # pages each signed-in person opens per day, for admins
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'allauth.account.middleware.AccountMiddleware',

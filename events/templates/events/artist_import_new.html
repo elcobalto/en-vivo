@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block title %}{% translate "Import an artist's setlists" %} · En Vivo{% endblock %}
+
+{% block content %}
+  <a class="small text-body-secondary" href="{% url 'events:admin_tools' %}">← {% translate "Admin" %}</a>
+  <h1 class="h4 mt-1">{% translate "Import an artist's setlists" %}</h1>
+  <p class="small text-body-secondary">
+    {% blocktranslate trimmed with n=remaining %}
+      Imports every setlist setlist.fm has for one artist: about one request per 20 setlists, at most 2 per second.
+      If the day's requests run low ({{ n }} left now) the import pauses; resume it later and it continues where it stopped.
+      Everything imported until then is kept.
+    {% endblocktranslate %}
+  </p>
+
+  <form method="get" class="d-flex gap-2 mb-3" style="max-width: 32rem">
+    <input class="form-control" type="search" name="artist" value="{{ query }}" placeholder="{% translate 'Artist, e.g. The Beatles' %}" aria-label="{% translate 'Artist' %}" required />
+    <button class="btn btn-outline-light" type="submit">{% translate "Search" %}</button>
+  </form>
+
+  {% if error %}<div class="alert alert-danger small">{{ error }}</div>{% endif %}
+
+  {% if query and not error %}
+    {% for a in candidates %}
+      <form method="post" class="card mb-2"><div class="card-body py-2 d-flex flex-wrap align-items-center gap-2">
+        {% csrf_token %}
+        <input type="hidden" name="mbid" value="{{ a.mbid }}" /><input type="hidden" name="name" value="{{ a.name }}" />
+        <div class="me-auto">
+          <strong>{{ a.name }}</strong>{% if a.disambiguation %} <span class="small text-body-secondary">({{ a.disambiguation }})</span>{% endif %}
+          <div class="d-flex flex-wrap gap-3 small mt-1">
+            <div class="form-check m-0"><input class="form-check-input" type="checkbox" name="only_with_songs" value="1" id="songs-{{ forloop.counter }}" checked />
+              <label class="form-check-label" for="songs-{{ forloop.counter }}">{% translate "Only setlists with songs" %}</label></div>
+            <div class="form-check m-0"><input class="form-check-input" type="checkbox" name="look_up_venues" value="1" id="venues-{{ forloop.counter }}" />
+              <label class="form-check-label" for="venues-{{ forloop.counter }}" title="{% translate 'One Google Places lookup per new venue (a paid API)' %}">{% translate "Match new venues on Google" %}</label></div>
+          </div>
+        </div>
+        <button class="btn btn-sm btn-success" type="submit">{% translate "Import all setlists" %}</button>
+      </div></form>
+    {% empty %}
+      <p class="text-body-secondary">{% translate "No artist with that name on setlist.fm." %}</p>
+    {% endfor %}
+  {% endif %}
+
+  {% if imports %}
+    <h2 class="h6 mt-4">{% translate "Imports" %}</h2>
+    {% include "events/_artist_imports.html" %}
+  {% endif %}
+{% endblock %}

@@ -106,9 +106,15 @@ def _request_json(path: str, query: dict[str, str] | None = None, *, endpoint: s
         raise SetlistFmError(gettext("Setlist.fm request failed: %(reason)s") % {"reason": e.reason}) from e
 
 
-def search_setlists(
+def search_setlists(**filters) -> list[dict]:
+    """One page of setlists matching the filters (see ``search_setlists_page``)."""
+    return search_setlists_page(**filters)[0]
+
+
+def search_setlists_page(
     *,
     artist_name: str = "",
+    artist_mbid: str = "",
     on_date: date | None = None,
     page: int = 1,
     city: str = "",
@@ -116,9 +122,11 @@ def search_setlists(
     venue: str = "",
     country_code: str = "",
     tour: str = "",
-) -> list[dict]:
+) -> tuple[list[dict], int, int]:
+    """(setlists on this page, total matches, page size). Cached for a while, like every answer."""
     query = {
         "artistName": artist_name,
+        "artistMbid": artist_mbid,
         "p": str(page),
         "cityName": city,
         "year": year,
@@ -131,16 +139,37 @@ def search_setlists(
     query = {k: v for k, v in query.items() if v}
     from . import setlistfm_quota
 
-    key = "setlistfm:search:" + hashlib.sha1(json.dumps(query, sort_keys=True).encode()).hexdigest()
-    results = cache.get(key)
-    if results is not None:
+    key = "setlistfm:searchpage:" + hashlib.sha1(json.dumps(query, sort_keys=True).encode()).hexdigest()
+    cached = cache.get(key)
+    if cached is not None:
         setlistfm_quota.count_cache_hit()
-        return results
-    results = _request_json("/rest/1.0/search/setlists", query, endpoint="search").get("setlist") or []
-    cache.set(key, results, SEARCH_CACHE_SECONDS)
+        return cached
+    payload = _request_json("/rest/1.0/search/setlists", query, endpoint="search")
+    results = payload.get("setlist") or []
+    answer = (results, int(payload.get("total") or 0), int(payload.get("itemsPerPage") or 20))
+    cache.set(key, answer, SEARCH_CACHE_SECONDS)
     # Search results are whole setlists: importing one of them needs no further request.
     cache.set_many({_setlist_cache_key(r["id"]): r for r in results if r.get("id")}, SETLIST_CACHE_SECONDS)
-    return results
+    return answer
+
+
+def search_artists(name: str) -> list[dict]:
+    """Artists on setlist.fm named like ``name``, best matches first: [{"mbid", "name", "disambiguation"}]."""
+    name = " ".join(name.split())
+    if not name:
+        return []
+    from . import setlistfm_quota
+
+    key = "setlistfm:artists:" + hashlib.sha1(name.casefold().encode()).hexdigest()
+    cached = cache.get(key)
+    if cached is not None:
+        setlistfm_quota.count_cache_hit()
+        return cached
+    payload = _request_json("/rest/1.0/search/artists", {"artistName": name, "sort": "relevance"}, endpoint="artists")
+    artists = [{"mbid": a.get("mbid") or "", "name": a.get("name") or "", "disambiguation": a.get("disambiguation") or ""}
+               for a in _as_list(payload.get("artist")) if isinstance(a, dict) and a.get("mbid")]
+    cache.set(key, artists, SEARCH_CACHE_SECONDS)
+    return artists
 
 
 def get_setlist(setlist_id: str) -> dict[str, Any]:

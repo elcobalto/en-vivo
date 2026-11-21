@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% load i18n event_extras %}
+
+{% block title %}{% blocktranslate with name=owner.get_username %}{{ name }}'s stats{% endblocktranslate %} · En Vivo{% endblock %}
+
+{% block content %}
+  {% include "events/_profile_nav.html" %}
+
+  <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+    <h2 class="section-title m-0">{% translate "Stats" %}</h2>
+    <span class="badge text-bg-warning" title="{% translate 'Stats will be part of a paid plan; during the beta they are free for everyone.' %}">{% translate "Free during the beta" %}</span>
+  </div>
+
+  {% if top_artists or top_venues or top_cities %}
+    <div class="row g-4 mb-5">
+      {% if home_country %}
+        {% include "events/_artist_rank.html" with title=_("Most seen local artists") subtitle=home_country.name artists=local_artists kind="local-artists" %}
+        {% include "events/_artist_rank.html" with title=_("Most seen foreign artists") artists=foreign_artists kind="foreign-artists" %}
+      {% else %}
+        {% include "events/_artist_rank.html" with title=_("Most seen artists") artists=top_artists kind="artists" %}
+        {% if owner == user %}<div class="col-12 small text-body-secondary mt-n3">{% url 'events:profile_edit' as profile_edit_url %}{% blocktranslate %}<a href="{{ profile_edit_url }}">Set your home country</a> to split local and foreign artists.{% endblocktranslate %}</div>{% endif %}
+      {% endif %}
+      <div class="col-12 col-md-6">
+        <h2 class="section-title mb-2">{% translate "Most visited venues" %}</h2>
+        <ol class="list-unstyled mb-0">
+          {% for v in top_venues %}
+            <li class="d-flex justify-content-between py-1 border-bottom border-secondary-subtle">
+              <a href="{{ v.get_absolute_url }}?seen_by={{ owner.get_username|urlencode }}">{{ v.name }}</a><span class="text-body-secondary small">{% blocktranslate count counter=v.n %}{{ counter }} visit{% plural %}{{ counter }} visits{% endblocktranslate %}</span>
+            </li>
+          {% empty %}<li class="small text-body-secondary">{% translate "No venues yet." %}</li>{% endfor %}
+        </ol>
+        {% if top_venues %}<a class="small d-inline-block mt-2" href="{% url 'events:user_ranking' owner.get_username 'venues' %}">{% translate "See all →" %}</a>{% endif %}
+      </div>
+      <div class="col-12 col-md-6">
+        <h2 class="section-title mb-2">{% translate "Most visited cities" %}</h2>
+        <ol class="list-unstyled mb-0">
+          {% for c in top_cities %}
+            <li class="d-flex justify-content-between py-1 border-bottom border-secondary-subtle">
+              <a href="{% url 'events:event_list' %}?city={{ c.event__venue__city|urlencode }}">{{ c.event__venue__city }}</a><span class="text-body-secondary small">{% blocktranslate count counter=c.n %}{{ counter }} show{% plural %}{{ counter }} shows{% endblocktranslate %}</span>
+            </li>
+          {% empty %}<li class="small text-body-secondary">{% translate "No cities yet." %}</li>{% endfor %}
+        </ol>
+        {% if top_cities %}<a class="small d-inline-block mt-2" href="{% url 'events:user_ranking' owner.get_username 'cities' %}">{% translate "See all →" %}</a>{% endif %}
+      </div>
+    </div>
+  {% endif %}
+
+  {% url 'events:user_diary' owner.get_username as diary_url %}
+  <div style="max-width:28rem">
+    {% year_histogram owner_logs _("Events by year") diary_url %}
+  </div>
+  {% if not top_artists and not top_venues and not top_cities and not owner_logs %}
+    <p class="text-body-secondary">{% translate "Nothing logged yet." %}</p>
+  {% endif %}
+{% endblock %}

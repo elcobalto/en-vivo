@@ -817,6 +817,7 @@ class SetlistFmCall(models.Model):
     class Endpoint(models.TextChoices):
         SEARCH = "search", _("Search")
         SETLIST = "setlist", _("Setlist")
+        ARTISTS = "artists", _("Artist search")
 
     created_at = models.DateTimeField(db_index=True)
     endpoint = models.CharField(max_length=10, choices=Endpoint.choices)
@@ -836,3 +837,61 @@ class SetlistFmThrottle(models.Model):
     """A single row, locked around each setlist.fm call so all web workers share one request pace."""
 
     last_call_at = models.DateTimeField(null=True, blank=True)
+
+
+class UserDay(models.Model):
+    """How many pages a signed-in person opened on a day (for the admins' usage stats)."""
+
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="+")
+    day = models.DateField(db_index=True)
+    views = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["user", "day"], name="uq_userday_user_day")]
+
+    def __str__(self) -> str:
+        return f"{self.user} on {self.day}: {self.views}"
+
+
+class ArtistImport(TimestampedModel):
+    """An admin's import of every setlist.fm setlist of one artist, done in short steps (see ``artist_import``).
+
+    The cursor (``page`` and ``index`` within it) is saved after each setlist, so a failure or a pause loses
+    nothing: resuming continues from the next setlist.
+    """
+
+    class Status(models.TextChoices):
+        RUNNING = "running", _("Running")
+        PAUSED = "paused", _("Paused")
+        DONE = "done", _("Done")
+
+    artist_name = models.CharField(max_length=200)
+    artist_mbid = models.CharField(max_length=40)
+    started_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name="+")
+    only_with_songs = models.BooleanField(default=True)  # skip setlists without songs
+    look_up_venues = models.BooleanField(default=False)  # match new venues on Google Places (paid API)
+    status = models.CharField(max_length=10, choices=Status.choices, default=Status.RUNNING)
+    total = models.PositiveIntegerField(null=True, blank=True)  # setlists setlist.fm has for the artist
+    page = models.PositiveIntegerField(default=1)  # the next page to read
+    index = models.PositiveIntegerField(default=0)  # the next setlist on that page
+    processed = models.PositiveIntegerField(default=0)
+    created = models.PositiveIntegerField(default=0)  # new events
+    joined = models.PositiveIntegerField(default=0)  # added to an event we had
+    already = models.PositiveIntegerField(default=0)  # setlist imported before
+    empty = models.PositiveIntegerField(default=0)  # skipped: no songs
+    failed = models.PositiveIntegerField(default=0)
+    last_error = models.TextField(blank=True, default="")
+    locked_until = models.DateTimeField(null=True, blank=True)  # a step is running
+    finished_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self) -> str:
+        return f"{self.artist_name}: {self.processed}/{self.total or '?'} ({self.status})"
+
+    @property
+    def percent(self) -> int:
+        if self.status == self.Status.DONE:
+            return 100
+        return min(99, round(100 * self.processed / self.total)) if self.total else 0

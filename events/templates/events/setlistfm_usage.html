@@ -4,6 +4,7 @@
 {% block title %}{% translate "setlist.fm API usage" %} · En Vivo{% endblock %}
 
 {% block content %}
+  <a class="small text-body-secondary" href="{% url 'events:admin_tools' %}">← {% translate "Admin" %}</a>
   <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
     <h1 class="h4 m-0">{% translate "setlist.fm API usage" %}</h1>
     <a class="btn btn-sm btn-outline-secondary" href="{{ request.get_full_path }}">{% translate "Refresh" %}</a>

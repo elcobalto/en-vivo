@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block title %}{% translate "Admin" %} · En Vivo{% endblock %}
+
+{% block content %}
+  <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+    <h1 class="h4 m-0">{% translate "Admin" %}</h1>
+    {% if user.is_staff %}<a class="btn btn-sm btn-outline-secondary" href="{% url 'admin:index' %}">{% translate "Database admin" %}</a>{% endif %}
+  </div>
+
+  {# ------------------------------------------------------------ people #}
+  <h2 class="h5">{% translate "People" %}</h2>
+  <div class="row g-2 mb-3">
+    <div class="col-6 col-md-3"><div class="card h-100"><div class="card-body py-2">
+      <div class="small text-body-secondary">{% translate "Users" %}</div><div class="h4 m-0">{{ s.users }}</div>
+      <div class="small text-body-secondary">{% blocktranslate with w=s.new_7 m=s.new_30 %}+{{ w }} this week · +{{ m }} in 30 days{% endblocktranslate %}</div>
+    </div></div></div>
+    <div class="col-6 col-md-3"><div class="card h-100"><div class="card-body py-2">
+      <div class="small text-body-secondary">{% translate "Active today" %}</div><div class="h4 m-0">{{ s.active_today }}</div>
+      <div class="small text-body-secondary">{% blocktranslate with n=s.views_today %}{{ n }} pages opened{% endblocktranslate %}</div>
+    </div></div></div>
+    <div class="col-6 col-md-3"><div class="card h-100"><div class="card-body py-2">
+      <div class="small text-body-secondary">{% translate "Active in 7 days" %}</div><div class="h4 m-0">{{ s.active_7 }}</div>
+      <div class="small text-body-secondary">{% blocktranslate with n=s.views_7 %}{{ n }} pages opened{% endblocktranslate %}</div>
+    </div></div></div>
+    <div class="col-6 col-md-3"><div class="card h-100"><div class="card-body py-2">
+      <div class="small text-body-secondary">{% translate "Active in 30 days" %}</div><div class="h4 m-0">{{ s.active_30 }}</div>
+    </div></div></div>
+  </div>
+
+  <h3 class="h6">{% translate "People active per day, last 30 days" %}</h3>
+  <div class="d-flex align-items-end gap-1 mb-1" style="height: 90px">
+    {% for day, people, views in s.days %}
+      <div class="flex-fill bg-success rounded-top" style="height: {% widthratio people s.active_max 100 %}%; min-height: {% if people %}2px{% else %}0{% endif %}; opacity: .8"
+           title="{{ day|date:'j M' }} · {% blocktranslate count n=people %}{{ n }} person{% plural %}{{ n }} people{% endblocktranslate %} · {% blocktranslate with v=views %}{{ v }} pages{% endblocktranslate %}"></div>
+    {% endfor %}
+  </div>
+  <div class="d-flex justify-content-between small text-body-secondary mb-3"><span>{{ s.days.0.0|date:"j M" }}</span><span>{% translate "today" %}</span></div>
+
+  <div class="row g-3 mb-4">
+    <div class="col-md-6">
+      <h3 class="h6">{% translate "What people add" %}</h3>
+      <table class="table table-sm small mb-0">
+        <thead><tr><th></th><th class="text-end">{% translate "7 days" %}</th><th class="text-end">{% translate "30 days" %}</th><th class="text-end">{% translate "Total" %}</th></tr></thead>
+        {% for label, week, month, total in s.created %}
+          <tr><td>{{ label }}</td><td class="text-end">{{ week }}</td><td class="text-end">{{ month }}</td><td class="text-end">{{ total }}</td></tr>
+        {% endfor %}
+      </table>
+    </div>
+    <div class="col-md-6">
+      <h3 class="h6">{% translate "Most active, last 30 days" %}</h3>
+      <table class="table table-sm small mb-0">
+        <thead><tr><th>{% translate "Person" %}</th><th class="text-end">{% translate "Pages" %}</th><th class="text-end">{% translate "Days active" %}</th></tr></thead>
+        {% for person, views, days in s.top %}
+          <tr><td><a href="{% url 'events:profile' person.get_username %}">@{{ person.get_username }}</a></td><td class="text-end">{{ views }}</td><td class="text-end">{{ days }}</td></tr>
+        {% empty %}<tr><td colspan="3" class="text-body-secondary">{% translate "No visits counted yet." %}</td></tr>{% endfor %}
+      </table>
+    </div>
+  </div>
+
+  {# ------------------------------------------------------------ feedback and setlist.fm #}
+  <div class="row g-3">
+    <div class="col-md-6">
+      <div class="card h-100"><div class="card-body">
+        <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
+          <h2 class="h5 m-0">{% translate "Feedback" %}</h2>
+          <a class="btn btn-sm btn-outline-info" href="{% url 'events:feedback_inbox' %}">{% translate "Open inbox" %}</a>
+        </div>
+        <p class="small text-body-secondary">{% blocktranslate with o=open_count r=resolved_count %}{{ o }} open · {{ r }} resolved{% endblocktranslate %}</p>
+        {% for item in latest %}
+          <div class="small mb-2">
+            <span class="badge {% if item.kind == 'bug' %}text-bg-danger{% else %}text-bg-info{% endif %}">{{ item.get_kind_display }}</span>
+            {{ item.message|truncatechars:120 }}
+            <span class="text-body-secondary">· {% if item.user %}@{{ item.user.get_username }}{% else %}{% translate "someone" %}{% endif %}, {% blocktranslate with time=item.created_at|timesince %}{{ time }} ago{% endblocktranslate %}</span>
+          </div>
+        {% empty %}<p class="small text-body-secondary mb-0">{% translate "Nothing open. 🎉" %}</p>{% endfor %}
+      </div></div>
+    </div>
+    <div class="col-md-6">
+      <div class="card h-100"><div class="card-body">
+        <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
+          <h2 class="h5 m-0">{% translate "setlist.fm API" %}</h2>
+          <a class="btn btn-sm btn-outline-secondary" href="{% url 'events:setlistfm_usage' %}">{% translate "Details" %}</a>
+        </div>
+        <div class="mb-2"><span class="h4 m-0">{{ u.used }}</span> <span class="text-body-secondary">/ {{ u.budget }} {% translate "in the last 24 hours" %}</span></div>
+        <div class="progress mb-2" role="progressbar" aria-valuenow="{{ u.percent }}" aria-valuemin="0" aria-valuemax="100" style="height: 10px">
+          <div class="progress-bar {% if u.remaining == 0 %}bg-danger{% elif u.bulk_paused %}bg-warning{% else %}bg-success{% endif %}" style="width: {{ u.percent }}%"></div>
+        </div>
+        <p class="small text-body-secondary mb-0">
+          {% blocktranslate with n=u.remaining c=u.cache_hits_today %}{{ n }} left · {{ c }} saved by cache today{% endblocktranslate %}{% if u.rate_limited %} · <span class="text-danger">{% blocktranslate with n=u.rate_limited %}{{ n }} rate limited{% endblocktranslate %}</span>{% endif %}
+        </p>
+      </div></div>
+    </div>
+  </div>
+
+  {# ------------------------------------------------------------ artist imports #}
+  <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mt-4 mb-2">
+    <h2 class="h5 m-0">{% translate "Artist imports" %}</h2>
+    <a class="btn btn-sm btn-success" href="{% url 'events:artist_import_new' %}">{% translate "Import an artist's setlists" %}</a>
+  </div>
+  {% if imports %}{% include "events/_artist_imports.html" %}{% else %}
+    <p class="small text-body-secondary">{% translate "Import every setlist of an artist (e.g. The Beatles), paced to stay inside setlist.fm's limits." %}</p>
+  {% endif %}
+{% endblock %}

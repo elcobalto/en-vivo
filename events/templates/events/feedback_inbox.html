@@ -4,6 +4,7 @@
 {% block title %}{% translate "Feedback inbox" %} · En Vivo{% endblock %}
 
 {% block content %}
+  <a class="small text-body-secondary" href="{% url 'events:admin_tools' %}">← {% translate "Admin" %}</a>
   <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
     <h1 class="h4 m-0">{% translate "Feedback inbox" %}</h1>
     <div class="d-flex flex-wrap gap-2">

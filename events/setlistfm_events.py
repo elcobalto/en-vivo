@@ -58,8 +58,8 @@ def _google_venue(name: str, city: str, country: str) -> Venue | None:
     return None
 
 
-def match_venue(venue_payload: dict[str, Any]) -> Venue | None:
-    """Our Venue for a setlist.fm venue: by setlist.fm id, by name+city, via Google, or created."""
+def match_venue(venue_payload: dict[str, Any], look_up: bool = True) -> Venue | None:
+    """Our Venue for a setlist.fm venue: by setlist.fm id, by name+city, via Google (if ``look_up``), or created."""
     setlistfm_id = (venue_payload.get("id") or "").strip() or None
     name = (venue_payload.get("name") or "").strip()
     if not name:
@@ -85,7 +85,7 @@ def match_venue(venue_payload: dict[str, Any]) -> Venue | None:
         if venue.name.casefold() == name.casefold() and venue.city.casefold() == city.casefold():
             return remember(venue)
 
-    venue = _google_venue(name, city, country_name)
+    venue = _google_venue(name, city, country_name) if look_up else None
     if venue:
         return remember(venue)
 
@@ -110,8 +110,10 @@ def match_tour(tour_payload: dict[str, Any] | None, artist) -> Production | None
 
 
 @transaction.atomic
-def create_event_from_setlist(payload: dict[str, Any], user=None) -> ImportResult:
-    """Create (or join) the music event for a setlist.fm setlist and attach its songs."""
+def create_event_from_setlist(payload: dict[str, Any], user=None, look_up_venue: bool = True) -> ImportResult:
+    """Create (or join) the music event for a setlist.fm setlist and attach its songs.
+
+    ``look_up_venue=False`` skips Google Places for venues we don't have (bulk imports: it's a paid API)."""
     setlistfm_id = (payload.get("id") or "").strip()
     if not setlistfm_id:
         raise SetlistFmError("Setlist.fm response has no id.")
@@ -121,7 +123,7 @@ def create_event_from_setlist(payload: dict[str, Any], user=None) -> ImportResul
         return ImportResult(existing.event, created=False, setlist_already_imported=True)
 
     event_date = parse_event_date(payload.get("eventDate"))
-    venue = match_venue(payload.get("venue") or {})
+    venue = match_venue(payload.get("venue") or {}, look_up=look_up_venue)
 
     # Same date at the same venue is the same show (e.g. support acts, festivals, an event added by hand).
     event = None

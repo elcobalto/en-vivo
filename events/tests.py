@@ -1047,17 +1047,17 @@ class SetlistShowPageTests(BaseTestCase):
 
     def test_any_logged_in_user_can_import(self):
         self.assertEqual(self.client.get(reverse("events:setlistfm_shows")).status_code, 302)  # anonymous
-        self.assertNotContains(self.client.get(reverse("events:home")), "+ From setlist.fm")
+        self.assertNotContains(self.client.get(reverse("events:home")), ">From setlist.fm<")
         self.client.force_login(self.user)  # regular user, not an admin
         self.assertEqual(self.client.get(reverse("events:setlistfm_shows")).status_code, 200)
-        self.assertContains(self.client.get(reverse("events:home")), "+ From setlist.fm")
+        self.assertContains(self.client.get(reverse("events:home")), ">From setlist.fm<")
         self.assertContains(self.client.get(reverse("events:event_list")), "Import from setlist.fm")
 
     @mock.patch("events.views_venues.search_setlists", return_value=[_setlist()])
     def test_search_then_import_selected(self, search):
         self.client.force_login(self.admin)
         self.assertContains(self.client.get(reverse("events:event_list")), "Import from setlist.fm")
-        self.assertContains(self.client.get(reverse("events:home")), "+ From setlist.fm")  # navbar, every page
+        self.assertContains(self.client.get(reverse("events:home")), ">From setlist.fm<")  # navbar, every page
         page = self.client.get(reverse("events:setlistfm_shows"), {"artist": "Paul McCartney", "country": "cl"})
         self.assertContains(page, "Freshen Up")
         self.assertContains(page, "3 songs")
@@ -1430,7 +1430,7 @@ class ProfileStatsAndArtistPhotoTests(BaseTestCase):
         stranger = get_user_model().objects.create_user("bob", password="pw-test-456")
         Log.objects.create(user=stranger, event=self.event)  # not counted for ana
 
-        page = self.client.get(reverse("events:profile", args=["ana"]))
+        page = self.client.get(reverse("events:user_stats", args=["ana"]))
         self.assertEqual([(p.name, p.n) for p in page.context["top_artists"]], [("Green Day", 3)])
         self.assertEqual([(v.name, v.n) for v in page.context["top_venues"]],
                          [("Teatro Caupolicán", 2), ("Movistar Arena", 1)])
@@ -1733,7 +1733,7 @@ class ActLogTests(BaseTestCase):
 
     def test_artist_stats_count_only_acts_seen(self):
         self._log(acts_submitted="1", **{f"act_seen_{self.star.pk}": "1", f"act_rating_{self.star.pk}": "6"})
-        profile = self.client.get(reverse("events:profile", args=["ana"]))
+        profile = self.client.get(reverse("events:user_stats", args=["ana"]))
         self.assertEqual([p.name for p in profile.context["top_artists"]], ["Star"])
         opener_page = self.client.get(self.opener.get_absolute_url())
         self.assertEqual(opener_page.context["log_count"], 0)
@@ -1836,7 +1836,7 @@ class ArtistVenueEventsTests(BaseTestCase):
         log = Log.objects.create(user=self.user, event=self.event)
         log.acts.filter(artist=self.artist).delete()  # was there but missed this act
 
-        profile = self.client.get(reverse("events:profile", args=["ana"]))
+        profile = self.client.get(reverse("events:user_stats", args=["ana"]))
         self.assertContains(profile, f"{self.artist.get_absolute_url()}?seen_by=ana")
 
         page = self.client.get(self.artist.get_absolute_url(), {"seen_by": "ana"})
@@ -2086,12 +2086,12 @@ class LocalForeignAndSearchTests(BaseTestCase):
         for p in [local, foreign, unknown]:
             EventArtist.objects.create(event=self.event, artist=p)
         Log.objects.create(user=self.user, event=self.event)
-        page = self.client.get(reverse("events:profile", args=["ana"]))
+        page = self.client.get(reverse("events:user_stats", args=["ana"]))
         self.assertIsNone(page.context["home_country"])
         self.assertContains(page, "Most seen artists")
         self.user.profile.home_country = "CL"
         self.user.profile.save()
-        page = self.client.get(reverse("events:profile", args=["ana"]))
+        page = self.client.get(reverse("events:user_stats", args=["ana"]))
         self.assertEqual([p.name for p in page.context["local_artists"]], ["Los Bunkers"])
         self.assertEqual([p.name for p in page.context["foreign_artists"]], ["Green Day"])
         self.assertNotIn("unknown_artists", page.context)
@@ -2196,7 +2196,7 @@ class MostSeenTieBreakTests(BaseTestCase):
             e = Event.objects.create(title=artist.name, venue=venue, date=when)
             EventArtist.objects.create(event=e, artist=artist)
             Log.objects.create(user=self.user, event=e)
-        page = self.client.get(reverse("events:profile", args=["ana"]))
+        page = self.client.get(reverse("events:user_stats", args=["ana"]))
         self.assertEqual([p.name for p in page.context["top_artists"]], ["Zzz Recent", "Aaa Old"])
         self.assertEqual([v.name for v in page.context["top_venues"]][:2], ["Zzz Arena", "Aaa Hall"])
 
@@ -2299,8 +2299,11 @@ class ProfileLayoutTests(BaseTestCase):
             Log.objects.create(user=self.user, event=Event.objects.create(title="x", venue=venue, date=when), rating=8)
         page = self.client.get(reverse("events:profile", args=["ana"]))
         html = page.content.decode()
-        self.assertLess(html.index("Favourite events"), html.index("Most visited venues"))
+        self.assertLess(html.index("Favourite events"), html.index("Recently attended"))
         self.assertLess(html.index("Recently attended"), html.index('class="rating-bars'))
+        self.assertNotContains(page, "Most visited venues")  # moved to the stats page
+        self.assertContains(page, reverse("events:user_stats", args=["ana"]))  # the Stats button
+        page = self.client.get(reverse("events:user_stats", args=["ana"]))
         self.assertEqual([(c["event__venue__city"], c["n"]) for c in page.context["top_cities"]],
                          [("Santiago", 2), ("Valparaíso", 1)])
         self.assertContains(page, "Most visited cities")
@@ -2312,7 +2315,7 @@ class ProfileRankingTests(BaseTestCase):
             event = Event.objects.create(title=f"Show {i}", venue=Venue.objects.create(name=f"Venue {i}", city=f"City {i}"),
                                          date=date(2020, 1, i + 1))
             Log.objects.create(user=self.user, event=event, rating=8)
-        page = self.client.get(reverse("events:profile", args=["ana"]))
+        page = self.client.get(reverse("events:user_stats", args=["ana"]))
         for kind in ["venues", "cities"]:
             url = reverse("events:user_ranking", args=["ana", kind])
             self.assertContains(page, url)
@@ -2326,7 +2329,7 @@ class YearHistogramTests(BaseTestCase):
         for when in [date(2019, 3, 1), date(2019, 5, 1), date(2021, 1, 1)]:
             Log.objects.create(user=self.user, event=Event.objects.create(title="x", date=when), rating=8)
         Log.objects.create(user=self.user, event=Event.objects.create(title="undated"))
-        page = self.client.get(reverse("events:profile", args=["ana"]))
+        page = self.client.get(reverse("events:user_stats", args=["ana"]))
         self.assertContains(page, "Events by year")
         self.assertContains(page, 'title="2019: 2 events · show in diary"')
         self.assertContains(page, 'title="2020: 0 events"')
@@ -2357,9 +2360,10 @@ class ProfileChartLinkTests(BaseTestCase):
         diary = reverse("events:user_diary", args=["ana"])
         html = page.content.decode()
         self.assertIn(f'href="{diary}?rating=7"', html)
-        self.assertIn(f'href="{diary}?year=2019"', html)
         self.assertNotIn(f'href="{diary}?rating=8"', html)  # empty bars aren't links
-        self.assertNotIn(f'href="{diary}?year=2020"', html)
+        stats = self.client.get(reverse("events:user_stats", args=["ana"])).content.decode()  # events by year
+        self.assertIn(f'href="{diary}?year=2019"', stats)
+        self.assertNotIn(f'href="{diary}?year=2020"', stats)
         # Reviews on the left, the charts in a column beside them.
         self.assertLess(html.index("Recent reviews"), html.index('class="rating-bars'))
         titles = lambda qs: [log.event.title for log in self.client.get(diary + qs).context["logs"]]
@@ -3624,11 +3628,17 @@ class BetaFeedbackTests(BaseTestCase):
         self.client.force_login(self.user)
         self.assertEqual(self.client.get(reverse("events:feedback_inbox")).status_code, 403)
         self.assertEqual(self.client.post(reverse("events:feedback_resolve", args=[bug.pk])).status_code, 403)
-        self.assertNotContains(self.client.get(reverse("events:home")), reverse("events:feedback_inbox"))
+        self.assertNotContains(self.client.get(reverse("events:home")), reverse("events:admin_tools"))
+        self.assertEqual(self.client.get(reverse("events:admin_tools")).status_code, 403)
         admin = get_user_model().objects.create_user("mod", password="pw-test-000")
         call_command("make_admin", "mod", stdout=open("/dev/null", "w"))
         self.client.force_login(admin)
-        self.assertContains(self.client.get(reverse("events:home")), reverse("events:feedback_inbox"))
+        self.assertContains(self.client.get(reverse("events:home")), reverse("events:admin_tools"))
+        tools = self.client.get(reverse("events:admin_tools"))
+        self.assertContains(tools, reverse("events:feedback_inbox"))
+        self.assertContains(tools, reverse("events:setlistfm_usage"))
+        self.assertContains(tools, "Broken button")
+        self.assertEqual(tools.context["open_count"], 1)
         inbox = self.client.get(reverse("events:feedback_inbox"))
         self.assertContains(inbox, "Broken button")
         self.assertNotContains(inbox, "Dark mode please")  # resolved: not in "Open"
@@ -3889,3 +3899,159 @@ def setlistfm_events_import(ids, user):
     from events import setlistfm_events as module
 
     return module.import_many(ids, user)
+
+
+class AdminToolsTests(BaseTestCase):
+    def test_pages_opened_are_counted_per_person_and_day(self):
+        from .models import UserDay
+
+        self.client.get(reverse("events:home"))  # anonymous: not counted
+        self.assertFalse(UserDay.objects.exists())
+        self.client.force_login(self.user)
+        self.client.get(reverse("events:home"))
+        self.client.get(reverse("events:event_list"))
+        self.client.get(reverse("events:event_detail", args=[999999]))  # 404: not counted
+        self.assertEqual(UserDay.objects.get(user=self.user).views, 2)
+
+    def test_admin_page_shows_people_and_what_they_add(self):
+        boss = get_user_model().objects.create_superuser("boss", "boss@example.com", "pw-test-999")
+        Log.objects.create(user=self.user, event=self.event, review="Loud.")
+        self.client.force_login(self.user)
+        self.client.get(reverse("events:home"))
+        self.client.force_login(boss)
+        page = self.client.get(reverse("events:admin_tools"))
+        s = page.context["s"]
+        self.assertEqual((s.users, s.active_today), (2, 1))  # this visit is counted after the page is built
+        self.assertEqual(s.top[0][0], self.user)
+        created = {str(label): (week, total) for label, week, month, total in s.created}
+        self.assertEqual(created["Reviews"], (1, 1))
+        self.assertContains(page, "@ana")
+
+
+class SpanishArtistPageTests(DjangoTestCase):
+    """Spanish visitors (the default) on an artist with many songs not looked up on MusicBrainz yet."""
+
+    def test_artist_page_with_over_50_pending_songs(self):
+        from .models import SetlistSong, Song
+
+        artist = Artist.objects.create(name="Los Prisioneros")
+        event = Event.objects.create(title="", event_type=EventType.MUSIC, date=date(1987, 5, 1))
+        EventArtist.objects.create(event=event, artist=artist)
+        setlist = Setlist.objects.create(event=event, artist=artist)
+        for i in range(120):
+            SetlistSong.objects.create(setlist=setlist, song=Song.objects.create(artist=artist, title=f"Canción {i}"),
+                                       position=i + 1)
+        page = self.client.get(reverse("events:artist_detail", args=[artist.pk]))
+        self.assertEqual(page.status_code, 200)
+        self.assertContains(page, "minutos")
+
+
+@override_settings(SETLISTFM_API_KEY="test-key", SETLISTFM_MIN_INTERVAL=0, SETLISTFM_DAILY_BUDGET=1000,
+                   SETLISTFM_BULK_RESERVE=5)
+class ArtistImportTests(BaseTestCase):
+    """The admins' "import every setlist of an artist", in steps, against a fake setlist.fm with 45 setlists."""
+
+    def setUp(self):
+        super().setUp()
+        from urllib.parse import parse_qs, urlparse
+
+        from django.core.cache import cache
+
+        cache.clear()
+        self.fail_page = None
+        self.pages_read = []
+        venues = [{"id": f"v{i}", "name": f"Venue {i}", "city": {"name": "Liverpool", "country": {"code": "GB"}}}
+                  for i in range(45)]
+        self.setlists = [_setlist(id=f"b{i:03d}", eventDate=f"{(i % 28) + 1:02d}-0{(i % 9) + 1}-1963", venue=venues[i])
+                         for i in range(45)]
+        for s in self.setlists[::5]:  # every fifth one has no songs
+            s["sets"] = {"set": []}
+
+        def fake_open(req, timeout=None):
+            query = parse_qs(urlparse(req.full_url).query)
+            if "/search/artists" in req.full_url:
+                return _FakeResponse({"artist": [{"mbid": "b10bbbfc", "name": "The Beatles", "disambiguation": ""}]})
+            page = int(query["p"][0])
+            if page == self.fail_page:
+                from urllib.error import URLError
+                raise URLError("connection reset")
+            self.pages_read.append(page)
+            return _FakeResponse({"setlist": self.setlists[(page - 1) * 20:page * 20], "total": 45, "itemsPerPage": 20})
+
+        patcher = mock.patch("events.setlistfm.build_opener", return_value=mock.Mock(open=fake_open))
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        self.boss = get_user_model().objects.create_superuser("boss", "boss@example.com", "pw-test-999")
+
+    def _job(self, **fields):
+        from .models import ArtistImport
+
+        return ArtistImport.objects.create(artist_name="The Beatles", artist_mbid="b10bbbfc", started_by=self.boss,
+                                           **fields)
+
+    def test_imports_everything_in_steps_one_request_per_page(self):
+        from . import artist_import
+
+        job = self._job()
+        steps = 0
+        while job.status == "running" and steps < 20:
+            artist_import.run_step(job, seconds=0.05)
+            steps += 1
+        self.assertEqual(job.status, "done")
+        self.assertGreater(steps, 1)  # it took several short steps
+        self.assertEqual((job.processed, job.total, job.empty), (45, 45, 9))
+        self.assertEqual(job.created + job.joined, 36)
+        self.assertEqual(Setlist.objects.count(), 36)
+        self.assertEqual(SetlistFmCall.objects.filter(bulk=True).count(), 3)  # pages re-read come from the cache
+        self.assertEqual(job.percent, 100)
+
+    def test_a_failure_midway_keeps_what_was_imported_and_resume_continues(self):
+        from . import artist_import
+
+        job = self._job(only_with_songs=False)
+        self.fail_page = 2
+        for _ in range(10):
+            artist_import.run_step(job)
+        self.assertEqual(job.status, "paused")
+        self.assertIn("connection reset", job.last_error)
+        self.assertEqual((job.page, job.index, Setlist.objects.count()), (2, 0, 20))  # page 1 kept
+        self.fail_page = None
+        job.status = "running"
+        job.save()
+        artist_import.run_step(job)
+        self.assertEqual(job.status, "done")
+        self.assertEqual((Setlist.objects.count(), job.processed, job.already), (45, 45, 0))  # no duplicates
+
+    def test_daily_budget_pauses_the_import(self):
+        from . import artist_import
+        from django.utils import timezone
+
+        SetlistFmCall.objects.bulk_create([SetlistFmCall(created_at=timezone.now(), endpoint="search", status=200)
+                                           for _ in range(996)])  # 4 left, reserve 5
+        job = self._job()
+        artist_import.run_step(job)
+        self.assertEqual(job.status, "paused")
+        self.assertIn("Bulk imports are paused", job.last_error)
+
+    @mock.patch("events.artist_import.STEP_SECONDS", 0.05)
+    def test_pages_are_for_admins_and_the_step_endpoint_reports_progress(self):
+        job = self._job()
+        self.client.force_login(self.user)
+        for url in [reverse("events:artist_import_new"), reverse("events:artist_import", args=[job.pk])]:
+            self.assertEqual(self.client.get(url).status_code, 403)
+        self.assertEqual(self.client.post(reverse("events:artist_import_step", args=[job.pk])).status_code, 403)
+
+        self.client.force_login(self.boss)
+        found = self.client.get(reverse("events:artist_import_new"), {"artist": "beatles"})
+        self.assertContains(found, "The Beatles")
+        started = self.client.post(reverse("events:artist_import_new"), {"mbid": "b10bbbfc", "name": "The Beatles"})
+        self.assertRedirects(started, reverse("events:artist_import", args=[job.pk]))  # the unfinished one continues
+        self.assertContains(self.client.get(started.url), "imp-bar")
+        state = self.client.post(reverse("events:artist_import_step", args=[job.pk])).json()
+        self.assertGreater(state["processed"], 0)
+        paused = self.client.post(reverse("events:artist_import_step", args=[job.pk]), {"action": "pause"}).json()
+        self.assertEqual(paused["status"], "paused")
+        self.assertEqual(self.client.post(reverse("events:artist_import_step", args=[job.pk])).json()["processed"],
+                         paused["processed"])  # paused: no more work
+        resumed = self.client.post(reverse("events:artist_import_step", args=[job.pk]), {"action": "resume"}).json()
+        self.assertNotEqual(resumed["status"], "paused")

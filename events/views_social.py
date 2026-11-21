@@ -147,6 +147,20 @@ def profile(request: HttpRequest, username: str) -> HttpResponse:
             "recent": recent,
             "reviews": reviews,
             "owner_logs": Log.objects.filter(user=owner),
+        },
+    )
+
+
+def user_stats(request: HttpRequest, username: str) -> HttpResponse:
+    """Most seen artists, venues and cities, and events by year. Meant for a paid plan; free for everyone in the beta."""
+    owner = _owner(username)
+    return render(
+        request,
+        "events/profile_stats.html",
+        {
+            "owner": owner,
+            "tab": "stats",
+            "owner_logs": Log.objects.filter(user=owner),
             # Only acts the person actually saw count.
             "top_artists": _seen_artists(owner)[:5],
             **_local_foreign_artists(owner),
@@ -190,7 +204,7 @@ def user_ranking(request: HttpRequest, username: str, kind: str) -> HttpResponse
                 for c in _seen_cities(owner)]
     return render(
         request, "events/user_ranking.html",
-        {"owner": owner, "tab": "profile", "title": title, "rows": rows},
+        {"owner": owner, "tab": "stats", "title": title, "rows": rows},
     )
 
 

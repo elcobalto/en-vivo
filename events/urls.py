@@ -1,6 +1,6 @@
 from django.urls import path
 
-from . import views, views_bulk, views_discovery, views_feedback, views_merge, views_social, views_venues
+from . import views, views_admin, views_bulk, views_discovery, views_feedback, views_merge, views_social, views_venues
 
 app_name = "events"
 
@@ -78,6 +78,7 @@ urlpatterns = [
     path("settings/profile/", views_social.profile_edit, name="profile_edit"),
     path("settings/favourites/", views_social.favorites_edit, name="favorites_edit"),
     path("u/<str:username>/", views_social.profile, name="profile"),
+    path("u/<str:username>/stats/", views_social.user_stats, name="user_stats"),
     path("u/<str:username>/most-seen/<slug:kind>/", views_social.user_ranking, name="user_ranking"),
     path("u/<str:username>/reviews/", views_social.user_reviews, name="user_reviews"),
     path("u/<str:username>/follow/", views_social.follow_toggle, name="follow_toggle"),
@@ -87,8 +88,12 @@ urlpatterns = [
     path("reviews/<int:pk>/like/", views_social.review_like_toggle, name="review_like_toggle"),
     path("reviews/<int:pk>/comments/", views_social.comment_add, name="comment_add"),
     path("reviews/<int:pk>/comments/<int:comment_pk>/delete/", views_social.comment_delete, name="comment_delete"),
+    path("admin-tools/", views_admin.admin_tools, name="admin_tools"),
+    path("admin-tools/import/", views_admin.artist_import_new, name="artist_import_new"),
+    path("admin-tools/import/<int:pk>/", views_admin.artist_import, name="artist_import"),
+    path("admin-tools/import/<int:pk>/step/", views_admin.artist_import_step, name="artist_import_step"),
     path("feedback/", views_feedback.feedback, name="feedback"),
     path("feedback/inbox/", views_feedback.feedback_inbox, name="feedback_inbox"),
     path("feedback/<int:pk>/resolve/", views_feedback.feedback_resolve, name="feedback_resolve"),
-    path("setlistfm/usage/", views_feedback.setlistfm_usage, name="setlistfm_usage"),
+    path("setlistfm/usage/", views_admin.setlistfm_usage, name="setlistfm_usage"),
 ]
