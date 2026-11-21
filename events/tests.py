@@ -4450,3 +4450,16 @@ class ThisYearChartTests(BaseTestCase):
         html = page.content.decode()
         self.assertLess(html.index("Events by year"), html.index('id="map-world"'))
         self.assertLess(html.index(f"Events in {year}"), html.index('id="map-world"'))
+
+
+class DiaryCountryFilterTests(BaseTestCase):
+    def test_diary_filtered_by_country_from_the_map(self):
+        wembley = Venue.objects.create(name="Wembley", city="London", country="GB")
+        Log.objects.create(user=self.user, event=Event.objects.create(title="Santiago show", venue=self.venue, date=date(2020, 1, 1)))
+        Log.objects.create(user=self.user, event=Event.objects.create(title="London show", venue=wembley, date=date(2021, 1, 1)))
+        diary = reverse("events:user_diary", args=["ana"])
+        page = self.client.get(diary, {"country": "gb"})
+        self.assertEqual([log.event.title for log in page.context["logs"]], ["London show"])
+        self.assertContains(page, '<option value="GB" selected>')
+        stats = self.client.get(reverse("events:user_stats", args=["ana"]))
+        self.assertContains(stats, f'href="{diary}?country=GB"')  # the list under the world map

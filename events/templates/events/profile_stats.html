@@ -94,7 +94,7 @@
           <span class="small text-body-secondary">{% blocktranslate count counter=maps.world|length %}{{ counter }} country{% plural %}{{ counter }} countries{% endblocktranslate %}</span>
         </div>
         <div id="map-world" class="stats-map stats-map-world" role="img" aria-label="{% translate 'World map of the countries with shows attended' %}"></div>
-        <div class="small text-body-secondary mt-1">{% for c in maps.world %}{{ c.name }} <span class="text-body">{{ c.n }}</span>{% if not forloop.last %} · {% endif %}{% endfor %}</div>
+        <div class="small text-body-secondary mt-1">{% for c in maps.world %}<a href="{% url 'events:user_diary' owner.get_username %}?country={{ c.code }}">{{ c.name }}</a> <span class="text-body">{{ c.n }}</span>{% if not forloop.last %} · {% endif %}{% endfor %}</div>
       </div>
       {% if maps.country.code %}
         <div class="col-12 col-lg-6">
@@ -143,7 +143,8 @@
     .stats-map { height: 320px; border-radius: .4rem; border: 1px solid var(--ev-line); background: var(--ev-surface); overflow: hidden; }
     .stats-map-world { height: auto; aspect-ratio: 2 / 1; }
     .stats-map-world path { stroke: var(--ev-bg); stroke-width: .5; }
-    .stats-map-world path.seen { cursor: default; }
+    .stats-map-world path.seen { cursor: pointer; transition: fill-opacity .15s; }
+    .stats-map-world a:hover path.seen, .stats-map-world a:focus path.seen { fill-opacity: 1; stroke: #fff; }
     /* Dark streets to match the site (OpenStreetMap's tiles, inverted). */
     .stats-map .leaflet-tile-pane { filter: invert(1) hue-rotate(180deg) brightness(.9) contrast(.9); }
     .stats-map .leaflet-container { background: var(--ev-surface); }
@@ -159,7 +160,8 @@
     (function () {
       var data = JSON.parse(document.getElementById("map-data").textContent),
           accent = getComputedStyle(document.documentElement).getPropertyValue("--ev-accent").trim() || "#ff8000",
-          venueUrl = "{% url 'events:venue_detail' 0 %}".replace("/0/", "/{id}/") + "?seen_by={{ owner.get_username|urlencode }}";
+          venueUrl = "{% url 'events:venue_detail' 0 %}".replace("/0/", "/{id}/") + "?seen_by={{ owner.get_username|urlencode }}",
+          diaryUrl = "{% url 'events:user_diary' owner.get_username %}";
       function shows(n) { return (n === 1 ? "{{ one_show|escapejs }}" : "{{ many_shows|escapejs }}").replace("%(n)s", n); }
       function esc(text) { var d = document.createElement("div"); d.textContent = text; return d.innerHTML; }
       var seen = {}, max = 1;
@@ -184,17 +186,23 @@
           var p = document.createElementNS(ns, "path"), c = seen[f.id];
           p.setAttribute("d", path(f));
           if (c) {
-            // Brighter for more shows (square root, so one show is still clearly visible).
+            // Brighter for more shows (square root, so one show is still clearly visible). A click opens the
+            // diary filtered to that country.
             p.setAttribute("fill", accent);
             p.setAttribute("fill-opacity", (0.45 + 0.55 * Math.sqrt(c.n / max)).toFixed(2));
             p.setAttribute("class", "seen");
             var t = document.createElementNS(ns, "title");
             t.textContent = c.name + ": " + shows(c.n);
             p.appendChild(t);
+            var link = document.createElementNS(ns, "a");
+            link.setAttribute("href", diaryUrl + "?country=" + c.code);
+            link.setAttribute("aria-label", c.name + ": " + shows(c.n));
+            link.appendChild(p);
+            svg.appendChild(link);
           } else {
             p.setAttribute("fill", "#2a2a2a");
+            svg.appendChild(p);
           }
-          svg.appendChild(p);
         });
         box.appendChild(svg);
       }

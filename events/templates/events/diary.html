@@ -18,9 +18,15 @@
       <option value="">{% translate "All ratings" %}</option>
       {% for value, label in ratings %}<option value="{{ value }}" {% if f.rating == value|stringformat:"d" %}selected{% endif %}>{{ label }}</option>{% endfor %}
     </select>
+    {% if countries_logged|length > 1 or f.country %}
+      <select class="form-select form-select-sm w-auto" name="country" onchange="this.form.submit()" aria-label="{% translate 'Country' %}">
+        <option value="">{% translate "All countries" %}</option>
+        {% for code, name in countries_logged %}<option value="{{ code }}" {% if f.country == code %}selected{% endif %}>{{ name }}</option>{% endfor %}
+      </select>
+    {% endif %}
     {% if expanded %}<input type="hidden" name="view" value="expanded">{% endif %}
     <noscript><button class="btn btn-sm btn-primary" type="submit">{% translate "Filter" %}</button></noscript>
-    {% if f.type or f.year or f.rating %}<a class="small" href="{{ request.path }}{% if expanded %}?view=expanded{% endif %}">{% translate "Clear" %}</a>{% endif %}
+    {% if f.type or f.year or f.rating or f.country %}<a class="small" href="{{ request.path }}{% if expanded %}?view=expanded{% endif %}">{% translate "Clear" %}</a>{% endif %}
     <div class="btn-group btn-group-sm ms-auto" role="group" aria-label="{% translate 'Diary view' %}">
       <a class="btn btn-outline-secondary{% if not expanded %} active{% endif %}" href="?{{ filters_qs }}"{% if not expanded %} aria-current="page"{% endif %}>{% translate "List" %}</a>
       <a class="btn btn-outline-secondary{% if expanded %} active{% endif %}" href="?view=expanded{% if filters_qs %}&{{ filters_qs }}{% endif %}"{% if expanded %} aria-current="page"{% endif %}>{% translate "Expanded" %}</a>
@@ -78,7 +84,7 @@
       </table>
     </div>
   {% else %}
-    <p class="text-body-secondary">{% if f.type or f.year %}{% translate "No events match these filters." %}{% else %}{% translate "No events logged yet." %}{% endif %}{% if owner == user %} {% url 'events:event_list' as events_url %}{% blocktranslate %}<a href="{{ events_url }}">Find an event you went to</a> and log it.{% endblocktranslate %}{% endif %}</p>
+    <p class="text-body-secondary">{% if f.type or f.year or f.country %}{% translate "No events match these filters." %}{% else %}{% translate "No events logged yet." %}{% endif %}{% if owner == user %} {% url 'events:event_list' as events_url %}{% blocktranslate %}<a href="{{ events_url }}">Find an event you went to</a> and log it.{% endblocktranslate %}{% endif %}</p>
   {% endif %}
   {% if page.has_other_pages %}
     <nav class="mt-4 d-flex justify-content-center gap-2" aria-label="{% translate 'Pages' %}">

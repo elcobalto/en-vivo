@@ -19,6 +19,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.formats import date_format
+from django_countries import countries
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.utils.translation import gettext, gettext_lazy, ngettext
 from django.views.decorators.http import require_POST
@@ -597,6 +598,7 @@ def diary(request: HttpRequest, username: str | None = None) -> HttpResponse:
     rating = request.GET.get("rating") or ""
     if not (rating.isdigit() and 1 <= int(rating) <= 10):
         rating = ""  # ratings are stored 1–10 (half stars)
+    country = (request.GET.get("country") or "").strip().upper()[:2]  # from the stats page's world map
     logs = all_logs.select_related("event", "event__venue").order_by("-event__date", "-created_at")
     if event_type in EventType.values:
         logs = logs.filter(event__event_type=event_type)
@@ -604,6 +606,8 @@ def diary(request: HttpRequest, username: str | None = None) -> HttpResponse:
         logs = logs.filter(event__date__year=int(year))
     if rating:
         logs = logs.filter(rating=int(rating))
+    if country:
+        logs = logs.filter(event__venue__country=country)
     years = (all_logs.exclude(event__date=None).annotate(y=ExtractYear("event__date"))
              .values_list("y", flat=True).distinct().order_by("-y"))
     types_logged = all_logs.values_list("event__event_type", flat=True).distinct()
@@ -625,7 +629,10 @@ def diary(request: HttpRequest, username: str | None = None) -> HttpResponse:
             # Only the acts this person saw (credits like a play's author always show).
             seen = {act.artist_id for act in log.acts.all()}
             log.seen_bill = [link for link in log.event.bill if link.role in CREDIT_ROLES or link.artist_id in seen]
-    filters = {k: v for k, v in {"type": event_type, "year": year, "rating": rating}.items() if v}
+    filters = {k: v for k, v in {"type": event_type, "year": year, "rating": rating, "country": country}.items() if v}
+    countries_logged = sorted(
+        ((code, countries.name(code)) for code in all_logs.exclude(event__venue__country="").exclude(event__venue=None)
+         .values_list("event__venue__country", flat=True).distinct()), key=lambda c: c[1])
     return render(
         request,
         "events/diary.html",
@@ -636,7 +643,8 @@ def diary(request: HttpRequest, username: str | None = None) -> HttpResponse:
             "page": page,
             "querystring": urlencode({**filters, **({"view": "expanded"} if expanded else {})}),
             "filters_qs": urlencode(filters),  # for the List / Expanded switch
-            "f": {"type": event_type, "year": year, "rating": rating},
+            "f": {"type": event_type, "year": year, "rating": rating, "country": country},
+            "countries_logged": countries_logged,
             "ratings": [(r, stars(r)) for r in range(10, 0, -1)],
             "expanded": expanded,
             "years": years,
