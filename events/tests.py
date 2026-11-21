@@ -4266,3 +4266,26 @@ class ShowDatesTests(BaseTestCase):
             self.assertEqual(Event.objects.get(pk=pk).venue, other_venue)
         self.assertEqual(Event.objects.get(pk=second.pk).description, "Act I")  # unchanged fields stay
         self.assertEqual(Event.objects.get(pk=second.pk).date, date(2024, 5, 2))  # dates never copied
+
+
+class FestivalNoLabelTests(BaseTestCase):
+    """Festival acts that aren't headliners or hosts have no label: offered and shown blank, never "Support"."""
+
+    def test_add_artists_page_offers_blank_or_headliner(self):
+        fest = Event.objects.create(title="Fest", event_type=EventType.FESTIVAL, venue=self.venue, created_by=self.user)
+        EventArtist.objects.create(event=fest, artist=Artist.objects.create(name="Pearl Jam"))  # the headliner
+        self.client.force_login(self.user)
+        page = self.client.get(reverse("events:festival_add_artists", args=[fest.pk]))
+        self.assertNotContains(page, 'value="support"')
+        self.assertContains(page, '<option value="none" selected')
+        self.client.post(reverse("events:festival_add_artists", args=[fest.pk]), {"typed": "Foals", "typed_role": "none"})
+        link = fest.eventartist_set.get(artist__name="Foals")
+        self.assertEqual((link.role, link.get_role_display()), ("none", ""))
+
+    def test_no_label_is_blank_on_the_event_page(self):
+        fest = Event.objects.create(title="Fest", event_type=EventType.FESTIVAL, venue=self.venue)
+        tour = Production.objects.create(title="World Tour")
+        EventArtist.objects.create(event=fest, artist=Artist.objects.create(name="Foals"), role="none", production=tour)
+        page = self.client.get(fest.get_absolute_url())
+        self.assertNotContains(page, "–")
+        self.assertNotContains(page, "> · <a")  # no separator before the tour when there's no label

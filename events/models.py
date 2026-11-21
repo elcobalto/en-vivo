@@ -431,7 +431,7 @@ def allowed_roles(event_type: str) -> tuple[str, ...]:
 
 
 def added_act_role(event_type: str) -> str:
-    """The label for an act added below others: "–" at festivals, Cast in theater and dance, else Support."""
+    """The label for an act added below others: none at festivals, Cast in theater and dance, else Support."""
     if event_type == "festival":
         return "none"
     return "cast" if event_type in PLAY_TYPES else "support"
@@ -465,7 +465,7 @@ class EventArtist(models.Model):
         AUTHOR = "author", _("Author / playwright")
         CHOREOGRAPHER = "choreographer", _("Choreographer")
         OTHER = "other", _("Other")
-        NONE = "none", "–"  # on the bill with no label (festival acts that aren't headliners or hosts)
+        NONE = "none", ""  # on the bill with no label (festival acts that aren't headliners or hosts): shown blank
 
     event = models.ForeignKey(Event, on_delete=models.CASCADE)
     artist = models.ForeignKey(Artist, on_delete=models.CASCADE)

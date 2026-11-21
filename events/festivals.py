@@ -7,7 +7,7 @@ from django.db.models import Count, Q
 from .models import CREDIT_ROLES, Event, EventArtist, EventType, Production, production_named
 
 MIN_ACTS = 4
-# The labels a festival act can have; everything else becomes "–" (no label) when an event turns into a festival.
+# The labels a festival act can have; everything else becomes "none" (no label) when an event turns into a festival.
 FESTIVAL_ROLES = (EventArtist.Role.HEADLINER, EventArtist.Role.HOST, EventArtist.Role.NONE)
 
 
@@ -34,7 +34,7 @@ def suggested_name(event: Event) -> str:
 def make_festival(event: Event, name: str) -> Event:
     """Turn the event into a festival day of the festival named ``name`` (found or created).
 
-    Acts keep Headliner and Host; every other label becomes "–", the way festival bills are shown."""
+    Acts keep Headliner and Host; every other label is removed, the way festival bills are shown."""
     event.event_type = EventType.FESTIVAL
     event.production = production_named(name, EventType.FESTIVAL) if name.strip() else None
     event.play = None

@@ -3,7 +3,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: En Vivo\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-21 03:50+0000\n"
+"POT-Creation-Date: 2026-11-21 04:07+0000\n"
 "PO-Revision-Date: 2026-11-20 18:00-0300\n"
 "Last-Translator: En Vivo\n"
 "Language-Team: Spanish\n"
@@ -534,8 +534,7 @@ msgstr "más"
 msgid "Headliner"
 msgstr "Cabeza de cartel"
 
-#: events/models.py:460 events/templates/events/festival_add_artists.html:20
-#: events/templates/events/festival_add_artists.html:82
+#: events/models.py:460
 msgid "Support"
 msgstr "Telonero"
 
@@ -3078,6 +3077,11 @@ msgstr "Los nombres también se pueden separar con •, · , * o ; (no con comas
 msgid "Add them as"
 msgstr "Agregarlos como"
 
+#: events/templates/events/festival_add_artists.html:20
+#: events/templates/events/festival_add_artists.html:82
+msgid "No label"
+msgstr "Sin etiqueta"
+
 #: events/templates/events/festival_add_artists.html:23
 #: events/templates/events/festival_add_artists.html:90
 msgid "Add to lineup"
@@ -3152,8 +3156,8 @@ msgstr "Durante la beta se muestran los primeros 20 resultados de setlist.fm. ¿
 
 #: events/templates/events/festival_add_artists.html:94
 #, python-format
-msgid "Acts setlist.fm lists at this festival's venue are ticked; others aren't. Headliners are billed above support acts, and each artist's setlist is added too when setlist.fm has one. Anyone else can be added from <a href=\"%(edit_url)s\">Edit event</a>."
-msgstr "Los artistas que setlist.fm tiene en el recinto de este festival aparecen marcados; los demás no. Los cabezas de cartel quedan sobre los teloneros, y también se agrega el setlist de cada artista cuando setlist.fm lo tiene. A cualquier otro puedes agregarlo desde <a href=\"%(edit_url)s\">Editar evento</a>."
+msgid "Acts setlist.fm lists at this festival's venue are ticked; others aren't. Headliners are billed above everyone else, and each artist's setlist is added too when setlist.fm has one. Anyone else can be added from <a href=\"%(edit_url)s\">Edit event</a>."
+msgstr "Los artistas que setlist.fm tiene en el recinto de este festival aparecen marcados; los demás no. Los cabezas de cartel quedan sobre todos los demás, y también se agrega el setlist de cada artista cuando setlist.fm lo tiene. A cualquier otro puedes agregarlo desde <a href=\"%(edit_url)s\">Editar evento</a>."
 
 #: events/templates/events/festival_add_artists.html:96
 #, python-format
@@ -3343,8 +3347,8 @@ msgstr "Todavía no hay obras."
 
 #: events/templates/events/possible_festivals.html:10
 #, python-format
-msgid "Music events with %(n)s or more acts. Turning one into a festival keeps Headliner and Host labels and shows everyone else as “–”."
-msgstr "Eventos de música con %(n)s o más artistas. Al convertir uno en festival se mantienen las etiquetas de Headliner y Presentador, y el resto queda como “–”."
+msgid "Music events with %(n)s or more acts. Turning one into a festival keeps Headliner and Host labels and leaves everyone else without a label."
+msgstr "Eventos de música con %(n)s o más artistas. Al convertir uno en festival se mantienen las etiquetas de cabeza de cartel y presentador, y el resto queda sin etiqueta."
 
 #: events/templates/events/possible_festivals.html:17
 #, python-format

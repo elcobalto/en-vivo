@@ -131,7 +131,7 @@ def merge_events(keep: Event, remove: Event, *, mode: str) -> Event:
     keep.separate_from.add(*remove.separate_from.exclude(pk=keep.pk))
     remove.delete()
     keep.save()  # recomputes an automatic title from the new lineup
-    fit_roles(keep)  # a merge into a festival: acts become Headliner, Host or "–"
+    fit_roles(keep)  # a merge into a festival: acts become Headliner, Host or no label
     return keep
 
 
