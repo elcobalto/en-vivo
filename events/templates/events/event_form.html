@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% load i18n static %}
 
-{% block title %}{% if event %}{% blocktranslate with title=event.title %}Edit {{ title }}{% endblocktranslate %}{% else %}{% translate "New event" %}{% endif %} · En Vivo{% endblock %}
+{% block title %}{% if event %}{% blocktranslate with title=event.title %}Edit {{ title }}{% endblocktranslate %}{% else %}{% translate "New event" %}{% endif %} · en vivo{% endblock %}
 
 {% block scripts %}<script src="{% static 'events/venue-search.js' %}"></script><script src="{% static 'events/lineup-order.js' %}"></script><script src="{% static 'events/poster-lineup.js' %}"></script>
 {{ type_rules|json_script:"event-type-rules" }}

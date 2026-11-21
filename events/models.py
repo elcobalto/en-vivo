@@ -694,6 +694,19 @@ class Profile(TimestampedModel):
     # Used as defaults (setlist.fm search, new venues) and to show nearby upcoming events.
     home_city = models.CharField(_("Home city"), max_length=120, blank=True, default="")
     home_country = CountryField(_("Home country"), blank=True, default="")
+    home_region = models.CharField(_("Home region or state"), max_length=120, blank=True, default="")
+
+    class UpcomingScope(models.TextChoices):
+        CITY = "city", _("My city")
+        REGION = "region", _("My region")
+        COUNTRY = "country", _("My whole country")
+
+    # Where the home page looks for upcoming shows: shows headlined by artists from the person's country (local),
+    # and by artists from elsewhere (international), e.g. local ones only nearby, international ones anywhere.
+    upcoming_local = models.CharField(_("Upcoming shows by local artists"), max_length=10,
+                                      choices=UpcomingScope.choices, default=UpcomingScope.CITY)
+    upcoming_international = models.CharField(_("Upcoming shows by international artists"), max_length=10,
+                                              choices=UpcomingScope.choices, default=UpcomingScope.COUNTRY)
     # Overrides each event's own thumbnail setting for this person, when set.
     thumbnail_display = models.CharField(
         _("Thumbnails"), max_length=10, blank=True, default="",

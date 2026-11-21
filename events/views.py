@@ -116,17 +116,42 @@ def home(request: HttpRequest) -> HttpResponse:
 
 
 def _upcoming_near(request: HttpRequest, upcoming) -> dict:
-    """Upcoming events in the user's home city (or country); everyone else sees all of them."""
-    city, country = home_place(request.user)
-    if city:
-        return {"upcoming": upcoming.filter(venue__city__iexact=city)[:6], "upcoming_place": city,
-                "upcoming_query": f"when=upcoming&city={city}"}
-    if country:
-        from django_countries import countries
+    """Upcoming events near the user, as their profile asks: shows by local artists (from their country) in their
+    city, region or country, and shows by international artists in their city, region or country. Everyone else
+    sees all of them."""
+    from django_countries import countries
 
-        return {"upcoming": upcoming.filter(venue__country=country)[:6], "upcoming_place": dict(countries).get(country, country),
-                "upcoming_query": "when=upcoming"}
-    return {"upcoming": upcoming[:6], "upcoming_place": "", "upcoming_query": "when=upcoming"}
+    profile = getattr(request.user, "profile", None) if request.user.is_authenticated else None
+    country = profile.home_country.code if profile and profile.home_country else ""
+    city = profile.home_city.strip() if profile else ""
+    if not country:
+        if city:
+            return {"upcoming": upcoming.filter(venue__city__iexact=city)[:6], "upcoming_place": city,
+                    "upcoming_query": f"when=upcoming&city={quote(city)}"}
+        return {"upcoming": upcoming[:6], "upcoming_place": "", "upcoming_query": "when=upcoming"}
+
+    region = profile.home_region.strip()
+
+    def area(scope: str) -> tuple[Q, str]:
+        """Where a scope looks (narrower ones fall back to the country when the profile lacks the city or region)."""
+        if scope == "city" and city:
+            return Q(venue__city__iexact=city, venue__country=country), city
+        if scope == "region" and region:
+            return Q(venue__region__iexact=region, venue__country=country), region
+        return Q(venue__country=country), dict(countries).get(country, country)
+
+    # A show is international when its headliner (first act on stage) is from another country.
+    headliner_country = Subquery(
+        EventArtist.objects.filter(event=OuterRef("pk")).exclude(role__in=CREDIT_ROLES)
+        .order_by("billing_order", "pk").values("artist__country")[:1])
+    upcoming = upcoming.annotate(headliner_country=headliner_country)
+    local_area, local_place = area(profile.upcoming_local)
+    intl_area, intl_place = area(profile.upcoming_international)
+    is_international = ~Q(headliner_country=country) & ~Q(headliner_country="") & Q(headliner_country__isnull=False)
+    shows = upcoming.filter((~is_international & local_area) | (is_international & intl_area))
+    place = local_place if local_place == intl_place else f"{local_place} · {intl_place}"
+    query = f"when=upcoming&city={quote(city)}" if local_place == intl_place == city else "when=upcoming"
+    return {"upcoming": shows[:6], "upcoming_place": place, "upcoming_query": query}
 
 
 def _friends_activity(request: HttpRequest) -> list:

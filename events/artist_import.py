@@ -160,6 +160,6 @@ def as_json(job: ArtistImport, busy: bool = False) -> dict:
         "older": job.older,
         "reached": date_format(job.reached_date, "j M Y") if job.reached_date else "",
         "failed": job.failed,
-        "last_error": job.last_error,
+        "last_error": job.last_error.replace("En Vivo", "en vivo"),  # shown as plain text by the page's script
         "remaining_requests": setlistfm_quota.remaining(),
     }

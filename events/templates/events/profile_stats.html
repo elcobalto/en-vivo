@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% load i18n event_extras %}
 
-{% block title %}{% blocktranslate with name=owner.get_username %}{{ name }}'s stats{% endblocktranslate %} · En Vivo{% endblock %}
+{% block title %}{% blocktranslate with name=owner.get_username %}{{ name }}'s stats{% endblocktranslate %} · en vivo{% endblock %}
 
 {% block content %}
   {% include "events/_profile_nav.html" %}
@@ -80,7 +80,7 @@
             {% for b in bars %}
               {% blocktranslate count counter=b.count asvar events_text %}{{ counter }} event{% plural %}{{ counter }} events{% endblocktranslate %}
               {% if b.url %}<a class="rating-bar" href="{{ b.url }}" title="{{ b.label }}: {{ events_text }} · {% translate 'show in diary' %}"{% if b.future %} style="opacity:.35"{% endif %}>{% else %}<div class="rating-bar" title="{{ b.label }}: {{ events_text }}"{% if b.future %} style="opacity:.35"{% endif %}>{% endif %}
-                <div style="height: {{ b.height }}%{% if b.count %};min-height:2px{% endif %}"></div>
+                <div data-count="{{ b.count }}" style="height: {{ b.height }}%{% if b.count %};min-height:2px{% endif %}"></div>
               {% if b.url %}</a>{% else %}</div>{% endif %}
             {% endfor %}
           </div>

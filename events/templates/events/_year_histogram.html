@@ -8,7 +8,7 @@
     {% for b in bars %}
       {% blocktranslate count counter=b.count asvar events_text %}{{ counter }} event{% plural %}{{ counter }} events{% endblocktranslate %}
       {% if b.url %}<a class="rating-bar" href="{{ b.url }}" title="{{ b.year }}: {{ events_text }} · {% translate 'show in diary' %}">{% else %}<div class="rating-bar" title="{{ b.year }}: {{ events_text }}">{% endif %}
-        <div style="height: {{ b.height }}%{% if b.count %};min-height:2px{% endif %}"></div>
+        <div data-count="{{ b.count }}" style="height: {{ b.height }}%{% if b.count %};min-height:2px{% endif %}"></div>
       {% if b.url %}</a>{% else %}</div>{% endif %}
     {% endfor %}
   </div>

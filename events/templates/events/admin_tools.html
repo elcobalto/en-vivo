@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% load i18n %}
 
-{% block title %}{% translate "Admin" %} · En Vivo{% endblock %}
+{% block title %}{% translate "Admin" %} · en vivo{% endblock %}
 
 {% block content %}
   <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
@@ -101,6 +101,15 @@
       <div class="small text-body-secondary">{% blocktranslate count counter=possible_festivals %}{{ counter }} music event with 4 or more acts to review{% plural %}{{ counter }} music events with 4 or more acts to review{% endblocktranslate %}</div>
     </div>
     <a class="btn btn-sm btn-outline-warning" href="{% url 'events:possible_festivals' %}">{% translate "Review" %}</a>
+  </div></div>
+
+  {# ------------------------------------------------------------ albums from MusicBrainz #}
+  <div class="card mt-3"><div class="card-body d-flex flex-wrap align-items-center justify-content-between gap-2">
+    <div>
+      <h2 class="h5 m-0">{% translate "Albums from MusicBrainz" %}</h2>
+      <div class="small text-body-secondary">{% blocktranslate count counter=songs_without_album %}{{ counter }} song not looked up yet{% plural %}{{ counter }} songs not looked up yet{% endblocktranslate %}</div>
+    </div>
+    <a class="btn btn-sm btn-outline-info" href="{% url 'events:album_lookups' %}">{% translate "Look them up" %}</a>
   </div></div>
 
   {# ------------------------------------------------------------ artist imports #}

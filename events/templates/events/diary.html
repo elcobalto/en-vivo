@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% load i18n event_extras %}
 
-{% block title %}{% blocktranslate with username=owner.get_username %}{{ username }}'s diary{% endblocktranslate %} · En Vivo{% endblock %}
+{% block title %}{% blocktranslate with username=owner.get_username %}{{ username }}'s diary{% endblocktranslate %} · en vivo{% endblock %}
 
 {% block content %}
   {% include "events/_profile_nav.html" %}

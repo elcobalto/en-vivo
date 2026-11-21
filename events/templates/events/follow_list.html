@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% load i18n %}
 
-{% block title %}{{ owner.get_username }} · {% if tab == "followers" %}{% translate "Followers" %}{% else %}{% translate "Following" %}{% endif %} · En Vivo{% endblock %}
+{% block title %}{{ owner.get_username }} · {% if tab == "followers" %}{% translate "Followers" %}{% else %}{% translate "Following" %}{% endif %} · en vivo{% endblock %}
 
 {% block content %}
   {% include "events/_profile_nav.html" %}

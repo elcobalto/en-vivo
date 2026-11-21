@@ -4,7 +4,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>{% block title %}En Vivo{% endblock %}</title>
+    <title>{% block title %}en vivo{% endblock %}</title>
     <link rel="icon" type="image/svg+xml" href="{% static 'events/favicon.svg' %}" />
     <link
       href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
@@ -58,6 +58,13 @@
       .beta-banner { background: #2a2414; color: #f1e3b5; border-bottom: 1px solid rgba(255, 193, 7, .25); }
       .beta-banner a { color: #ffd76a; }
       a.rating-bar { cursor: pointer; }
+      /* Charts: the bar's number shows above it on hover (right away, unlike the browser's own tooltip). */
+      .rating-bar > div[data-count] { position: relative; }
+      .rating-bar:hover > div[data-count]::after {
+        content: attr(data-count); position: absolute; bottom: calc(100% + 2px); left: 50%; transform: translateX(-50%);
+        font-size: .7rem; line-height: 1; padding: 2px 4px; border-radius: 3px; white-space: nowrap; pointer-events: none;
+        background: var(--ev-surface-2); color: #fff; border: 1px solid var(--ev-line); z-index: 2;
+      }
       .event-photo {
         display: block; width: 100%; height: auto; max-height: 80vh; object-fit: contain;
         border-radius: .4rem; border: 1px solid rgba(255,255,255,.08); background: var(--ev-surface);
@@ -80,6 +87,7 @@
     <script src="{% static 'events/poster-auto.js' %}"></script>
   </head>
   <body>
+    {% filter brand %}{# the site's name in text: lowercase bold #}
     <div class="beta-banner small text-center px-3 py-1">
       <span class="badge text-bg-warning me-1">Beta</span>
       {% translate "En Vivo is in beta, so things may break or change." %}
@@ -139,6 +147,7 @@
       {% endfor %}
       {% block content %}{% endblock %}
     </main>
+    {% endfilter %}
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
     <script src="{% static 'events/multi-search.js' %}" defer></script>

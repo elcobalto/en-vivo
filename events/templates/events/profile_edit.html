@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% load i18n static %}
 
-{% block title %}{% translate "Edit profile" %} · En Vivo{% endblock %}
+{% block title %}{% translate "Edit profile" %} · en vivo{% endblock %}
 
 {% block content %}
   <div class="row justify-content-center">
@@ -30,6 +30,7 @@
             {% endif %}
             {% if field.help_text %}<div class="form-text">{{ field.help_text }}</div>{% endif %}
             {% for error in field.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
+        <datalist id="region-options">{% for region in form.region_options %}<option value="{{ region }}"></option>{% endfor %}</datalist>
           </div>
           {% endif %}
         {% endfor %}

@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% load i18n %}
 
-{% block title %}{% blocktranslate with name=job.artist_name %}Importing {{ name }}{% endblocktranslate %} · En Vivo{% endblock %}
+{% block title %}{% blocktranslate with name=job.artist_name %}Importing {{ name }}{% endblocktranslate %} · en vivo{% endblock %}
 
 {% block content %}
   <a class="small text-body-secondary" href="{% url 'events:artist_import_new' %}">← {% translate "Imports" %}</a>

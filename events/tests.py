@@ -640,7 +640,7 @@ class AutoTitleTests(BaseTestCase):
         # Date on its own line (never cut off), venue below it.
         self.assertIn("29 Mar 2019", html)
         self.assertIn("10 Nov 1992", html)
-        self.assertIn('title="Teatro Caupolicán">Teatro Caupolicán</div>', html)
+        self.assertIn('title="Teatro Caupolicán, Santiago">Teatro Caupolicán · Santiago</div>', html)
         undated = Event.objects.create(title="Someday")
         self.assertContains(self.client.get(reverse("events:event_list")), "Date not added")
         self.assertTrue(undated.pk)
@@ -3596,7 +3596,7 @@ from .models import Feedback  # noqa: E402
 class BetaFeedbackTests(BaseTestCase):
     def test_banner_links_to_the_feedback_form_with_the_page(self):
         page = self.client.get(reverse("events:event_list"))
-        self.assertContains(page, "En Vivo is in beta")
+        self.assertContains(page, '<strong class="brand">en vivo</strong> is in beta')  # the name: lowercase bold
         self.assertContains(page, reverse("events:feedback") + "?next=/events/")
         self.assertRedirects(self.client.get(reverse("events:feedback")),
                              reverse("login") + "?next=" + reverse("events:feedback"), fetch_redirect_response=False)
@@ -4631,3 +4631,87 @@ class EventCardCityTests(BaseTestCase):
     def test_cards_show_the_venue_and_its_city(self):
         page = self.client.get(reverse("events:event_list"))
         self.assertContains(page, "Teatro Caupolicán · Santiago")
+
+
+
+class BrandFilterTests(TestCase):
+    def test_only_text_changes(self):
+        from .templatetags.event_extras import brand
+
+        html = ('<p title="En Vivo">Welcome to En Vivo!</p><script>var x = "En Vivo";</script>'
+                '<option>En Vivo</option><p>Última vez en vivo</p>')
+        self.assertEqual(brand(html), '<p title="En Vivo">Welcome to <strong class="brand">en vivo</strong>!</p>'
+                                      '<script>var x = "En Vivo";</script><option>En Vivo</option><p>Última vez en vivo</p>')
+
+
+class UpcomingScopeTests(BaseTestCase):
+    """The home page's upcoming shows: by local artists in the person's city/region/country, by international ones
+    in theirs."""
+
+    def setUp(self):
+        super().setUp()
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        soon = timezone.localdate() + timedelta(days=10)
+        profile = self.user.profile
+        profile.home_country, profile.home_city, profile.home_region = "CL", "Santiago", "Región Metropolitana"
+        profile.save()
+        self.venue.region = "Región Metropolitana"
+        self.venue.save()
+        puente = Venue.objects.create(name="Teatro Municipal", city="Puente Alto", region="Región Metropolitana", country="CL")
+        valpo = Venue.objects.create(name="Quinta Vergara", city="Viña del Mar", region="Valparaíso", country="CL")
+        baires = Venue.objects.create(name="Luna Park", city="Buenos Aires", country="AR")
+        local, foreign = Artist.objects.create(name="Los Bunkers", country="CL"), Artist.objects.create(name="Blur", country="GB")
+        for title, venue, artist in [("Local Santiago", self.venue, local), ("Local Puente Alto", puente, local),
+                                     ("Local Viña", valpo, local), ("Intl Viña", valpo, foreign),
+                                     ("Intl Buenos Aires", baires, foreign)]:
+            event = Event.objects.create(title=title, venue=venue, date=soon)
+            EventArtist.objects.create(event=event, artist=artist)
+        self.client.force_login(self.user)
+
+    def _titles(self):
+        return sorted(e.title for e in self.client.get(reverse("events:home")).context["upcoming"])
+
+    def test_defaults_local_in_my_city_international_in_my_country(self):
+        self.assertEqual(self._titles(), ["Intl Viña", "Local Santiago"])
+
+    def test_local_in_my_region(self):
+        self.user.profile.upcoming_local = "region"
+        self.user.profile.save()
+        self.assertEqual(self._titles(), ["Intl Viña", "Local Puente Alto", "Local Santiago"])
+
+    def test_region_without_a_region_falls_back_to_the_country(self):
+        self.user.profile.upcoming_local, self.user.profile.home_region = "region", ""
+        self.user.profile.save()
+        self.assertEqual(self._titles(), ["Intl Viña", "Local Puente Alto", "Local Santiago", "Local Viña"])
+
+    def test_profile_form_has_the_new_fields(self):
+        page = self.client.get(reverse("events:profile_edit"))
+        for name in ("home_region", "upcoming_local", "upcoming_international"):
+            self.assertContains(page, f'name="{name}"')
+        self.assertContains(page, '<option value="Región Metropolitana">')  # region suggestions
+
+
+class AlbumLookupsPageTests(BaseTestCase):
+    def test_admins_page_through_the_songs_not_looked_up(self):
+        from django.utils import timezone
+
+        from .models import Song
+
+        band = Artist.objects.create(name="Band")
+        songs = [Song.objects.create(artist=band, title=f"Song {i}") for i in range(3)]
+        Song.objects.filter(pk=songs[1].pk).update(album_checked_at=timezone.now())
+        self.client.force_login(self.user)
+        self.assertEqual(self.client.get(reverse("events:album_lookups")).status_code, 403)
+        boss = get_user_model().objects.create_superuser("boss", "boss@example.com", "pw-test-999")
+        self.client.force_login(boss)
+        page = self.client.get(reverse("events:album_lookups"))
+        self.assertEqual(page.context["pending"], 2)
+        self.assertContains(page, 'id="mb-start"')
+        batch = self.client.get(reverse("events:album_lookups_next")).json()
+        self.assertEqual((batch["ids"], batch["pending"]), ([songs[0].pk, songs[2].pk], 2))
+        after = self.client.get(reverse("events:album_lookups_next"), {"after": songs[0].pk}).json()
+        self.assertEqual(after["ids"], [songs[2].pk])  # past the ones already tried
+        self.assertContains(self.client.get(reverse("events:admin_tools")), reverse("events:album_lookups"))

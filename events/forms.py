@@ -380,17 +380,21 @@ class ProfileForm(BootstrapMixin, forms.ModelForm):
 
     class Meta:
         model = Profile
-        fields = ["display_name", "location", "home_city", "home_country", "language", "avatar_url", "bio",
-                  "thumbnail_display", "import_as_attended"]
+        fields = ["display_name", "location", "home_city", "home_region", "home_country", "upcoming_local",
+                  "upcoming_international", "language", "avatar_url", "bio", "thumbnail_display", "import_as_attended"]
         widgets = {"bio": forms.Textarea(attrs={"rows": 4})}
         labels = {"display_name": _("Display name"), "location": _("Location"), "avatar_url": _("Avatar image URL"),
                   "bio": _("Bio")}
         help_texts = {
             "home_city": _("Upcoming events on the home page are shown for this city (or your country)."),
             "home_country": _("Also the default country for setlist.fm searches and new venues."),
+            "home_region": _("Your state or region, as venues write it (e.g. Región Metropolitana)."),
+            "upcoming_local": _("Shows headlined by artists from your country."),
+            "upcoming_international": _("Shows headlined by artists from other countries."),
         }
 
-    field_order = ["username", "display_name", "location", "home_city", "home_country", "language", "avatar_url",
+    field_order = ["username", "display_name", "location", "home_city", "home_region", "home_country",
+                   "upcoming_local", "upcoming_international", "language", "avatar_url",
                    "bio"]
 
     def __init__(self, *args, **kwargs):
@@ -399,6 +403,20 @@ class ProfileForm(BootstrapMixin, forms.ModelForm):
         self.fields["username"].widget.attrs.update(
             {"autocomplete": "username", "autocapitalize": "none", "spellcheck": "false"}
         )
+        for name in ("upcoming_local", "upcoming_international"):  # a form posted without them keeps the profile's
+            self.fields[name].required = False
+        # Regions as venues write them (setlist.fm, Google), so the home page can match them.
+        self.fields["home_region"].widget.attrs["list"] = "region-options"
+        regions = Venue.objects.exclude(region="")
+        if self.instance.home_country:
+            regions = regions.filter(country=self.instance.home_country)
+        self.region_options = sorted(set(regions.values_list("region", flat=True)), key=str.casefold)[:300]
+
+    def clean_upcoming_local(self) -> str:
+        return self.cleaned_data.get("upcoming_local") or self.instance.upcoming_local
+
+    def clean_upcoming_international(self) -> str:
+        return self.cleaned_data.get("upcoming_international") or self.instance.upcoming_international
 
     def clean_language(self) -> str:
         return self.cleaned_data.get("language") or self.instance.language or settings.LANGUAGE_CODE

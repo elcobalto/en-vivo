@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% load i18n %}
 
-{% block title %}{{ artist.name }} · {% if tab == "albums" %}{% translate "Albums played" %}{% else %}{% translate "Songs played" %}{% endif %} · En Vivo{% endblock %}
+{% block title %}{{ artist.name }} · {% if tab == "albums" %}{% translate "Albums played" %}{% else %}{% translate "Songs played" %}{% endif %} · en vivo{% endblock %}
 
 {% block content %}
   <h1 class="h4 mb-2"><a class="text-decoration-none" href="{{ artist.get_absolute_url }}{% if seen_q %}?{{ seen_q }}{% endif %}">{{ artist.name }}</a></h1>

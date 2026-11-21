@@ -10,7 +10,7 @@ from django.utils.translation import gettext
 from django.views.decorators.http import require_POST
 
 from . import artist_import as importer, festivals, setlistfm_quota, site_stats
-from .models import ArtistImport, Feedback
+from .models import ArtistImport, Feedback, Song
 from .setlistfm import SetlistFmError, search_artists
 from .roles import home_place
 from .views_feedback import _require_admin
@@ -29,6 +29,7 @@ def admin_tools(request: HttpRequest) -> HttpResponse:
         "s": site_stats.site_stats(),
         "imports": ArtistImport.objects.select_related("started_by")[:5],
         "possible_festivals": festivals.candidates().count(),
+        "songs_without_album": Song.objects.filter(album_checked_at=None).count(),
     })
 
 
@@ -198,3 +199,30 @@ def artist_import_preview(request: HttpRequest) -> JsonResponse:
         return JsonResponse({"error": str(e)}, status=503)
     return JsonResponse({"total": total, "requests": -(-total // per_page) if total else 0,
                          "remaining": setlistfm_quota.remaining()})
+
+
+ALBUM_BATCH = 50  # songs the albums page asks for at a time (it looks each one up, one a second)
+
+
+@login_required
+def album_lookups(request: HttpRequest) -> HttpResponse:
+    """Look up the album of every song nobody has looked up on MusicBrainz yet (one a second, while the page is open)."""
+    _require_admin(request)
+    from .models import Song
+
+    pending = Song.objects.filter(album_checked_at=None).count()
+    return render(request, "events/album_lookups.html", {
+        "pending": pending, "minutes": -(-pending * 11 // 600),  # ~1.1 s per song
+    })
+
+
+@login_required
+def album_lookups_next(request: HttpRequest) -> JsonResponse:
+    """The next songs to look up, after ``after`` (a song id), so songs MusicBrainz can't answer don't loop."""
+    _require_admin(request)
+    from .models import Song
+
+    after = request.GET.get("after") or "0"
+    songs = Song.objects.filter(album_checked_at=None, pk__gt=int(after) if after.isdigit() else 0).order_by("pk")
+    return JsonResponse({"ids": list(songs.values_list("pk", flat=True)[:ALBUM_BATCH]),
+                         "pending": Song.objects.filter(album_checked_at=None).count()})

@@ -1,10 +1,42 @@
 from __future__ import annotations
 
+import re
+
 from django import template
+from django.utils.safestring import mark_safe
 from django.utils import formats
 from django.utils.translation import gettext_lazy
 
 register = template.Library()
+
+# The site's name, written in text as "En Vivo" (so the everyday phrase "en vivo" is left alone).
+BRAND = "En Vivo"
+_TAGS = re.compile(r"(<[^>]*>)")
+_RAW = ("script", "style", "title", "textarea", "option")  # text inside these can't hold markup
+
+
+@register.filter(is_safe=True)
+def brand(html) -> str:
+    """Show the site's name the house way, in lowercase bold (**en vivo**), wherever it appears in a page's text.
+
+    Applied to rendered HTML (``{% filter brand %}``): only text between tags changes, never attributes, and not
+    inside scripts, styles, titles, text areas or select options.
+    """
+    html = str(html)
+    if BRAND not in html:
+        return mark_safe(html)
+    out, raw = [], None
+    for part in _TAGS.split(html):
+        if part.startswith("<"):
+            name = part[1:].split(None, 1)[0].rstrip(">/").lower() if len(part) > 2 else ""
+            if raw is None and name in _RAW and not part.endswith("/>"):
+                raw = name
+            elif raw and name == "/" + raw:
+                raw = None
+        elif raw is None and BRAND in part:
+            part = part.replace(BRAND, '<strong class="brand">en vivo</strong>')
+        out.append(part)
+    return mark_safe("".join(out))
 
 
 @register.filter
