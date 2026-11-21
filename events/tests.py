@@ -3395,8 +3395,8 @@ class FestivalPhotoForAllDaysTests(BaseTestCase):
         self.assertNotContains(self.client.get(reverse("events:event_edit", args=[self.event.pk])), "photo_for_all_days")
 
 
-class FirstActIsHeadlinerTests(BaseTestCase):
-    def test_first_act_saved_as_headliner(self):
+class NoForcedHeadlinerTests(BaseTestCase):
+    def test_events_dont_need_a_headliner(self):
         self.client.force_login(self.user)
         a, b = Artist.objects.create(name="Was support"), Artist.objects.create(name="Other")
         self.client.post(reverse("events:event_create"), {
@@ -3410,8 +3410,8 @@ class FirstActIsHeadlinerTests(BaseTestCase):
         })
         event = Event.objects.get(artists=a)
         roles = dict(event.eventartist_set.values_list("artist__name", "role"))
-        self.assertEqual(roles, {"Was support": "headliner", "Other": "support"})
-        self.assertEqual(event.title, "Was support")
+        self.assertEqual(roles, {"Was support": "support", "Other": "support"})  # nobody promoted
+        self.assertEqual(event.title, "Was support")  # the automatic title still follows the bill
 
 
 class EventVideoTests(BaseTestCase):
@@ -4791,3 +4791,30 @@ class FestivalProductionTests(BaseTestCase):
         self.assertEqual((named.production.title, named.production.event_type), ("Fauna Primavera", "festival"))
         self.assertIsNone(auto.production)
         self.assertEqual(clash.production.title, "Rock en Conce (festival)")
+
+
+
+class FestivalSameSlotTests(BaseTestCase):
+    def setUp(self):
+        super().setUp()
+        self.festival = Event.objects.create(title="Rock en Conce", event_type=EventType.FESTIVAL, venue=self.venue,
+                                             date=self.event.date, created_by=self.user)
+        EventArtist.objects.create(event=self.event, artist=Artist.objects.create(name="Green Day"), role="headliner")
+        self.client.force_login(get_user_model().objects.create_superuser("boss", "boss@example.com", "pw-test-999"))
+
+    def test_a_festival_offers_to_take_in_the_show_on_its_day(self):
+        page = self.client.get(self.festival.get_absolute_url())
+        self.assertContains(page, "Add Green Day in Chile to this festival")
+        self.assertNotContains(page, "opened for")  # no support-act merges with a festival
+        self.assertContains(self.client.get(self.event.get_absolute_url()), "Add this show to Rock en Conce")
+        self.client.post(reverse("events:event_merge", args=[self.event.pk]),
+                         {"other": self.festival.pk, "action": "festival"})
+        self.assertFalse(Event.objects.filter(pk=self.event.pk).exists())  # the show joined the festival
+        festival = Event.objects.get(pk=self.festival.pk)
+        self.assertEqual(festival.event_type, EventType.FESTIVAL)
+        self.assertTrue(festival.eventartist_set.filter(artist__name="Green Day").exists())
+
+    def test_merge_a_duplicate_only_suggests_the_same_date(self):
+        Event.objects.create(title="Green Day in Chile", event_type=EventType.MUSIC, date=date(2001, 1, 1))
+        page = self.client.get(self.event.get_absolute_url())
+        self.assertEqual([e.pk for e in page.context["duplicate_candidates"]], [self.festival.pk])

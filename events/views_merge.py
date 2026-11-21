@@ -12,7 +12,7 @@ from django.utils.translation import gettext
 from django.views.decorators.http import require_POST
 
 from .merge import merge_events, same_slot_events
-from .models import Event
+from .models import Event, EventType
 from .roles import can_edit_event
 
 
@@ -23,6 +23,7 @@ class SlotSuggestion:
     this_supports_other: bool  # this event's acts open for the other's
     other_supports_this: bool
     can_dismiss: bool
+    festival_event: Event | None = None  # one of the two is already a festival: the show joins it
 
     @property
     def any(self) -> bool:
@@ -30,7 +31,12 @@ class SlotSuggestion:
 
 
 def _festival_pair(user, event: Event, other: Event) -> tuple[Event, Event] | None:
-    """(keep, remove) for a festival merge: the removed event must be one the user may edit."""
+    """(keep, remove) for a festival merge: the removed event must be one the user may edit. When one of the two
+    is already a festival, it's the one kept (the other show joins it)."""
+    if other.event_type == EventType.FESTIVAL and event.event_type != EventType.FESTIVAL:
+        return (other, event) if can_edit_event(user, event) else None
+    if event.event_type == EventType.FESTIVAL and other.event_type != EventType.FESTIVAL:
+        return (event, other) if can_edit_event(user, other) else None
     if can_edit_event(user, other):
         return event, other
     if can_edit_event(user, event):
@@ -44,12 +50,15 @@ def suggestions_for(user, event: Event) -> list[SlotSuggestion]:
         return []
     results = []
     for other in same_slot_events(event):
+        festival_event = next((e for e in (event, other) if e.event_type == EventType.FESTIVAL), None)
         suggestion = SlotSuggestion(
             other=other,
             festival=_festival_pair(user, event, other) is not None,
-            this_supports_other=can_edit_event(user, event),  # this event is merged away
-            other_supports_this=can_edit_event(user, other),
+            # Opening acts don't fit a festival: there the show simply joins the festival's lineup.
+            this_supports_other=can_edit_event(user, event) and festival_event is None,  # this event is merged away
+            other_supports_this=can_edit_event(user, other) and festival_event is None,
             can_dismiss=can_edit_event(user, event) or can_edit_event(user, other),
+            festival_event=festival_event,
         )
         if suggestion.any:
             results.append(suggestion)
@@ -256,13 +265,10 @@ def artist_duplicate_candidates(artist):
 
 
 def event_duplicate_candidates(event):
-    """Events on the same date, or with the same title."""
-    from django.db.models import Q
-
-    q = Q(title__iexact=event.title)
-    if event.date:
-        q |= Q(date=event.date)
-    return Event.objects.filter(q).exclude(pk=event.pk).select_related("venue").order_by("date", "title")[:50]
+    """Other events on the same date (a duplicate is the same show entered twice)."""
+    if not event.date:
+        return Event.objects.none()
+    return Event.objects.filter(date=event.date).exclude(pk=event.pk).select_related("venue").order_by("title")[:50]
 
 
 @login_required

@@ -27,7 +27,6 @@ from django.views.decorators.http import require_POST
 from .forms import RATING_CHOICES, EventForm, EventArtistFormSet, LogForm, ArtistForm, PlayForm, ProductionForm, VenueForm
 from .models import (
     CREDIT_ROLES,
-    HEADLINED_TYPES,
     PLAY_TYPES,
     ROLES_BY_TYPE,
     added_act_role,
@@ -751,12 +750,7 @@ def event_form(request: HttpRequest, pk: int | None = None) -> HttpResponse:
             formset.save()
             if saved.play_id:
                 _credit_play_authors(saved)
-            # Headliners go above support acts; with no headliner, whoever is first on the bill is one.
-            saved.order_bill()
-            first = saved.acts_on_stage().order_by("billing_order", "pk").first()
-            if first and first.role != EventArtist.Role.HEADLINER and saved.event_type in HEADLINED_TYPES:
-                first.role = EventArtist.Role.HEADLINER
-                first.save(update_fields=["role"])
+            saved.order_bill()  # headliners (if any: an event doesn't need one) go above everyone else
             if event and request.POST.get("apply_to_run") == "all":
                 fields = list(form.changed_data) + (["venue"] if form.cleaned_data.get("new_venue_name") else [])
                 dates = runs.apply_to_other_dates(saved, fields, formset.has_changed(), request.user)
@@ -810,11 +804,7 @@ def add_typed_artists(event: Event, text: str, role: str) -> tuple[int, int]:
             artist = Artist.objects.filter(name__iexact=name).order_by("pk").first() or Artist.objects.create(name=name)
             added += 1
             EventArtist.objects.create(event=event, artist=artist, role=role, billing_order=last + added)
-        event.order_bill()  # headliners go above support acts
-        first = event.acts_on_stage().order_by("billing_order", "pk").first()
-        if first and first.role != EventArtist.Role.HEADLINER:  # someone heads the bill
-            first.role = EventArtist.Role.HEADLINER
-            first.save(update_fields=["role"])
+        event.order_bill()  # headliners (if any) go above everyone else
     event.refresh_auto_title()
     return added, skipped
 

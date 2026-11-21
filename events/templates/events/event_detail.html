@@ -233,7 +233,20 @@
               {% translate "Is it the same show?" %}
             </p>
             <div class="d-flex flex-wrap gap-2">
-              {% if s.festival %}
+              {% if s.festival and s.festival_event %}
+                {# One of them is a festival: the other show joins its lineup (its acts as performers). #}
+                {% if s.festival_event == event %}{% with show=s.other.title festival=event.title %}
+                  <form method="post" action="{% url 'events:event_merge' event.pk %}" data-confirm="{% blocktranslate %}Add {{ show }} to {{ festival }}? Its acts join the lineup, and its logs, reviews and setlists move here.{% endblocktranslate %}">
+                    {% csrf_token %}<input type="hidden" name="other" value="{{ s.other.pk }}" /><input type="hidden" name="action" value="festival" />
+                    <button class="btn btn-sm btn-info" type="submit">{% blocktranslate %}Add {{ show }} to this festival{% endblocktranslate %}</button>
+                  </form>
+                {% endwith %}{% else %}{% with show=event.title festival=s.other.title %}
+                  <form method="post" action="{% url 'events:event_merge' event.pk %}" data-confirm="{% blocktranslate %}Add {{ show }} to {{ festival }}? Its acts join the lineup, and its logs, reviews and setlists move there.{% endblocktranslate %}">
+                    {% csrf_token %}<input type="hidden" name="other" value="{{ s.other.pk }}" /><input type="hidden" name="action" value="festival" />
+                    <button class="btn btn-sm btn-info" type="submit">{% blocktranslate %}Add this show to {{ festival }}{% endblocktranslate %}</button>
+                  </form>
+                {% endwith %}{% endif %}
+              {% elif s.festival %}
                 <form method="post" action="{% url 'events:event_merge' event.pk %}" data-confirm="{% translate 'Merge both into one festival? Logs, reviews and setlists move to it.' %}">
                   {% csrf_token %}<input type="hidden" name="other" value="{{ s.other.pk }}" /><input type="hidden" name="action" value="festival" />
                   <button class="btn btn-sm btn-info" type="submit">{% translate "Make it one festival" %}</button>
