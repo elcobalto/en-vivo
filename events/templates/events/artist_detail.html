@@ -137,11 +137,18 @@
         <ul class="list-unstyled mb-3">
           {% for album in artist_albums %}
             <li class="d-flex justify-content-between align-items-center py-1 border-bottom border-secondary-subtle">
-              <span>{{ album.title }}{% if album.year %} <span class="small text-body-secondary">{{ album.year }}</span>{% endif %}</span>
+              <span class="me-2">{{ album.title }}</span>
+              <span class="d-flex align-items-center gap-2 flex-shrink-0">
+              <form method="post" action="{% url 'events:artist_albums_edit' artist.pk %}" class="d-flex align-items-center gap-1">
+                {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}#manage-albums"><input type="hidden" name="update" value="{{ album.pk }}">
+                <input class="form-control form-control-sm" style="width: 5.5rem" name="year" value="{{ album.year|default_if_none:'' }}" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" placeholder="{% translate 'Year' %}" aria-label="{% blocktranslate with album=album.title %}Year of {{ album }}{% endblocktranslate %}">
+                <button class="btn btn-sm btn-outline-secondary" type="submit">{% translate "Save" %}</button>
+              </form>
               <form method="post" action="{% url 'events:artist_albums_edit' artist.pk %}" data-confirm="{% blocktranslate with album=album.title name=artist.name %}Remove {{ album }} from {{ name }}'s albums? Songs keep their album name.{% endblocktranslate %}">
                 {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}#manage-albums"><input type="hidden" name="delete" value="{{ album.pk }}">
                 <button class="btn btn-link btn-sm text-danger p-0" type="submit">{% translate "Remove" %}</button>
               </form>
+              </span>
             </li>
           {% empty %}<li class="small text-body-secondary">{% translate "No albums yet." %}</li>{% endfor %}
         </ul>

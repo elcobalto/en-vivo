@@ -4491,3 +4491,34 @@ class DiaryCityFilterTests(BaseTestCase):
         self.assertContains(ranking, f'{diary}?city=Santiago')
         page = self.client.get(diary, {"city": "santiago"})
         self.assertEqual([log.event.title for log in page.context["logs"]], ["Santiago show"])
+
+
+class AlbumYearEditTests(BaseTestCase):
+    def test_admins_change_an_albums_year_and_its_songs_follow(self):
+        from .models import Song
+
+        band = Artist.objects.create(name="Los Bunkers")
+        album = Album.objects.create(artist=band, title="La Culpa", year=2002)
+        song = Song.objects.create(artist=band, title="Llueve sobre la ciudad", album_title="la culpa", album_year=2002)
+        cover = Song.objects.create(artist=Artist.objects.create(name="Tributo"), title="Llueve", album_title="La Culpa",
+                                    album_year=2002, cover_of_name="Los Bunkers")
+        other = Song.objects.create(artist=band, title="Miño", album_title="Música libre", album_year=2010)
+        url = reverse("events:artist_albums_edit", args=[band.pk])
+        self.client.force_login(self.user)
+        self.assertEqual(self.client.post(url, {"update": album.pk, "year": "2003"}).status_code, 403)
+
+        boss = get_user_model().objects.create_superuser("boss", "boss@example.com", "pw-test-999")
+        self.client.force_login(boss)
+        self.client.post(url, {"update": album.pk, "year": "2003"})
+        album.refresh_from_db()
+        self.assertEqual(album.year, 2003)
+        self.assertEqual(sorted(Song.objects.filter(album_year=2003).values_list("pk", flat=True)), sorted([song.pk, cover.pk]))
+        self.assertEqual(Song.objects.get(pk=other.pk).album_year, 2010)
+        self.client.post(url, {"update": album.pk, "year": "03"})  # not a year: nothing changes
+        album.refresh_from_db()
+        self.assertEqual(album.year, 2003)
+        self.client.post(url, {"update": album.pk, "year": ""})  # cleared
+        album.refresh_from_db()
+        self.assertIsNone(album.year)
+        page = self.client.get(band.get_absolute_url())
+        self.assertContains(page, f'name="update" value="{album.pk}"')

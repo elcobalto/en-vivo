@@ -434,17 +434,31 @@ def artist_songs_manage(request: HttpRequest, pk: int) -> HttpResponse:
 @login_required
 @require_POST
 def artist_albums_edit(request: HttpRequest, pk: int) -> HttpResponse:
-    """Admins only: add an album to an artist (so unplayed albums show), or remove one."""
+    """Admins only: add an album to an artist (so unplayed albums show), change its year, or remove one."""
     if not is_admin(request.user):
         raise PermissionDenied
     artist = get_object_or_404(Artist, pk=pk)
+    raw_year = (request.POST.get("year") or "").strip()
+    year = int(raw_year) if raw_year.isdigit() and 1000 < int(raw_year) < 3000 else None
     if request.POST.get("delete"):
         Album.objects.filter(artist=artist, pk=request.POST["delete"]).delete()
         messages.success(request, gettext("Album removed."))
+    elif (request.POST.get("update") or "").isdigit():
+        album = get_object_or_404(Album, artist=artist, pk=int(request.POST["update"]))
+        if raw_year and year is None:
+            messages.error(request, gettext("Type the year with four digits, e.g. 1994."))
+        else:
+            album.year = year
+            album.save(update_fields=["year", "updated_at"])
+            # Songs keep their album's year too (it decides which shows count as chances to play them).
+            wanted = normalize_name(album.title)
+            songs = [song.pk for song in Song.objects.filter(Q(artist=artist) | Q(cover_of_name__iexact=artist.name))
+                     .exclude(album_title="").only("pk", "album_title") if normalize_name(song.album_title) == wanted]
+            Song.objects.filter(pk__in=songs).update(album_year=year)
+            messages.success(request, gettext("“%(title)s” is now from %(year)s.") % {
+                "title": album.title, "year": year} if year else gettext("“%(title)s” has no year now.") % {"title": album.title})
     else:
         title = " ".join((request.POST.get("title") or "").split())[:240]
-        raw_year = (request.POST.get("year") or "").strip()
-        year = int(raw_year) if raw_year.isdigit() and 1000 < int(raw_year) < 3000 else None
         if not title:
             messages.error(request, gettext("Give the album a title."))
         elif any(normalize_name(a.title) == normalize_name(title) for a in artist.albums.all()):
