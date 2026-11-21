@@ -3165,7 +3165,7 @@ class ManageSongsTests(BaseTestCase):
         band = Artist.objects.create(name="Band")
         Production.objects.create(title="World Tour", artist=band)
         html = self.client.get(band.get_absolute_url()).content.decode()
-        self.assertLess(html.index('class="artist-tours'), html.index('<h2 class="section-title mb-3">Events'))
+        self.assertLess(html.index('class="artist-tours'), html.index('<h2 class="section-title flex-grow-1 m-0">Events'))
         self.assertIn("World Tour", html)
 
 
@@ -3499,11 +3499,13 @@ class SongRankingAndBarScaleTests(BaseTestCase):
             "Fresh": (Song.objects.create(artist=band, title="Fresh", album_title="New", album_year=2010), setlists[1:]),
             "Steady": (Song.objects.create(artist=band, title="Steady", album_title="New", album_year=2010), setlists[2:]),
         }
+        # The 2005 show's setlist lists one other song (setlists without songs aren't chances to play).
+        songs["Opener"] = (Song.objects.create(artist=band, title="Opener", album_title="Old", album_year=2000), setlists[:1])
         for song, played_at in songs.values():
             for sl in played_at:
                 SetlistSong.objects.create(setlist=sl, song=song, position=song.pk)
         top = self.client.get(band.get_absolute_url()).context["top_songs"]
-        self.assertEqual([(s["song__title"], s["n"], s["of"]) for s in top],
+        self.assertEqual([(s["song__title"], s["n"], s["of"]) for s in top][:3],
                          [("Fresh", 5, 5), ("Always", 5, 6), ("Steady", 4, 5)])
 
     def test_most_played_album_fills_the_bar_whatever_no_album_and_covers_say(self):
@@ -4365,3 +4367,41 @@ class StatsMapTests(BaseTestCase):
         page = self.client.get(reverse("events:user_stats", args=["ana"]))
         self.assertNotContains(page, 'id="map-world"')
         self.assertNotContains(page, "leaflet")
+
+
+class ArtistTabsTests(BaseTestCase):
+    """Artists with hundreds of shows: the page previews the latest, the Shows tab pages through all of them."""
+
+    def setUp(self):
+        super().setUp()
+        from .models import SetlistSong, Song
+
+        self.artist = Artist.objects.create(name="Los Bunkers")
+        song = Song.objects.create(artist=self.artist, title="Llueve sobre la ciudad")
+        for i in range(30):
+            event = Event.objects.create(title=f"Show {i:02d}", venue=self.venue, date=date(2000 + i, 1, 1))
+            EventArtist.objects.create(event=event, artist=self.artist)
+            setlist = Setlist.objects.create(event=event, artist=self.artist)
+            if i % 3:  # a third of the setlists list no songs
+                SetlistSong.objects.create(setlist=setlist, song=song, position=1)
+
+    def test_artist_page_previews_the_latest_shows(self):
+        page = self.client.get(self.artist.get_absolute_url())
+        self.assertEqual([e.title for e in page.context["events"]][:2], ["Show 29", "Show 28"])
+        self.assertEqual((len(page.context["events"]), page.context["event_count"]), (12, 30))
+        self.assertContains(page, reverse("events:artist_shows", args=[self.artist.pk]))
+        self.assertContains(page, "See all 30 shows")
+
+    def test_shows_tab_pages_through_everything(self):
+        url = reverse("events:artist_shows", args=[self.artist.pk])
+        first = self.client.get(url)
+        self.assertEqual(len(first.context["page"].object_list), 24)
+        last = self.client.get(url, {"page": 2})
+        self.assertEqual([e.title for e in last.context["page"].object_list][-1], "Show 00")
+        self.assertContains(last, "Page 2 of 2")
+
+    def test_song_totals_count_only_setlists_with_songs(self):
+        page = self.client.get(reverse("events:artist_songs", args=[self.artist.pk]))
+        self.assertEqual(page.context["shows"], 20)
+        self.assertEqual((page.context["songs"][0]["n"], page.context["songs"][0]["of"]), (20, 20))
+        self.assertContains(page, reverse("events:artist_shows", args=[self.artist.pk]))  # the tabs

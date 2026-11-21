@@ -1,0 +1,6 @@
+{% load i18n %}{% comment %}An artist's tabs: overview, every show (paged), and stats (songs and albums). ?seen_by= follows along.{% endcomment %}
+<ul class="nav nav-underline mb-3">
+  <li class="nav-item"><a class="nav-link{% if artist_tab == 'overview' %} active{% endif %}" href="{{ artist.get_absolute_url }}{% if seen_q %}?{{ seen_q }}{% endif %}">{% translate "Overview" %}</a></li>
+  <li class="nav-item"><a class="nav-link{% if artist_tab == 'shows' %} active{% endif %}" href="{% url 'events:artist_shows' artist.pk %}{% if seen_q %}?{{ seen_q }}{% endif %}">{% translate "Shows" %}</a></li>
+  <li class="nav-item"><a class="nav-link{% if artist_tab == 'stats' %} active{% endif %}" href="{% url 'events:artist_songs' artist.pk %}{% if seen_q %}?{{ seen_q }}{% endif %}">{% translate "Stats" %}</a></li>
+</ul>

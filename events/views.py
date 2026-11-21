@@ -355,14 +355,18 @@ def _artist_plays(artist: Artist, events, *, skip_empty: bool = False, sort: str
     """How often each song and album was played by this act across these events' setlists (no tapes).
 
     Each song's ``of`` counts only the shows since it came out (shows in or after its album's year,
-    plus undated shows), so a new song isn't measured against shows from before it existed.
+    plus undated shows) whose setlist has songs, so a new song isn't measured against shows from before it existed.
     Returns (songs, own album rows, [{"band", "rows"}] for bands the artist was in, number of shows).
     Covers filed under the artist's own albums count there; covers of those bands go to the band's chart;
     other covers to a "No album covers" row.
     """
     plays = SetlistSong.objects.filter(setlist__artist=artist, setlist__event__in=events, is_tape=False)
+    # Only setlists with at least one song played live count as chances to play a song (an empty setlist
+    # says nothing about what was played).
     show_years = list(
-        Setlist.objects.filter(artist=artist, event__in=events).values_list("event__date__year", flat=True)
+        Setlist.objects.filter(artist=artist, event__in=events)
+        .filter(Exists(SetlistSong.objects.filter(setlist=OuterRef("pk"), is_tape=False)))
+        .values_list("event__date__year", flat=True)
     )
     songs = list(plays.values("song_id", "song__title", "song__album_title", "song__album_year", "song__cover_of_name")
                  .annotate(n=Count("setlist", distinct=True)).order_by("-n", "song__title"))
@@ -465,7 +469,7 @@ def artist_songs(request: HttpRequest, pk: int) -> HttpResponse:
                                                       by=album_by)
     tab = "albums" if request.GET.get("tab") == "albums" else "songs"
     return render(request, "events/artist_songs.html", {
-        "artist": artist, "seen_by": seen_by, "tab": tab, "shows": shows,
+        "artist": artist, "seen_by": seen_by, "tab": tab, "artist_tab": "stats", "shows": shows,
         "songs": songs, "albums": albums, "band_charts": band_charts, "top_albums": top_albums(albums, album_by),
         "skip_empty": skip_empty, "album_sort": sort, "album_by": album_by,
         "album_keep": [("tab", "albums")] + ([("seen_by", seen_by.get_username())] if seen_by else []),
@@ -487,6 +491,31 @@ def _my_shows_toggle(request: HttpRequest, artist: Artist) -> dict:
         "all_shows_url": all_url,
         "my_shows_url": f"{request.path}?{params.urlencode()}",
     }
+
+
+ARTIST_PREVIEW_SHOWS = 12  # on the artist's page; the Shows tab has them all, a page at a time
+ARTIST_SHOWS_PER_PAGE = 24
+
+
+def _artist_show_cards(artist: Artist, events):
+    """Event cards for an artist's shows, latest first; cards open this artist's setlist there when there is one."""
+    return events.with_stats().select_related("venue").distinct().order_by(*LATEST_FIRST).annotate(
+        artist_setlist=Exists(Setlist.objects.filter(event=OuterRef("pk"), artist=artist))
+    )
+
+
+def artist_shows(request: HttpRequest, pk: int) -> HttpResponse:
+    """The Shows tab: every show of the artist (or the ones ?seen_by= saw), a page at a time."""
+    artist = get_object_or_404(Artist, pk=pk)
+    events = artist.events.all()
+    seen_by = _seen_by(request)
+    if seen_by:
+        events = events.filter(logs__user=seen_by, logs__acts__artist=artist)
+    page = Paginator(_artist_show_cards(artist, events), ARTIST_SHOWS_PER_PAGE).get_page(request.GET.get("page"))
+    return render(request, "events/artist_shows.html", {
+        "artist": artist, "artist_tab": "shows", "seen_by": seen_by, "page": page,
+        "seen_q": f"seen_by={quote(seen_by.get_username())}" if seen_by else "",
+    })
 
 
 def artist_detail(request: HttpRequest, pk: int) -> HttpResponse:
@@ -513,10 +542,11 @@ def artist_detail(request: HttpRequest, pk: int) -> HttpResponse:
             **(dict(zip(("merge_similar", "merge_rest"), artist_duplicate_candidates(artist)))
                if is_admin(request.user) else {}),
             "act_logs": act_logs,
-            # Cards open this artist's setlist at the event when there is one.
-            "events": events.with_stats().select_related("venue").distinct().order_by(*LATEST_FIRST).annotate(
-                artist_setlist=Exists(Setlist.objects.filter(event=OuterRef("pk"), artist=artist))
-            ),
+            # The latest shows only: an artist can have hundreds (the Shows tab pages through them all).
+            "artist_tab": "overview",
+            "seen_q": f"seen_by={quote(seen_by.get_username())}" if seen_by else "",
+            "events": _artist_show_cards(artist, events)[:ARTIST_PREVIEW_SHOWS],
+            "event_count": events.distinct().count(),
             "seen_by": seen_by,
             # Played songs nobody has looked up on MusicBrainz yet (for "Find albums").
             "pending": list(artist.songs.filter(album_checked_at=None, setlist_entries__is_tape=False)

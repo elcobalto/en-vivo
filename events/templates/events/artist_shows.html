@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block title %}{{ artist.name }} · {% translate "Shows" %} · En Vivo{% endblock %}
+
+{% block content %}
+  <h1 class="h4 mb-2"><a class="text-decoration-none" href="{{ artist.get_absolute_url }}">{{ artist.name }}</a></h1>
+  {% include "events/_artist_tabs.html" %}
+  <p class="small text-body-secondary">
+    {% if seen_by %}{% url 'events:profile' seen_by.get_username as seen_by_url %}{% blocktranslate trimmed count counter=page.paginator.count with username=seen_by.get_username %}
+      {{ counter }} show <a href="{{ seen_by_url }}">@{{ username }}</a> saw
+    {% plural %}
+      {{ counter }} shows <a href="{{ seen_by_url }}">@{{ username }}</a> saw
+    {% endblocktranslate %} · <a href="{{ request.path }}">{% translate "all shows" %}</a>
+    {% else %}{% blocktranslate count counter=page.paginator.count %}{{ counter }} show, latest first.{% plural %}{{ counter }} shows, latest first.{% endblocktranslate %}{% endif %}
+  </p>
+  {% if page.object_list %}
+    <div class="row row-cols-2 row-cols-sm-3 row-cols-lg-6 g-3 mb-4">
+      {% for event in page.object_list %}<div class="col">
+        {% if event.artist_setlist and event.is_music %}{% url 'events:act_setlist' event.pk artist.pk as setlist_url %}{% include "events/_event_card.html" with card_url=setlist_url %}
+        {% else %}{% include "events/_event_card.html" with card_url="" %}{% endif %}
+      </div>{% endfor %}
+    </div>
+    {% if page.has_other_pages %}
+      <nav class="d-flex justify-content-center align-items-center gap-2" aria-label="{% translate 'Pages' %}">
+        {% if page.has_previous %}<a class="btn btn-sm btn-outline-secondary" href="?page={{ page.previous_page_number }}{% if seen_q %}&{{ seen_q }}{% endif %}">{% translate "← Previous" %}</a>{% endif %}
+        <span class="small text-body-secondary">{% blocktranslate with number=page.number total=page.paginator.num_pages %}Page {{ number }} of {{ total }}{% endblocktranslate %}</span>
+        {% if page.has_next %}<a class="btn btn-sm btn-outline-secondary" href="?page={{ page.next_page_number }}{% if seen_q %}&{{ seen_q }}{% endif %}">{% translate "Next →" %}</a>{% endif %}
+      </nav>
+    {% endif %}
+  {% else %}
+    <p class="text-body-secondary">{% translate "No events yet." %}</p>
+  {% endif %}
+{% endblock %}

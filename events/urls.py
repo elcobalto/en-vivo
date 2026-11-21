@@ -46,6 +46,7 @@ urlpatterns = [
     path("artists/<int:pk>/albums/", views.artist_albums_edit, name="artist_albums_edit"),
     path("artists/<int:pk>/songs/manage/", views.artist_songs_manage, name="artist_songs_manage"),
     path("artists/<int:pk>/songs/", views.artist_songs, name="artist_songs"),
+    path("artists/<int:pk>/shows/", views.artist_shows, name="artist_shows"),
     path("artists/<int:pk>/edit/", views.artist_edit, name="artist_edit"),
     path("artists/<int:pk>/delete/", views.artist_delete, name="artist_delete"),
     path("artists/<int:pk>/merge/", views_merge.artist_merge_duplicate, name="artist_merge"),
