@@ -4382,7 +4382,7 @@ class FestivalNoLabelTests(BaseTestCase):
         self.assertContains(page, '<option value="none" selected')
         self.client.post(reverse("events:festival_add_artists", args=[fest.pk]), {"typed": "Foals", "typed_role": "none"})
         link = fest.eventartist_set.get(artist__name="Foals")
-        self.assertEqual((link.role, link.get_role_display()), ("none", ""))
+        self.assertEqual((link.role, link.get_role_display()), ("none", "Performer"))
 
     def test_no_label_is_blank_on_the_event_page(self):
         fest = Event.objects.create(title="Fest", event_type=EventType.FESTIVAL, venue=self.venue)
@@ -4715,3 +4715,26 @@ class AlbumLookupsPageTests(BaseTestCase):
         after = self.client.get(reverse("events:album_lookups_next"), {"after": songs[0].pk}).json()
         self.assertEqual(after["ids"], [songs[2].pk])  # past the ones already tried
         self.assertContains(self.client.get(reverse("events:admin_tools")), reverse("events:album_lookups"))
+
+
+
+class BilledLineupTests(BaseTestCase):
+    """Music and festival lineups: headliners in bold, everyone else plainly, no Headliner/Performer tags."""
+
+    def test_headliners_bold_and_no_tags(self):
+        star, opener, host = (Artist.objects.create(name=n) for n in ("Star", "Opener", "Emcee"))
+        EventArtist.objects.create(event=self.event, artist=star, role="headliner", billing_order=1)
+        EventArtist.objects.create(event=self.event, artist=opener, role="none", billing_order=2)
+        EventArtist.objects.create(event=self.event, artist=host, role="host", billing_order=3)
+        page = self.client.get(self.event.get_absolute_url())
+        html = page.content.decode()
+        self.assertIn(f'<a href="{star.get_absolute_url()}" class="fw-bold">Star</a>', html)
+        self.assertIn(f'<a href="{opener.get_absolute_url()}">Opener</a>', html)
+        self.assertNotIn(">Headliner<", html)
+        self.assertNotIn("Performer", html)
+        self.assertContains(page, "Host")  # other labels still say what they are
+
+    def test_theater_keeps_its_labels(self):
+        play = Event.objects.create(title="Hamlet", event_type=EventType.THEATER, date=date(2020, 1, 1))
+        EventArtist.objects.create(event=play, artist=Artist.objects.create(name="Actor"), role="cast")
+        self.assertContains(self.client.get(play.get_absolute_url()), "Cast")

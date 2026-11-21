@@ -465,7 +465,7 @@ class EventArtist(models.Model):
         AUTHOR = "author", _("Author / playwright")
         CHOREOGRAPHER = "choreographer", _("Choreographer")
         OTHER = "other", _("Other")
-        NONE = "none", ""  # on the bill with no label (festival acts that aren't headliners or hosts): shown blank
+        NONE = "none", _("Performer")  # on the bill below the headliners (festival acts that aren't headliners or hosts)
 
     event = models.ForeignKey(Event, on_delete=models.CASCADE)
     artist = models.ForeignKey(Artist, on_delete=models.CASCADE)

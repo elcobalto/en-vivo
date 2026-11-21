@@ -74,7 +74,7 @@
           {% for row in act_rows %}{% with link=row.link %}
             <li class="d-flex align-items-baseline gap-2 py-1 border-bottom border-secondary-subtle">
               <span class="event-date" style="min-width:3.2rem">{% if link.start_time %}{{ link.start_time|time:"H:i" }}{% endif %}</span>
-              <span class="flex-grow-1"><a href="{{ link.artist.get_absolute_url }}">{{ link.artist.name }}</a> <span class="small text-body-secondary">{{ link.get_role_display }}{% if link.production %}{% if link.get_role_display %} · {% endif %}<a class="link-secondary" href="{{ link.production.get_absolute_url }}">{{ link.production.title }}</a>{% endif %}</span></span>
+              {% with tag=link|role_tag:event.event_type %}<span class="flex-grow-1"><a href="{{ link.artist.get_absolute_url }}"{% if link|is_bold_headliner:event.event_type %} class="fw-bold"{% endif %}>{{ link.artist.name }}</a> <span class="small text-body-secondary">{{ tag }}{% if link.production %}{% if tag %} · {% endif %}<a class="link-secondary" href="{{ link.production.get_absolute_url }}">{{ link.production.title }}</a>{% endif %}</span></span>{% endwith %}
               {% for setlist in row.setlists %}<a class="small text-nowrap" href="{% url 'events:act_setlist' event.pk link.artist_id %}">{% blocktranslate count counter=setlist.song_count %}Setlist · {{ counter }} song →{% plural %}Setlist · {{ counter }} songs →{% endblocktranslate %}</a>{% endfor %}
               {% if row.avg %}<span class="stars small" title="{% blocktranslate count counter=row.seen_by %}Average from {{ counter }} who saw them{% plural %}Average from {{ counter }} who saw them{% endblocktranslate %}">{{ row.avg|stars }}</span>{% endif %}
             </li>

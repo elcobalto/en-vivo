@@ -17,7 +17,7 @@
         <div class="d-flex flex-wrap align-items-center gap-2 mt-2">
           <label class="small" for="typed-role">{% translate "Add them as" %}</label>
           <select class="form-select form-select-sm w-auto" id="typed-role" name="typed_role">
-            <option value="none" selected aria-label="{% translate 'No label' %}"></option>
+            <option value="none" selected>{% translate "Performer" %}</option>
             <option value="headliner">{% translate "Headliner" %}</option>
           </select>
           <button class="btn btn-sm btn-success ms-auto" type="submit">{% translate "Add to lineup" %}</button>
@@ -79,7 +79,7 @@
                 <span class="small text-body-secondary text-end">{{ c.venue }}{% if c.setlist.sets.set %} · {% translate "setlist" %}{% endif %}</span>
               </label>
               <select class="form-select form-select-sm w-auto" name="role_{{ c.key }}" aria-label="{% blocktranslate with name=c.name %}Role for {{ name }}{% endblocktranslate %}">
-                <option value="none" selected aria-label="{% translate 'No label' %}"></option>
+                <option value="none" selected>{% translate "Performer" %}</option>
                 <option value="headliner">{% translate "Headliner" %}</option>
               </select>
             </div>

@@ -3,7 +3,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: En Vivo\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-21 13:01+0000\n"
+"POT-Creation-Date: 2026-11-21 20:26+0000\n"
 "PO-Revision-Date: 2026-11-20 18:00-0300\n"
 "Last-Translator: En Vivo\n"
 "Language-Team: Spanish\n"
@@ -576,6 +576,11 @@ msgstr "Autor / dramaturgo"
 #: events/models.py:466
 msgid "Choreographer"
 msgstr "Coreografía"
+
+#: events/models.py:468 events/templates/events/festival_add_artists.html:20
+#: events/templates/events/festival_add_artists.html:82
+msgid "Performer"
+msgstr "Intérprete"
 
 #: events/models.py:474 events/templates/events/_lineup_editor.html:16
 #: events/templates/events/_lineup_row.html:14
@@ -1289,7 +1294,7 @@ msgstr "%(average)s prom."
 #: events/templates/events/event_detail.html:140
 #: events/templates/events/production_detail.html:32
 #: events/templates/events/profile.html:49
-#: events/templatetags/event_extras.py:72
+#: events/templatetags/event_extras.py:88
 msgid "Ratings"
 msgstr "Calificaciones"
 
@@ -3347,11 +3352,6 @@ msgstr "Los nombres también se pueden separar con •, · , * o ; (no con comas
 msgid "Add them as"
 msgstr "Agregarlos como"
 
-#: events/templates/events/festival_add_artists.html:20
-#: events/templates/events/festival_add_artists.html:82
-msgid "No label"
-msgstr "Sin etiqueta"
-
 #: events/templates/events/festival_add_artists.html:23
 #: events/templates/events/festival_add_artists.html:90
 msgid "Add to lineup"
@@ -3798,7 +3798,7 @@ msgid "No cities yet."
 msgstr "Todavía no hay ciudades."
 
 #: events/templates/events/profile_stats.html:61
-#: events/templatetags/event_extras.py:95
+#: events/templatetags/event_extras.py:111
 msgid "Events by year"
 msgstr "Eventos por año"
 
@@ -4808,6 +4808,9 @@ msgstr "La foto pesa más de 8 MB."
 #: events/views_venues.py:428
 msgid "That link isn't an image."
 msgstr "Ese enlace no es una imagen."
+
+#~ msgid "No label"
+#~ msgstr "Sin etiqueta"
 
 #~ msgid "Artist imports"
 #~ msgstr "Importaciones de artistas"

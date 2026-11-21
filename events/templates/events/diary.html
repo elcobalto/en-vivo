@@ -61,7 +61,7 @@
           {% if log.seen_bill %}
             <ul class="list-unstyled small mt-2 mb-0">
               {% for link in log.seen_bill %}
-                <li><a href="{{ link.artist.get_absolute_url }}">{{ link.artist.name }}</a> <span class="text-body-secondary">{{ link.get_role_display }}{% if link.start_time %}{% if link.get_role_display %} · {% endif %}{{ link.start_time|time:"H:i" }}{% endif %}</span></li>
+                {% with tag=link|role_tag:log.event.event_type %}<li><a href="{{ link.artist.get_absolute_url }}"{% if link|is_bold_headliner:log.event.event_type %} class="fw-bold"{% endif %}>{{ link.artist.name }}</a> <span class="text-body-secondary">{{ tag }}{% if link.start_time %}{% if tag %} · {% endif %}{{ link.start_time|time:"H:i" }}{% endif %}</span></li>{% endwith %}
               {% endfor %}
             </ul>
           {% endif %}

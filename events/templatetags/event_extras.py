@@ -39,6 +39,22 @@ def brand(html) -> str:
     return mark_safe("".join(out))
 
 
+# Music and festival bills show headliners in bold and everyone else plainly, without a "Headliner"/"Performer" tag.
+BILLED_TYPES = ("music", "festival")
+UNTAGGED_ROLES = ("headliner", "support", "none")
+
+
+@register.filter
+def role_tag(link, event_type) -> str:
+    """The label next to an act on a lineup ("Host", "Cast"…), or "" where the bill's order and bold say it."""
+    return "" if event_type in BILLED_TYPES and link.role in UNTAGGED_ROLES else link.get_role_display()
+
+
+@register.filter
+def is_bold_headliner(link, event_type) -> bool:
+    return event_type in BILLED_TYPES and link.role == "headliner"
+
+
 @register.filter
 def stars(value) -> str:
     """Render a 1–10 rating as ½–5 stars, e.g. 7 -> '★★★½'."""
