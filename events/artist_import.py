@@ -74,7 +74,8 @@ def _pause(job: ArtistImport, reason: str) -> None:
 def _work(job: ArtistImport, deadline: float) -> None:
     while job.status == ArtistImport.Status.RUNNING and time.monotonic() < deadline:
         try:
-            results, total, per_page = search_setlists_page(artist_mbid=job.artist_mbid, page=job.page)
+            results, total, per_page = search_setlists_page(artist_mbid=job.artist_mbid, page=job.page,
+                                                             country_code=job.country.code or "")
         except SetlistFmError as e:  # out of budget, rate limited, setlist.fm down: resume later
             _pause(job, str(e))
             return

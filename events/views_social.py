@@ -152,7 +152,9 @@ def profile(request: HttpRequest, username: str) -> HttpResponse:
 
 
 def user_stats(request: HttpRequest, username: str) -> HttpResponse:
-    """Most seen artists, venues and cities, and events by year. Meant for a paid plan; free for everyone in the beta."""
+    """Most seen artists, venues and cities, events by year, and maps. Meant for a paid plan; free for everyone in the beta."""
+    from . import stats_maps
+
     owner = _owner(username)
     return render(
         request,
@@ -161,6 +163,7 @@ def user_stats(request: HttpRequest, username: str) -> HttpResponse:
             "owner": owner,
             "tab": "stats",
             "owner_logs": Log.objects.filter(user=owner),
+            "maps": stats_maps.map_data(owner),
             # Only acts the person actually saw count.
             "top_artists": _seen_artists(owner)[:5],
             **_local_foreign_artists(owner),

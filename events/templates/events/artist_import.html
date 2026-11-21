@@ -10,6 +10,7 @@
     <span class="badge fs-6" id="imp-status"></span>
   </div>
   <p class="small text-body-secondary mb-3">
+    {% if job.country %}{% blocktranslate with country=job.country.name %}Only shows in {{ country }}.{% endblocktranslate %}{% else %}{% translate "Shows in every country." %}{% endif %}
     {% if job.only_with_songs %}{% translate "Only setlists with songs." %}{% else %}{% translate "Setlists with and without songs." %}{% endif %}
     {% if job.look_up_venues %}{% translate "New venues are matched on Google." %}{% endif %}
     {% translate "Keep this page open while it runs; closing it pauses the import, and nothing imported is lost." %}

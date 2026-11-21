@@ -92,6 +92,7 @@ urlpatterns = [
     path("admin-tools/", views_admin.admin_tools, name="admin_tools"),
     path("admin-tools/festivals/", views_admin.possible_festivals, name="possible_festivals"),
     path("admin-tools/import/", views_admin.artist_import_new, name="artist_import_new"),
+    path("admin-tools/import/preview/", views_admin.artist_import_preview, name="artist_import_preview"),
     path("admin-tools/import/<int:pk>/", views_admin.artist_import, name="artist_import"),
     path("admin-tools/import/<int:pk>/step/", views_admin.artist_import_step, name="artist_import_step"),
     path("feedback/", views_feedback.feedback, name="feedback"),

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from django.contrib import messages
+from django_countries import countries
 from django.contrib.auth.decorators import login_required
 from django.http import HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -11,6 +12,7 @@ from django.views.decorators.http import require_POST
 from . import artist_import as importer, festivals, setlistfm_quota, site_stats
 from .models import ArtistImport, Feedback
 from .setlistfm import SetlistFmError, search_artists
+from .roles import home_place
 from .views_feedback import _require_admin
 
 
@@ -47,12 +49,13 @@ def artist_import_new(request: HttpRequest) -> HttpResponse:
         if not mbid or not name:
             messages.error(request, gettext("Pick an artist first."))
             return redirect("events:artist_import_new")
-        job = ArtistImport.objects.filter(artist_mbid=mbid).exclude(status=ArtistImport.Status.DONE).first()
-        if job:  # one unfinished import per artist: continue it
+        country = "" if request.POST.get("all_countries") == "1" else (request.POST.get("country") or "").strip().upper()[:2]
+        job = ArtistImport.objects.filter(artist_mbid=mbid, country=country).exclude(status=ArtistImport.Status.DONE).first()
+        if job:  # one unfinished import per artist and country: continue it
             messages.info(request, gettext("There's already an unfinished import for %(name)s.") % {"name": job.artist_name})
         else:
             job = ArtistImport.objects.create(
-                artist_name=name, artist_mbid=mbid, started_by=request.user,
+                artist_name=name, artist_mbid=mbid, started_by=request.user, country=country,
                 only_with_songs=request.POST.get("only_with_songs") == "1",
                 look_up_venues=request.POST.get("look_up_venues") == "1",
             )
@@ -68,6 +71,9 @@ def artist_import_new(request: HttpRequest) -> HttpResponse:
         "query": query, "candidates": candidates, "error": error,
         "imports": ArtistImport.objects.select_related("started_by")[:20],
         "remaining": setlistfm_quota.remaining(),
+        # Shows in the admin's home country by default (setlist.fm's own country filter); they can untick it.
+        "country": (request.GET.get("country") or home_place(request.user)[1] or "").upper()[:2],
+        "countries": list(countries),
     })
 
 
@@ -132,3 +138,22 @@ def possible_festivals(request: HttpRequest) -> HttpResponse:
         "tab": tab, "events": events, "possible_count": possible.count(), "dismissed_count": dismissed.count(),
         "festival_names": festivals.festival_names(), "min_acts": festivals.MIN_ACTS,
     })
+
+
+@login_required
+def artist_import_preview(request: HttpRequest) -> JsonResponse:
+    """How many setlists an import would bring (one setlist.fm request; the import's first page then comes from the
+    cache): {"total", "requests"}."""
+    _require_admin(request)
+    from .setlistfm import search_setlists_page
+
+    mbid = (request.GET.get("mbid") or "").strip()[:40]
+    country = (request.GET.get("country") or "").strip().upper()[:2]
+    if not mbid:
+        return JsonResponse({"error": gettext("Pick an artist first.")}, status=400)
+    try:
+        results, total, per_page = search_setlists_page(artist_mbid=mbid, country_code=country, page=1)
+    except SetlistFmError as e:
+        return JsonResponse({"error": str(e)}, status=503)
+    return JsonResponse({"total": total, "requests": -(-total // per_page) if total else 0,
+                         "remaining": setlistfm_quota.remaining()})

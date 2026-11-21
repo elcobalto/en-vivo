@@ -3,7 +3,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: En Vivo\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-21 04:07+0000\n"
+"POT-Creation-Date: 2026-11-21 04:13+0000\n"
 "PO-Revision-Date: 2026-11-20 18:00-0300\n"
 "Last-Translator: En Vivo\n"
 "Language-Team: Spanish\n"
@@ -27,7 +27,7 @@ msgstr "Sin álbum"
 msgid "No album covers"
 msgstr "Covers sin álbum"
 
-#: events/artist_import.py:116
+#: events/artist_import.py:117
 #, python-format
 msgid "Setlist %(id)s couldn't be imported."
 msgstr "No se pudo importar el setlist %(id)s."
@@ -999,7 +999,7 @@ msgid "Progress"
 msgstr "Avance"
 
 #: events/templates/events/_artist_imports.html:4
-#: events/templates/events/artist_import.html:27
+#: events/templates/events/artist_import.html:28
 msgid "New events"
 msgstr "Eventos nuevos"
 
@@ -1870,7 +1870,7 @@ msgid "Importing %(name)s"
 msgstr "Importando %(name)s"
 
 #: events/templates/events/artist_import.html:7
-#: events/templates/events/artist_import_new.html:46
+#: events/templates/events/artist_import_new.html:59
 msgid "Imports"
 msgstr "Importaciones"
 
@@ -1880,65 +1880,74 @@ msgid "All setlists of %(name)s"
 msgstr "Todos los setlists de %(name)s"
 
 #: events/templates/events/artist_import.html:13
+#, python-format
+msgid "Only shows in %(country)s."
+msgstr "Solo shows en %(country)s."
+
+#: events/templates/events/artist_import.html:13
+msgid "Shows in every country."
+msgstr "Shows en todos los países."
+
+#: events/templates/events/artist_import.html:14
 msgid "Only setlists with songs."
 msgstr "Solo setlists con canciones."
 
-#: events/templates/events/artist_import.html:13
+#: events/templates/events/artist_import.html:14
 msgid "Setlists with and without songs."
 msgstr "Setlists con y sin canciones."
 
-#: events/templates/events/artist_import.html:14
+#: events/templates/events/artist_import.html:15
 msgid "New venues are matched on Google."
 msgstr "Los recintos nuevos se buscan en Google."
 
-#: events/templates/events/artist_import.html:15
+#: events/templates/events/artist_import.html:16
 msgid "Keep this page open while it runs; closing it pauses the import, and nothing imported is lost."
 msgstr "Mantén esta página abierta mientras avanza; cerrarla pausa la importación y no se pierde nada de lo importado."
 
-#: events/templates/events/artist_import.html:18
+#: events/templates/events/artist_import.html:19
 msgid "Import progress"
 msgstr "Avance de la importación"
 
-#: events/templates/events/artist_import.html:28
+#: events/templates/events/artist_import.html:29
 msgid "Added to existing events"
 msgstr "Agregados a eventos existentes"
 
-#: events/templates/events/artist_import.html:29
+#: events/templates/events/artist_import.html:30
 #: events/templates/events/setlistfm_shows.html:66
 msgid "Already imported"
 msgstr "Ya importado"
 
-#: events/templates/events/artist_import.html:30
+#: events/templates/events/artist_import.html:31
 msgid "Without songs (skipped)"
 msgstr "Sin canciones (omitidos)"
 
-#: events/templates/events/artist_import.html:31
+#: events/templates/events/artist_import.html:32
 msgid "Failed"
 msgstr "Fallidos"
 
-#: events/templates/events/artist_import.html:37
+#: events/templates/events/artist_import.html:38
 msgid "Pause"
 msgstr "Pausar"
 
-#: events/templates/events/artist_import.html:38
+#: events/templates/events/artist_import.html:39
 msgid "Resume"
 msgstr "Reanudar"
 
-#: events/templates/events/artist_import.html:42
+#: events/templates/events/artist_import.html:43
 #, python-format
 msgid "%%(done)s of %%(total)s setlists"
 msgstr "%%(done)s de %%(total)s setlists"
 
-#: events/templates/events/artist_import.html:42
+#: events/templates/events/artist_import.html:43
 #, python-format
 msgid "%%(n)s setlist.fm requests left today"
 msgstr "Quedan %%(n)s consultas a setlist.fm hoy"
 
-#: events/templates/events/artist_import.html:43
+#: events/templates/events/artist_import.html:44
 msgid "Lost the connection; retrying…"
 msgstr "Se perdió la conexión; reintentando…"
 
-#: events/templates/events/artist_import.html:43
+#: events/templates/events/artist_import.html:44
 msgid "Paused: the connection kept failing. Press Resume to continue."
 msgstr "En pausa: la conexión siguió fallando. Presiona Reanudar para continuar."
 
@@ -1952,24 +1961,60 @@ msgid "Artist, e.g. The Beatles"
 msgstr "Artista, por ejemplo The Beatles"
 
 #: events/templates/events/artist_import_new.html:33
+msgid "Only shows in"
+msgstr "Solo shows en"
+
+#: events/templates/events/artist_import_new.html:38
+#: events/templates/events/artist_list.html:13
+msgid "All countries"
+msgstr "Todos los países"
+
+#: events/templates/events/artist_import_new.html:41
 msgid "Only setlists with songs"
 msgstr "Solo setlists con canciones"
 
-#: events/templates/events/artist_import_new.html:35
+#: events/templates/events/artist_import_new.html:43
 msgid "One Google Places lookup per new venue (a paid API)"
 msgstr "Una búsqueda en Google Places por cada recinto nuevo (una API de pago)"
 
-#: events/templates/events/artist_import_new.html:35
+#: events/templates/events/artist_import_new.html:43
 msgid "Match new venues on Google"
 msgstr "Buscar recintos nuevos en Google"
 
-#: events/templates/events/artist_import_new.html:38
+#: events/templates/events/artist_import_new.html:47
 msgid "Import all setlists"
 msgstr "Importar todos los setlists"
 
-#: events/templates/events/artist_import_new.html:41
+#: events/templates/events/artist_import_new.html:49
+msgid "Count setlists"
+msgstr "Contar setlists"
+
+#: events/templates/events/artist_import_new.html:54
 msgid "No artist with that name on setlist.fm."
 msgstr "No hay ningún artista con ese nombre en setlist.fm."
+
+#: events/templates/events/artist_import_new.html:65
+msgid "Counting…"
+msgstr "Contando…"
+
+#: events/templates/events/artist_import_new.html:65
+#, python-format
+msgid "%%(n)s setlist"
+msgstr "%%(n)s setlist"
+
+#: events/templates/events/artist_import_new.html:65
+#, python-format
+msgid "%%(n)s setlists"
+msgstr "%%(n)s setlists"
+
+#: events/templates/events/artist_import_new.html:66
+#, python-format
+msgid "about %%(n)s requests (%%(left)s left today)"
+msgstr "cerca de %%(n)s consultas (quedan %%(left)s hoy)"
+
+#: events/templates/events/artist_import_new.html:66
+msgid "Couldn't count them."
+msgstr "No se pudieron contar."
 
 #: events/templates/events/artist_list.html:8
 msgid "Plays →"
@@ -1982,10 +2027,6 @@ msgstr "+ Nuevo artista"
 #: events/templates/events/artist_list.html:11
 msgid "Search artists"
 msgstr "Buscar artistas"
-
-#: events/templates/events/artist_list.html:13
-msgid "All countries"
-msgstr "Todos los países"
 
 #: events/templates/events/artist_list.html:14
 msgid "No country"
@@ -3348,7 +3389,7 @@ msgstr "Todavía no hay obras."
 #: events/templates/events/possible_festivals.html:10
 #, python-format
 msgid "Music events with %(n)s or more acts. Turning one into a festival keeps Headliner and Host labels and leaves everyone else without a label."
-msgstr "Eventos de música con %(n)s o más artistas. Al convertir uno en festival se mantienen las etiquetas de cabeza de cartel y presentador, y el resto queda sin etiqueta."
+msgstr "Eventos de música con %(n)s o más artistas. Al convertir uno en festival se mantienen las etiquetas de cabeza de cartel y animador, y el resto queda sin etiqueta."
 
 #: events/templates/events/possible_festivals.html:17
 #, python-format
@@ -3451,7 +3492,7 @@ msgid "Diary →"
 msgstr "Diario →"
 
 #: events/templates/events/profile.html:34
-#: events/templates/events/profile_stats.html:53
+#: events/templates/events/profile_stats.html:87
 msgid "Nothing logged yet."
 msgstr "Todavía no hay nada registrado."
 
@@ -3496,15 +3537,15 @@ msgstr "Las estadísticas serán parte de un plan de pago; durante la beta son g
 msgid "Free during the beta"
 msgstr "Gratis durante la beta"
 
-#: events/templates/events/profile_stats.html:17 events/views_social.py:175
+#: events/templates/events/profile_stats.html:17 events/views_social.py:178
 msgid "Most seen local artists"
 msgstr "Artistas locales más vistos"
 
-#: events/templates/events/profile_stats.html:18 events/views_social.py:176
+#: events/templates/events/profile_stats.html:18 events/views_social.py:179
 msgid "Most seen foreign artists"
 msgstr "Artistas extranjeros más vistos"
 
-#: events/templates/events/profile_stats.html:20 events/views_social.py:174
+#: events/templates/events/profile_stats.html:20 events/views_social.py:177
 msgid "Most seen artists"
 msgstr "Artistas más vistos"
 
@@ -3513,7 +3554,7 @@ msgstr "Artistas más vistos"
 msgid "<a href=\"%(profile_edit_url)s\">Set your home country</a> to split local and foreign artists."
 msgstr "<a href=\"%(profile_edit_url)s\">Indica tu país</a> para separar los artistas locales de los extranjeros."
 
-#: events/templates/events/profile_stats.html:24 events/views_social.py:177
+#: events/templates/events/profile_stats.html:24 events/views_social.py:180
 msgid "Most visited venues"
 msgstr "Recintos más visitados"
 
@@ -3529,7 +3570,7 @@ msgstr[1] "%(counter)s visitas"
 msgid "No venues yet."
 msgstr "Todavía no hay recintos."
 
-#: events/templates/events/profile_stats.html:35 events/views_social.py:178
+#: events/templates/events/profile_stats.html:35 events/views_social.py:181
 msgid "Most visited cities"
 msgstr "Ciudades más visitadas"
 
@@ -3538,9 +3579,59 @@ msgid "No cities yet."
 msgstr "Todavía no hay ciudades."
 
 #: events/templates/events/profile_stats.html:50
+msgid "Maps"
+msgstr "Mapas"
+
+#: events/templates/events/profile_stats.html:54
+msgid "Countries"
+msgstr "Países"
+
+#: events/templates/events/profile_stats.html:55
+#, python-format
+msgid "%(counter)s country"
+msgid_plural "%(counter)s countries"
+msgstr[0] "%(counter)s país"
+msgstr[1] "%(counter)s países"
+
+#: events/templates/events/profile_stats.html:57
+msgid "World map of the countries with shows attended"
+msgstr "Mapa mundial de los países con shows a los que fuiste"
+
+#: events/templates/events/profile_stats.html:63
+#, python-format
+msgid "Map of %(country)s with the cities of shows attended"
+msgstr "Mapa de %(country)s con las ciudades de los shows a los que fuiste"
+
+#: events/templates/events/profile_stats.html:66
+msgid "Regions:"
+msgstr "Regiones:"
+
+#: events/templates/events/profile_stats.html:75
+#, python-format
+msgid "Map of %(city)s with the venues attended"
+msgstr "Mapa de %(city)s con los recintos a los que fuiste"
+
+#: events/templates/events/profile_stats.html:76
+#, python-format
+msgid "%(counter)s venue has no location yet, so it isn't on the map."
+msgid_plural "%(counter)s venues have no location yet, so they aren't on the map."
+msgstr[0] "%(counter)s recinto aún no tiene ubicación, así que no aparece en el mapa."
+msgstr[1] "%(counter)s recintos aún no tienen ubicación, así que no aparecen en el mapa."
+
+#: events/templates/events/profile_stats.html:84
 #: events/templatetags/event_extras.py:63
 msgid "Events by year"
 msgstr "Eventos por año"
+
+#: events/templates/events/profile_stats.html:105
+#, python-format
+msgid "%%(n)s show"
+msgstr "%%(n)s show"
+
+#: events/templates/events/profile_stats.html:105
+#, python-format
+msgid "%%(n)s shows"
+msgstr "%%(n)s shows"
 
 #: events/templates/events/review_detail.html:4
 #, python-format
@@ -4163,20 +4254,20 @@ msgstr "Se agregó el %(date)s. Edítalo si algo cambia ese día."
 msgid "The show already has that date."
 msgstr "El espectáculo ya tiene esa fecha."
 
-#: events/views_admin.py:48
+#: events/views_admin.py:50 events/views_admin.py:153
 msgid "Pick an artist first."
 msgstr "Primero elige un artista."
 
-#: events/views_admin.py:52
+#: events/views_admin.py:55
 #, python-format
 msgid "There's already an unfinished import for %(name)s."
 msgstr "Ya hay una importación sin terminar de %(name)s."
 
-#: events/views_admin.py:115 events/views_merge.py:206
+#: events/views_admin.py:121 events/views_merge.py:206
 msgid "Give the festival a name."
 msgstr "Ponle un nombre al festival."
 
-#: events/views_admin.py:118
+#: events/views_admin.py:124
 #, python-format
 msgid "“%(event)s” is now a festival day of %(name)s."
 msgstr "“%(event)s” ahora es un día del festival %(name)s."
@@ -4316,19 +4407,19 @@ msgstr "Se fusionó “%(removed)s” con “%(kept)s”."
 msgid "Merged the duplicate “%(removed)s” into this event."
 msgstr "Se fusionó el duplicado “%(removed)s” con este evento."
 
-#: events/views_social.py:232
+#: events/views_social.py:235
 msgid "Profile saved."
 msgstr "Perfil guardado."
 
-#: events/views_social.py:254
+#: events/views_social.py:257
 msgid "Favourites saved."
 msgstr "Favoritos guardados."
 
-#: events/views_social.py:288
+#: events/views_social.py:291
 msgid "You can't follow yourself."
 msgstr "No puedes seguirte a ti mismo."
 
-#: events/views_social.py:365
+#: events/views_social.py:368
 msgid "Your reply can't be empty."
 msgstr "Tu respuesta no puede estar vacía."
 

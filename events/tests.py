@@ -3960,6 +3960,7 @@ class ArtistImportTests(BaseTestCase):
         cache.clear()
         self.fail_page = None
         self.pages_read = []
+        self.countries_asked = []
         venues = [{"id": f"v{i}", "name": f"Venue {i}", "city": {"name": "Liverpool", "country": {"code": "GB"}}}
                   for i in range(45)]
         self.setlists = [_setlist(id=f"b{i:03d}", eventDate=f"{(i % 28) + 1:02d}-0{(i % 9) + 1}-1963", venue=venues[i])
@@ -3972,6 +3973,7 @@ class ArtistImportTests(BaseTestCase):
             if "/search/artists" in req.full_url:
                 return _FakeResponse({"artist": [{"mbid": "b10bbbfc", "name": "The Beatles", "disambiguation": ""}]})
             page = int(query["p"][0])
+            self.countries_asked.append(query.get("countryCode", [""])[0])
             if page == self.fail_page:
                 from urllib.error import URLError
                 raise URLError("connection reset")
@@ -4055,6 +4057,41 @@ class ArtistImportTests(BaseTestCase):
                          paused["processed"])  # paused: no more work
         resumed = self.client.post(reverse("events:artist_import_step", args=[job.pk]), {"action": "resume"}).json()
         self.assertNotEqual(resumed["status"], "paused")
+
+    def test_country_filter_defaults_to_home_country_and_can_be_turned_off(self):
+        from . import artist_import
+        from .models import ArtistImport
+
+        self.boss.profile.home_country = "GB"
+        self.boss.profile.save()
+        self.client.force_login(self.boss)
+        page = self.client.get(reverse("events:artist_import_new"), {"artist": "beatles"})
+        self.assertContains(page, '<option value="GB" selected>')
+        url = reverse("events:artist_import_new")
+        self.client.post(url, {"mbid": "b10bbbfc", "name": "The Beatles", "country": "GB"})
+        self.client.post(url, {"mbid": "b10bbbfc", "name": "The Beatles", "country": "GB", "all_countries": "1"})
+        jobs = list(ArtistImport.objects.order_by("pk"))
+        self.assertEqual([j.country.code or "" for j in jobs], ["GB", ""])  # two imports: GB only, everywhere
+        artist_import.run_step(jobs[0])
+        artist_import.run_step(jobs[1])
+        self.assertEqual(self.countries_asked[0], "GB")
+        self.assertIn("", self.countries_asked[1:])
+
+    def test_preview_counts_the_setlists_and_the_import_reuses_that_request(self):
+        from . import artist_import
+
+        url = reverse("events:artist_import_preview")
+        self.client.force_login(self.user)
+        self.assertEqual(self.client.get(url, {"mbid": "b10bbbfc"}).status_code, 403)
+        self.client.force_login(self.boss)
+        preview = self.client.get(url, {"mbid": "b10bbbfc", "country": "gb"}).json()
+        self.assertEqual((preview["total"], preview["requests"]), (45, 3))
+        self.assertEqual(self.countries_asked, ["GB"])
+        page = self.client.get(reverse("events:artist_import_new"), {"artist": "beatles"})
+        self.assertContains(page, 'data-preview="b10bbbfc" data-auto')
+        job = self._job(country="GB")
+        artist_import.run_step(job, seconds=0.01)
+        self.assertEqual(self.pages_read, [1])  # page 1 came from the preview's cached answer
 
 
 class SetlistSingleImportTests(BaseTestCase):
@@ -4289,3 +4326,42 @@ class FestivalNoLabelTests(BaseTestCase):
         page = self.client.get(fest.get_absolute_url())
         self.assertNotContains(page, "–")
         self.assertNotContains(page, "> · <a")  # no separator before the tour when there's no label
+
+
+
+
+class StatsMapTests(BaseTestCase):
+    def test_countries_regions_cities_and_venues(self):
+        from decimal import Decimal
+
+        self.user.profile.home_country = "CL"
+        self.user.profile.home_city = "santiago"
+        self.user.profile.save()
+        self.venue.region, self.venue.latitude, self.venue.longitude = "Región Metropolitana", Decimal("-33.45"), Decimal("-70.66")
+        self.venue.save()
+        estadio = Venue.objects.create(name="Estadio Nacional", city="Santiago", country="CL", region="Región Metropolitana",
+                                       latitude=Decimal("-33.46"), longitude=Decimal("-70.61"))
+        quinta = Venue.objects.create(name="Quinta Vergara", city="Viña del Mar", country="CL", region="Valparaíso",
+                                      latitude=Decimal("-33.03"), longitude=Decimal("-71.55"))
+        no_place = Venue.objects.create(name="Bar sin mapa", city="Santiago", country="CL")
+        wembley = Venue.objects.create(name="Wembley", city="London", country="GB")
+        for venue, day in [(self.venue, 1), (estadio, 2), (estadio, 3), (quinta, 4), (no_place, 5), (wembley, 6)]:
+            event = Event.objects.create(title=f"Show {day}", venue=venue, date=date(2024, 1, day))
+            Log.objects.create(user=self.user, event=event)
+
+        page = self.client.get(reverse("events:user_stats", args=["ana"]))
+        maps = page.context["maps"]
+        self.assertEqual([(c["code"], c["id"], c["n"]) for c in maps["world"]], [("CL", "152", 5), ("GB", "826", 1)])
+        self.assertEqual(maps["country"]["code"], "CL")
+        self.assertEqual([(r["name"], r["n"]) for r in maps["regions"]], [("Región Metropolitana", 3), ("Valparaíso", 1)])
+        self.assertEqual([c["name"] for c in maps["cities"]], ["Santiago", "Viña del Mar"])
+        self.assertEqual(maps["city"], "Santiago")
+        self.assertEqual([(v["name"], v["n"]) for v in maps["venues"]], [("Estadio Nacional", 2), ("Teatro Caupolicán", 1)])
+        self.assertEqual(maps["venues_without_place"], 1)
+        self.assertContains(page, 'id="map-world"')
+        self.assertContains(page, "1 venue has no location yet")
+
+    def test_no_maps_without_shows(self):
+        page = self.client.get(reverse("events:user_stats", args=["ana"]))
+        self.assertNotContains(page, 'id="map-world"')
+        self.assertNotContains(page, "leaflet")

@@ -28,14 +28,27 @@
         <input type="hidden" name="mbid" value="{{ a.mbid }}" /><input type="hidden" name="name" value="{{ a.name }}" />
         <div class="me-auto">
           <strong>{{ a.name }}</strong>{% if a.disambiguation %} <span class="small text-body-secondary">({{ a.disambiguation }})</span>{% endif %}
-          <div class="d-flex flex-wrap gap-3 small mt-1">
+          <div class="d-flex flex-wrap align-items-center gap-3 small mt-1">
+            <div class="d-flex align-items-center gap-2" data-country-filter>
+              <label class="text-nowrap" for="country-{{ forloop.counter }}">{% translate "Only shows in" %}</label>
+              <select class="form-select form-select-sm w-auto" name="country" id="country-{{ forloop.counter }}">
+                {% for code, label in countries %}<option value="{{ code }}"{% if code == country %} selected{% endif %}>{{ label }}</option>{% endfor %}
+              </select>
+              <div class="form-check m-0"><input class="form-check-input" type="checkbox" name="all_countries" value="1" id="all-{{ forloop.counter }}"{% if not country %} checked{% endif %} />
+                <label class="form-check-label" for="all-{{ forloop.counter }}">{% translate "All countries" %}</label></div>
+            </div>
             <div class="form-check m-0"><input class="form-check-input" type="checkbox" name="only_with_songs" value="1" id="songs-{{ forloop.counter }}" checked />
               <label class="form-check-label" for="songs-{{ forloop.counter }}">{% translate "Only setlists with songs" %}</label></div>
             <div class="form-check m-0"><input class="form-check-input" type="checkbox" name="look_up_venues" value="1" id="venues-{{ forloop.counter }}" />
               <label class="form-check-label" for="venues-{{ forloop.counter }}" title="{% translate 'One Google Places lookup per new venue (a paid API)' %}">{% translate "Match new venues on Google" %}</label></div>
           </div>
         </div>
-        <button class="btn btn-sm btn-success" type="submit">{% translate "Import all setlists" %}</button>
+        <div class="d-flex flex-column align-items-end gap-1">
+          <button class="btn btn-sm btn-success" type="submit">{% translate "Import all setlists" %}</button>
+          <span class="small text-body-secondary text-end" data-preview="{{ a.mbid }}"{% if forloop.first %} data-auto{% endif %} aria-live="polite">
+            <button class="btn btn-link btn-sm p-0" type="button">{% translate "Count setlists" %}</button>
+          </span>
+        </div>
       </div></form>
     {% empty %}
       <p class="text-body-secondary">{% translate "No artist with that name on setlist.fm." %}</p>
@@ -46,4 +59,43 @@
     <h2 class="h6 mt-4">{% translate "Imports" %}</h2>
     {% include "events/_artist_imports.html" %}
   {% endif %}
+{% endblock %}
+
+{% block scripts %}
+{% translate "Counting…" as counting %}{% translate "%(n)s setlist" as one_setlist %}{% translate "%(n)s setlists" as many_setlists %}
+{% translate "about %(n)s requests (%(left)s left today)" as requests_text %}{% translate "Couldn't count them." as count_failed %}
+<script>
+  // "All countries" turns the country filter off (the select greys out).
+  document.querySelectorAll("[data-country-filter]").forEach(function (box) {
+    var select = box.querySelector("select"), all = box.querySelector("input[type=checkbox]");
+    function sync() { select.disabled = all.checked; }
+    all.addEventListener("change", sync);
+    sync();
+  });
+
+  // How many setlists each import would bring (one setlist.fm request each, so only the top result counts by
+  // itself; the others on demand). Counted again when its country filter changes.
+  document.querySelectorAll("[data-preview]").forEach(function (slot) {
+    var form = slot.closest("form"), select = form.querySelector("select[name=country]"),
+        all = form.querySelector("input[name=all_countries]"), button = slot.querySelector("button"), counted = false;
+    function count() {
+      counted = true;
+      var country = all.checked ? "" : select.value;
+      slot.textContent = "{{ counting|escapejs }}";
+      fetch("{% url 'events:artist_import_preview' %}?mbid=" + encodeURIComponent(slot.dataset.preview) + "&country=" + encodeURIComponent(country))
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          if (d.error) { slot.textContent = d.error; return; }
+          var text = (d.total === 1 ? "{{ one_setlist|escapejs }}" : "{{ many_setlists|escapejs }}").replace("%(n)s", d.total.toLocaleString());
+          if (d.total) text += " · " + "{{ requests_text|escapejs }}".replace("%(n)s", d.requests).replace("%(left)s", d.remaining);
+          slot.textContent = text;
+        })
+        .catch(function () { slot.textContent = "{{ count_failed|escapejs }}"; });
+    }
+    button.addEventListener("click", count);
+    select.addEventListener("change", function () { if (counted) count(); });
+    all.addEventListener("change", function () { if (counted) count(); });
+    if (slot.hasAttribute("data-auto")) count();
+  });
+</script>
 {% endblock %}

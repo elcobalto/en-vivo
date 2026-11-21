@@ -45,6 +45,40 @@
     </div>
   {% endif %}
 
+  {% if maps.world %}
+    {# Maps: drawn in the browser (world borders from world-atlas; streets from OpenStreetMap). #}
+    <h2 class="section-title mb-3">{% translate "Maps" %}</h2>
+    <div class="row g-4 mb-5">
+      <div class="col-12">
+        <div class="d-flex flex-wrap justify-content-between align-items-baseline gap-2 mb-1">
+          <h3 class="h6 m-0">{% translate "Countries" %}</h3>
+          <span class="small text-body-secondary">{% blocktranslate count counter=maps.world|length %}{{ counter }} country{% plural %}{{ counter }} countries{% endblocktranslate %}</span>
+        </div>
+        <div id="map-world" class="stats-map stats-map-world" role="img" aria-label="{% translate 'World map of the countries with shows attended' %}"></div>
+        <div class="small text-body-secondary mt-1">{% for c in maps.world %}{{ c.name }} <span class="text-body">{{ c.n }}</span>{% if not forloop.last %} · {% endif %}{% endfor %}</div>
+      </div>
+      {% if maps.country.code %}
+        <div class="col-12 col-lg-6">
+          <h3 class="h6 mb-1">{{ maps.country.name }}</h3>
+          <div id="map-country" class="stats-map" role="img" aria-label="{% blocktranslate with country=maps.country.name %}Map of {{ country }} with the cities of shows attended{% endblocktranslate %}"></div>
+          {% if maps.regions %}
+            <div class="small mt-2">
+              <span class="text-body-secondary">{% translate "Regions:" %}</span>
+              {% for r in maps.regions %}{{ r.name }} <span class="text-body-secondary">{{ r.n }}</span>{% if not forloop.last %} · {% endif %}{% endfor %}
+            </div>
+          {% endif %}
+        </div>
+      {% endif %}
+      {% if maps.city %}
+        <div class="col-12 col-lg-6">
+          <h3 class="h6 mb-1">{{ maps.city }}</h3>
+          <div id="map-city" class="stats-map" role="img" aria-label="{% blocktranslate with city=maps.city %}Map of {{ city }} with the venues attended{% endblocktranslate %}"></div>
+          {% if maps.venues_without_place %}<div class="small text-body-secondary mt-1">{% blocktranslate count counter=maps.venues_without_place %}{{ counter }} venue has no location yet, so it isn't on the map.{% plural %}{{ counter }} venues have no location yet, so they aren't on the map.{% endblocktranslate %}</div>{% endif %}
+        </div>
+      {% endif %}
+    </div>
+  {% endif %}
+
   {% url 'events:user_diary' owner.get_username as diary_url %}
   <div style="max-width:28rem">
     {% year_histogram owner_logs _("Events by year") diary_url %}
@@ -52,4 +86,109 @@
   {% if not top_artists and not top_venues and not top_cities and not owner_logs %}
     <p class="text-body-secondary">{% translate "Nothing logged yet." %}</p>
   {% endif %}
+{% endblock %}
+
+{% block scripts %}
+{% if maps.world %}
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    .stats-map { height: 320px; border-radius: .4rem; border: 1px solid var(--ev-line); background: var(--ev-surface); overflow: hidden; }
+    .stats-map-world { height: auto; aspect-ratio: 2 / 1; }
+    .stats-map-world path { stroke: var(--ev-bg); stroke-width: .5; }
+    .stats-map-world path.seen { cursor: default; }
+    /* Dark streets to match the site (OpenStreetMap's tiles, inverted). */
+    .stats-map .leaflet-tile-pane { filter: invert(1) hue-rotate(180deg) brightness(.9) contrast(.9); }
+    .stats-map .leaflet-container { background: var(--ev-surface); }
+    .leaflet-popup-content-wrapper, .leaflet-popup-tip { background: var(--ev-surface-2); color: #f5f5f5; }
+  </style>
+  {{ maps|json_script:"map-data" }}
+  {% translate "%(n)s show" as one_show %}{% translate "%(n)s shows" as many_shows %}
+  <script src="https://cdn.jsdelivr.net/npm/d3-array@3.2.4/dist/d3-array.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/d3-geo@3.1.1/dist/d3-geo.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/topojson-client@3.1.0/dist/topojson-client.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    (function () {
+      var data = JSON.parse(document.getElementById("map-data").textContent),
+          accent = getComputedStyle(document.documentElement).getPropertyValue("--ev-accent").trim() || "#ff8000",
+          venueUrl = "{% url 'events:venue_detail' 0 %}".replace("/0/", "/{id}/") + "?seen_by={{ owner.get_username|urlencode }}";
+      function shows(n) { return (n === 1 ? "{{ one_show|escapejs }}" : "{{ many_shows|escapejs }}").replace("%(n)s", n); }
+      function esc(text) { var d = document.createElement("div"); d.textContent = text; return d.innerHTML; }
+      var seen = {}, max = 1;
+      data.world.forEach(function (c) { seen[c.id] = c; max = Math.max(max, c.n); });
+
+      fetch("https://cdn.jsdelivr.net/npm/world-atlas@2.0.2/countries-110m.json").then(function (r) { return r.json(); }).then(function (atlas) {
+        var land = topojson.feature(atlas, atlas.objects.countries);
+        land.features = land.features.filter(function (f) { return f.id !== "010"; });  // no Antarctica
+        drawWorld(land);
+        drawCountry(land);
+      }).catch(function (error) {
+        console.error("World map:", error);  // the lists under the maps still show everything
+      });
+
+      function drawWorld(land) {
+        var box = document.getElementById("map-world"), width = box.clientWidth || 800, height = width / 2,
+            projection = d3.geoNaturalEarth1().fitSize([width, height], land), path = d3.geoPath(projection),
+            ns = "http://www.w3.org/2000/svg", svg = document.createElementNS(ns, "svg");
+        svg.setAttribute("viewBox", "0 0 " + width + " " + height);
+        svg.setAttribute("width", "100%");
+        land.features.forEach(function (f) {
+          var p = document.createElementNS(ns, "path"), c = seen[f.id];
+          p.setAttribute("d", path(f));
+          if (c) {
+            // Brighter for more shows (square root, so one show is still clearly visible).
+            p.setAttribute("fill", accent);
+            p.setAttribute("fill-opacity", (0.45 + 0.55 * Math.sqrt(c.n / max)).toFixed(2));
+            p.setAttribute("class", "seen");
+            var t = document.createElementNS(ns, "title");
+            t.textContent = c.name + ": " + shows(c.n);
+            p.appendChild(t);
+          } else {
+            p.setAttribute("fill", "#2a2a2a");
+          }
+          svg.appendChild(p);
+        });
+        box.appendChild(svg);
+      }
+
+      function tiles(map) {
+        L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+          maxZoom: 18, attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+        }).addTo(map);
+      }
+
+      function drawCountry(land) {
+        var box = document.getElementById("map-country");
+        if (!box) return;
+        var map = L.map(box, {scrollWheelZoom: false}), shape = land.features.filter(function (f) { return f.id === data.country.id; })[0];
+        var outline = shape && L.geoJSON(shape, {style: {color: accent, weight: 2, fillColor: accent, fillOpacity: 0.08}});
+        var points = data.cities.map(function (c) { return [c.lat, c.lng]; });
+        // The view first: Leaflet draws shapes only once the map knows where it is.
+        if (outline) map.fitBounds(outline.getBounds(), {padding: [10, 10]});
+        else if (points.length) map.fitBounds(points, {padding: [30, 30], maxZoom: 10});
+        else map.setView([0, 0], 2);
+        tiles(map);
+        if (outline) outline.addTo(map);
+        var top = Math.max.apply(null, data.cities.map(function (c) { return c.n; }).concat([1]));
+        data.cities.forEach(function (c) {
+          L.circleMarker([c.lat, c.lng], {radius: 5 + 13 * Math.sqrt(c.n / top), color: accent, weight: 1, fillColor: accent, fillOpacity: 0.6})
+            .bindTooltip(esc(c.name) + ": " + shows(c.n)).addTo(map);
+        });
+      }
+
+      (function drawCity() {
+        var box = document.getElementById("map-city");
+        if (!box) return;
+        if (!data.venues.length) { box.remove(); return; }
+        var map = L.map(box, {scrollWheelZoom: false}), top = Math.max.apply(null, data.venues.map(function (v) { return v.n; }));
+        map.fitBounds(data.venues.map(function (v) { return [v.lat, v.lng]; }), {padding: [30, 30], maxZoom: 15});
+        tiles(map);
+        data.venues.forEach(function (v) {
+          L.circleMarker([v.lat, v.lng], {radius: 6 + 12 * Math.sqrt(v.n / top), color: accent, weight: 1, fillColor: accent, fillOpacity: 0.7})
+            .bindPopup('<a href="' + venueUrl.replace("{id}", v.id) + '">' + esc(v.name) + "</a><br>" + shows(v.n)).addTo(map);
+        });
+      })();
+    })();
+  </script>
+{% endif %}
 {% endblock %}
