@@ -3,7 +3,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: En Vivo\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-21 05:23+0000\n"
+"POT-Creation-Date: 2026-11-21 08:29+0000\n"
 "PO-Revision-Date: 2026-11-20 18:00-0300\n"
 "Last-Translator: En Vivo\n"
 "Language-Team: Spanish\n"
@@ -52,7 +52,7 @@ msgid "Country"
 msgstr "País"
 
 #: events/forms.py:74 events/forms.py:315 events/forms.py:325
-#: events/forms.py:362 events/templates/events/artist_songs.html:55
+#: events/forms.py:362 events/templates/events/artist_songs.html:58
 #: events/templates/events/list_form.html:13
 msgid "Title"
 msgstr "Título"
@@ -889,7 +889,7 @@ msgid "Plays"
 msgstr "Veces tocadas"
 
 #: events/templates/events/_album_chart.html:37
-#: events/templates/events/artist_songs.html:23
+#: events/templates/events/artist_songs.html:26
 msgid "Songs"
 msgstr "Canciones"
 
@@ -933,7 +933,7 @@ msgstr "Cover de %(artist)s"
 
 #: events/templates/events/_album_chart.html:63
 #: events/templates/events/artist_detail.html:101
-#: events/templates/events/artist_songs.html:42
+#: events/templates/events/artist_songs.html:45
 #, python-format
 msgid "Played at %(n)s of the %(counter)s show since it came out"
 msgid_plural "Played at %(n)s of the %(counter)s shows since it came out"
@@ -1046,6 +1046,10 @@ msgstr "Shows"
 msgid "Stats"
 msgstr "Estadísticas"
 
+#: events/templates/events/_crowdsourced_note.html:3
+msgid "Information on En Vivo is crowdsourced, so there may be mistakes."
+msgstr "La información de En Vivo la aporta la comunidad, así que puede tener errores."
+
 #: events/templates/events/_event_card.html:15
 #: events/templates/events/act_setlist.html:18
 #: events/templates/events/diary.html:58
@@ -1064,7 +1068,7 @@ msgstr "Guardar favoritos"
 #: events/templates/events/_favorites_form.html:20
 #: events/templates/events/act_setlist.html:87
 #: events/templates/events/artist_confirm_delete.html:21
-#: events/templates/events/artist_songs.html:58
+#: events/templates/events/artist_songs.html:61
 #: events/templates/events/artist_songs_manage.html:31
 #: events/templates/events/event_confirm_delete.html:27
 #: events/templates/events/event_detail.html:310
@@ -1191,6 +1195,14 @@ msgstr "Usar esta foto"
 #: events/templates/events/_photo_candidate.html:11
 msgid "source"
 msgstr "fuente"
+
+#: events/templates/events/_pro_badge.html:2
+msgid "Stats will be part of a paid plan; during the beta they are free for everyone."
+msgstr "Las estadísticas serán parte de un plan de pago; durante la beta son gratis para todos."
+
+#: events/templates/events/_pro_badge.html:2
+msgid "Free during the beta"
+msgstr "Gratis durante la beta"
 
 #: events/templates/events/_profile_header.html:13
 msgid "Follows you"
@@ -1328,7 +1340,7 @@ msgstr "Editar álbumes"
 
 #: events/templates/events/act_setlist.html:49
 #: events/templates/events/artist_detail.html:108
-#: events/templates/events/artist_songs.html:24
+#: events/templates/events/artist_songs.html:27
 msgid "Albums"
 msgstr "Álbumes"
 
@@ -1360,13 +1372,13 @@ msgstr "No se encontraron álbumes de estudio para estas canciones."
 
 #: events/templates/events/act_setlist.html:62
 #: events/templates/events/artist_detail.html:116
-#: events/templates/events/artist_songs.html:31
+#: events/templates/events/artist_songs.html:34
 msgid "As a member of"
 msgstr "Como integrante de"
 
 #: events/templates/events/act_setlist.html:76
 #: events/templates/events/artist_detail.html:134
-#: events/templates/events/artist_songs.html:52
+#: events/templates/events/artist_songs.html:55
 #: events/templates/events/event_detail.html:281
 #: events/templates/events/event_detail.html:321
 #: events/templates/events/event_detail.html:347
@@ -1754,7 +1766,7 @@ msgid "All songs →"
 msgstr "Todas las canciones →"
 
 #: events/templates/events/artist_detail.html:103
-#: events/templates/events/artist_songs.html:44
+#: events/templates/events/artist_songs.html:47
 msgid "No setlists yet."
 msgstr "Todavía no hay setlists."
 
@@ -1836,7 +1848,7 @@ msgstr "Los álbumes de esta lista aparecen en los gráficos aunque no se haya t
 
 #: events/templates/events/artist_detail.html:144
 #: events/templates/events/artist_detail.html:158
-#: events/templates/events/artist_songs.html:56
+#: events/templates/events/artist_songs.html:59
 #: events/templates/events/diary.html:13
 #: events/templates/events/event_list.html:34
 #: events/templates/events/setlistfm_shows.html:32
@@ -1877,7 +1889,7 @@ msgid "e.g. 1994"
 msgstr "p. ej. 1994"
 
 #: events/templates/events/artist_detail.html:159
-#: events/templates/events/artist_songs.html:58
+#: events/templates/events/artist_songs.html:61
 msgid "Add album"
 msgstr "Agregar álbum"
 
@@ -2173,44 +2185,44 @@ msgstr "Álbumes tocados"
 msgid "Songs played"
 msgstr "Canciones tocadas"
 
-#: events/templates/events/artist_songs.html:9
+#: events/templates/events/artist_songs.html:10
 #, python-format
 msgid "%(name)s: what they played"
 msgstr "%(name)s: lo que tocó"
 
-#: events/templates/events/artist_songs.html:11
-#: events/templates/events/artist_songs.html:15
+#: events/templates/events/artist_songs.html:14
+#: events/templates/events/artist_songs.html:18
 #, python-format
 msgid "Across %(counter)s setlist from shows <a href=\"%(seen_by_url)s\">@%(username)s</a> saw · <a href=\"%(all_url)s\">all shows</a>."
 msgid_plural "Across %(counter)s setlists from shows <a href=\"%(seen_by_url)s\">@%(username)s</a> saw · <a href=\"%(all_url)s\">all shows</a>."
 msgstr[0] "En %(counter)s setlist de shows que vio <a href=\"%(seen_by_url)s\">@%(username)s</a> · <a href=\"%(all_url)s\">todos los shows</a>."
 msgstr[1] "En %(counter)s setlists de shows que vio <a href=\"%(seen_by_url)s\">@%(username)s</a> · <a href=\"%(all_url)s\">todos los shows</a>."
 
-#: events/templates/events/artist_songs.html:19
+#: events/templates/events/artist_songs.html:22
 #, python-format
 msgid "Across %(counter)s setlist."
 msgid_plural "Across %(counter)s setlists."
 msgstr[0] "En %(counter)s setlist."
 msgstr[1] "En %(counter)s setlists."
 
-#: events/templates/events/artist_songs.html:20
+#: events/templates/events/artist_songs.html:23
 msgid "Songs show plays / shows since they came out (by album year). Tapes aren't counted."
 msgstr "Las canciones muestran veces tocadas / shows desde que salieron (según el año del álbum). Lo que sonó grabado no se cuenta."
 
-#: events/templates/events/artist_songs.html:35
+#: events/templates/events/artist_songs.html:38
 msgid "+ Add album"
 msgstr "+ Agregar álbum"
 
-#: events/templates/events/artist_songs.html:52
+#: events/templates/events/artist_songs.html:55
 #, python-format
 msgid "Add an album to %(name)s"
 msgstr "Agregar un álbum a %(name)s"
 
-#: events/templates/events/artist_songs.html:54
+#: events/templates/events/artist_songs.html:57
 msgid "It shows in the charts even if nothing from it was played (unless “Skip empty albums” is on)."
 msgstr "Aparece en los gráficos aunque no se haya tocado nada de él (salvo que “Ocultar álbumes vacíos” esté activado)."
 
-#: events/templates/events/artist_songs.html:55
+#: events/templates/events/artist_songs.html:58
 msgid "e.g. Kerplunk!"
 msgstr "p. ej. Kerplunk!"
 
@@ -3616,14 +3628,6 @@ msgstr "Guardar perfil"
 msgid "%(name)s's stats"
 msgstr "Estadísticas de %(name)s"
 
-#: events/templates/events/profile_stats.html:11
-msgid "Stats will be part of a paid plan; during the beta they are free for everyone."
-msgstr "Las estadísticas serán parte de un plan de pago; durante la beta son gratis para todos."
-
-#: events/templates/events/profile_stats.html:11
-msgid "Free during the beta"
-msgstr "Gratis durante la beta"
-
 #: events/templates/events/profile_stats.html:16
 msgid "All events"
 msgstr "Todos los eventos"
@@ -4660,6 +4664,9 @@ msgstr "La foto pesa más de 8 MB."
 #: events/views_venues.py:428
 msgid "That link isn't an image."
 msgstr "Ese enlace no es una imagen."
+
+#~ msgid "Report a mistake"
+#~ msgstr "Reportar un error"
 
 #~ msgid "One Google Places lookup per new venue (a paid API)"
 #~ msgstr "Una búsqueda en Google Places por cada recinto nuevo (una API de pago)"

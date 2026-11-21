@@ -4574,3 +4574,14 @@ class StatsTypeFilterTests(BaseTestCase):
         ranking = self.client.get(reverse("events:user_ranking", args=["ana", "venues"]), {"type": "comedy"})
         self.assertEqual([r[1] for r in ranking.context["rows"]], ["Quinta Vergara"])
         self.assertEqual(self.client.get(url, {"type": "nope"}).context["event_type"], "")
+
+
+class CrowdsourcedNoteTests(BaseTestCase):
+    def test_artist_and_event_pages_say_the_data_is_crowdsourced(self):
+        artist = Artist.objects.create(name="Band")
+        EventArtist.objects.create(event=self.event, artist=artist)
+        for url in [self.event.get_absolute_url(), artist.get_absolute_url(),
+                    reverse("events:artist_shows", args=[artist.pk]), reverse("events:artist_songs", args=[artist.pk])]:
+            page = self.client.get(url)
+            self.assertContains(page, "crowdsourced", msg_prefix=url)
+        self.assertContains(self.client.get(reverse("events:artist_songs", args=[artist.pk])), "Free during the beta")

@@ -8,7 +8,7 @@
 
   <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
     <h2 class="section-title m-0">{% translate "Stats" %}</h2>
-    <span class="badge text-bg-warning" title="{% translate 'Stats will be part of a paid plan; during the beta they are free for everyone.' %}">{% translate "Free during the beta" %}</span>
+    {% include "events/_pro_badge.html" %}
   </div>
   {% if event_types|length > 1 %}
     {# One filter for the whole page: every event, or one type. #}

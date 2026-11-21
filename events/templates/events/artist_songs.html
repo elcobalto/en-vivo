@@ -6,7 +6,10 @@
 {% block content %}
   <h1 class="h4 mb-2"><a class="text-decoration-none" href="{{ artist.get_absolute_url }}{% if seen_q %}?{{ seen_q }}{% endif %}">{{ artist.name }}</a></h1>
   {% include "events/_artist_tabs.html" %}
-  <h2 class="h5 mb-1">{% blocktranslate with name=artist.name %}{{ name }}: what they played{% endblocktranslate %}</h2>
+  <div class="d-flex flex-wrap align-items-center gap-2 mb-1">
+    <h2 class="h5 m-0">{% blocktranslate with name=artist.name %}{{ name }}: what they played{% endblocktranslate %}</h2>
+    {% include "events/_pro_badge.html" %}
+  </div>
   <p class="small text-body-secondary mb-3">
     {% if seen_by %}{% url 'events:profile' seen_by.get_username as seen_by_url %}{% if tab == 'albums' %}{% with all_url=request.path|add:"?tab=albums" %}{% blocktranslate trimmed count counter=shows with username=seen_by.get_username %}
       Across {{ counter }} setlist from shows <a href="{{ seen_by_url }}">@{{ username }}</a> saw · <a href="{{ all_url }}">all shows</a>.
@@ -60,4 +63,5 @@
     </div></div>
   </div>
   {% endif %}
+  {% include "events/_crowdsourced_note.html" %}
 {% endblock %}
