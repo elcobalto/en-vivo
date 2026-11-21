@@ -18,6 +18,7 @@ from datetime import timedelta
 
 from django.db.models import Q
 from django.utils import timezone
+from django.utils.formats import date_format
 from django.utils.translation import gettext
 
 from . import setlistfm_quota
@@ -31,6 +32,7 @@ STEP_SECONDS = 10  # well under the server's 30 s request limit
 LOCK_SECONDS = 60  # a step that died (worker killed) stops blocking the job after this
 # What a step saves as it goes; the status only changes on purpose (a pause from the page wins).
 PROGRESS_FIELDS = ["total", "page", "index", "processed", "created", "joined", "already", "empty", "older", "failed",
+                   "reached_date",
                    "last_error", "updated_at"]
 
 
@@ -82,8 +84,9 @@ def _work(job: ArtistImport, deadline: float) -> None:
         job.total = max(total, job.processed)
         if _paused_meanwhile(job):
             return
-        if job.since_year and results and all(_year(r) is not None and _year(r) < job.since_year for r in results):
-            # setlist.fm lists the newest first: a page entirely before the year means nothing later is left.
+        cutoff = job.cutoff
+        if cutoff and results and all(_day(r) is not None and _day(r) < cutoff for r in results):
+            # setlist.fm lists the newest first: a page entirely before the first day means nothing later is left.
             job.status = ArtistImport.Status.DONE
             job.finished_at = timezone.now()
             job.save(update_fields=PROGRESS_FIELDS + ["status", "finished_at"])
@@ -107,13 +110,16 @@ def _work(job: ArtistImport, deadline: float) -> None:
         job.save(update_fields=PROGRESS_FIELDS)
 
 
-def _year(payload: dict) -> int | None:
-    day = parse_event_date(payload.get("eventDate"))
-    return day.year if day else None
+def _day(payload: dict):
+    return parse_event_date(payload.get("eventDate"))
 
 
 def _import_one(job: ArtistImport, payload: dict) -> None:
-    if job.since_year and (_year(payload) or 0) < job.since_year:
+    day = _day(payload)
+    if day and (job.reached_date is None or day < job.reached_date):
+        job.reached_date = day
+    cutoff = job.cutoff
+    if cutoff and (day is None or day < cutoff):
         job.older += 1
         return
     if job.only_with_songs and not has_songs(payload):
@@ -152,6 +158,7 @@ def as_json(job: ArtistImport, busy: bool = False) -> dict:
         "already": job.already,
         "empty": job.empty,
         "older": job.older,
+        "reached": date_format(job.reached_date, "j M Y") if job.reached_date else "",
         "failed": job.failed,
         "last_error": job.last_error,
         "remaining_requests": setlistfm_quota.remaining(),

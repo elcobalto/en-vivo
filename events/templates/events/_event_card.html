@@ -10,7 +10,7 @@
 </a>
 <a class="d-block mt-2 fw-semibold small lh-sm clamp-2 text-decoration-none" href="{{ card_url|default:event.get_absolute_url }}">{{ event.title }}</a>
 {% if card_acts %}<div class="small lh-sm clamp-2 mt-1" title="{{ card_acts|join:', ' }}">{{ card_acts|join:" · " }}</div>{% else %}{% with lineup=event.card_lineup %}{% if lineup %}<div class="small lh-sm clamp-2 mt-1" title="{{ lineup|join:', ' }}">{{ lineup|join:" · " }}</div>{% endif %}{% endwith %}{% endif %}
-{% if event.venue %}<div class="small text-body-secondary lh-sm clamp-2 mt-1" title="{{ event.venue.name }}">{{ event.venue.name }}</div>{% endif %}
+{% if event.venue %}<div class="small text-body-secondary lh-sm clamp-2 mt-1" title="{{ event.venue.name }}{% if event.venue.city %}, {{ event.venue.city }}{% endif %}">{{ event.venue.name }}{% if event.venue.city %} · {{ event.venue.city }}{% endif %}</div>{% endif %}
 <div class="event-date mt-1">
   {% if event.date %}<time datetime="{{ event.date|date:'Y-m-d' }}">{{ event.date|date:"j M Y" }}</time>{% else %}<span class="opacity-50">{% translate "Date not added" %}</span>{% endif %}
 </div>

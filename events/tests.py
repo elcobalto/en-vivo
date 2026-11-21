@@ -3963,6 +3963,7 @@ class ArtistImportTests(BaseTestCase):
         self.fail_page = None
         self.pages_read = []
         self.countries_asked = []
+        self.artists_asked = []
         venues = [{"id": f"v{i}", "name": f"Venue {i}", "city": {"name": "Liverpool", "country": {"code": "GB"}}}
                   for i in range(45)]
         self.setlists = [_setlist(id=f"b{i:03d}", eventDate=f"{(i % 28) + 1:02d}-0{(i % 9) + 1}-1963", venue=venues[i])
@@ -3976,6 +3977,7 @@ class ArtistImportTests(BaseTestCase):
                 return _FakeResponse({"artist": [{"mbid": "b10bbbfc", "name": "The Beatles", "disambiguation": ""}]})
             page = int(query["p"][0])
             self.countries_asked.append(query.get("countryCode", [""])[0])
+            self.artists_asked.append(query.get("artistMbid", [""])[0])
             if page == self.fail_page:
                 from urllib.error import URLError
                 raise URLError("connection reset")
@@ -4117,6 +4119,44 @@ class ArtistImportTests(BaseTestCase):
         done = self.client.get(reverse("events:artist_import", args=[self._job(status="done").pk]))
         self.assertContains(done, 'class="card border-success mb-3" id="imp-next"')
         self.assertContains(done, f'action="{reverse("events:artist_import_new")}"')
+
+    def test_country_import_of_the_last_week(self):
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        from . import artist_import
+        from .models import ArtistImport
+
+        today = timezone.localdate()
+        for i, setlist in enumerate(self.setlists):  # one show a day, newest first, like setlist.fm
+            setlist["eventDate"] = (today - timedelta(days=i)).strftime("%d-%m-%Y")
+        self.client.force_login(self.boss)
+        response = self.client.post(reverse("events:artist_import_new"), {"country": "CL", "period": "week"})
+        job = ArtistImport.objects.get()
+        self.assertRedirects(response, reverse("events:artist_import", args=[job.pk]), fetch_redirect_response=False)
+        self.assertEqual((job.artist_mbid, job.country.code, job.since_date, job.artist_name),
+                         ("", "CL", today - timedelta(days=7), "Chile"))
+        self.assertTrue(job.is_country_import)
+        while job.status == "running":
+            artist_import.run_step(job)
+        self.assertEqual(job.created + job.joined + job.already, 8)  # today and the 7 days before
+        self.assertEqual(self.pages_read, [1, 2])  # page 2 is all older: done
+        self.assertEqual((self.countries_asked[0], self.artists_asked[0]), ("CL", ""))  # every artist
+        page = self.client.get(reverse("events:artist_import", args=[job.pk]))
+        self.assertContains(page, "Every show in Chile since")
+
+    def test_country_import_progress_is_by_date(self):
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        from .models import ArtistImport
+
+        today = timezone.localdate()
+        job = ArtistImport(artist_name="Chile", country="CL", since_date=today - timedelta(days=10),
+                           reached_date=today - timedelta(days=5))
+        self.assertEqual(job.percent, 50)
 
 
 class SetlistSingleImportTests(BaseTestCase):
@@ -4585,3 +4625,9 @@ class CrowdsourcedNoteTests(BaseTestCase):
             page = self.client.get(url)
             self.assertContains(page, "crowdsourced", msg_prefix=url)
         self.assertContains(self.client.get(reverse("events:artist_songs", args=[artist.pk])), "Free during the beta")
+
+
+class EventCardCityTests(BaseTestCase):
+    def test_cards_show_the_venue_and_its_city(self):
+        page = self.client.get(reverse("events:event_list"))
+        self.assertContains(page, "Teatro Caupolicán · Santiago")

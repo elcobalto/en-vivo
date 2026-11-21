@@ -3,7 +3,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: En Vivo\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-21 08:29+0000\n"
+"POT-Creation-Date: 2026-11-21 12:48+0000\n"
 "PO-Revision-Date: 2026-11-20 18:00-0300\n"
 "Last-Translator: En Vivo\n"
 "Language-Team: Spanish\n"
@@ -27,7 +27,7 @@ msgstr "Sin álbum"
 msgid "No album covers"
 msgstr "Covers sin álbum"
 
-#: events/artist_import.py:131
+#: events/artist_import.py:137
 #, python-format
 msgid "Setlist %(id)s couldn't be imported."
 msgstr "No se pudo importar el setlist %(id)s."
@@ -137,7 +137,7 @@ msgstr "…o escribe un artista nuevo"
 #: events/templates/events/_lineup_editor.html:15
 #: events/templates/events/_lineup_row.html:7
 #: events/templates/events/artist_import.html:44
-#: events/templates/events/artist_import_new.html:18
+#: events/templates/events/artist_import_new.html:19
 #: events/templates/events/setlistfm_shows.html:20
 msgid "Artist"
 msgstr "Artista"
@@ -628,7 +628,7 @@ msgstr "Página"
 
 #: events/models.py:872 events/templates/base.html:106
 #: events/templates/events/artist_import.html:45
-#: events/templates/events/artist_import_new.html:19
+#: events/templates/events/artist_import_new.html:20
 #: events/templates/events/artist_list.html:20
 #: events/templates/events/event_photo.html:43
 #: events/templates/events/festival_add_artists.html:46
@@ -1010,6 +1010,11 @@ msgstr "Eventos nuevos"
 #: events/templates/events/_artist_imports.html:4
 msgid "Started"
 msgstr "Iniciada"
+
+#: events/templates/events/_artist_imports.html:7
+#, python-format
+msgid "since %(day)s"
+msgstr "desde el %(day)s"
 
 #: events/templates/events/_artist_rank.html:7
 #: events/templates/events/profile_stats.html:48
@@ -1584,18 +1589,20 @@ msgstr[0] "%(counter)s evento de música con 4 o más artistas por revisar"
 msgstr[1] "%(counter)s eventos de música con 4 o más artistas por revisar"
 
 #: events/templates/events/admin_tools.html:108
-msgid "Artist imports"
-msgstr "Importaciones de artistas"
+#: events/templates/events/artist_import.html:7
+#: events/templates/events/artist_import_new.html:82
+msgid "Imports"
+msgstr "Importaciones"
 
 #: events/templates/events/admin_tools.html:109
 #: events/templates/events/artist_import_new.html:4
 #: events/templates/events/artist_import_new.html:8
-msgid "Import an artist's setlists"
-msgstr "Importar los setlists de un artista"
+msgid "Import setlists"
+msgstr "Importar setlists"
 
 #: events/templates/events/admin_tools.html:112
-msgid "Import every setlist of an artist (e.g. The Beatles), paced to stay inside setlist.fm's limits."
-msgstr "Importa todos los setlists de un artista (por ejemplo, The Beatles), a un ritmo que respeta los límites de setlist.fm."
+msgid "Import every setlist of an artist (e.g. The Beatles), or every show in a country in a recent period, paced to stay inside setlist.fm's limits."
+msgstr "Importa todos los setlists de un artista (por ejemplo, The Beatles) o todos los shows de un país en un período reciente, a un ritmo que respeta los límites de setlist.fm."
 
 #: events/templates/events/artist_confirm_delete.html:4
 #, python-format
@@ -1918,10 +1925,10 @@ msgstr "Todavía no hay eventos."
 msgid "Importing %(name)s"
 msgstr "Importando %(name)s"
 
-#: events/templates/events/artist_import.html:7
-#: events/templates/events/artist_import_new.html:59
-msgid "Imports"
-msgstr "Importaciones"
+#: events/templates/events/artist_import.html:9
+#, python-format
+msgid "Every show in %(country)s since %(day)s"
+msgstr "Todos los shows en %(country)s desde el %(day)s"
 
 #: events/templates/events/artist_import.html:9
 #, python-format
@@ -1977,6 +1984,11 @@ msgstr "Sin canciones (omitidos)"
 
 #: events/templates/events/artist_import.html:33
 #, python-format
+msgid "Before %(day)s (skipped)"
+msgstr "Antes del %(day)s (omitidos)"
+
+#: events/templates/events/artist_import.html:33
+#, python-format
 msgid "Before %(year)s (skipped)"
 msgstr "Antes de %(year)s (omitidos)"
 
@@ -1993,7 +2005,7 @@ msgid "Import finished. Import another artist?"
 msgstr "Importación terminada. ¿Importar otro artista?"
 
 #: events/templates/events/artist_import.html:44
-#: events/templates/events/artist_import_new.html:18
+#: events/templates/events/artist_import_new.html:19
 msgid "Artist, e.g. The Beatles"
 msgstr "Artista, por ejemplo The Beatles"
 
@@ -2012,6 +2024,16 @@ msgstr "%%(done)s de %%(total)s setlists"
 
 #: events/templates/events/artist_import.html:55
 #, python-format
+msgid "%%(done)s setlists read"
+msgstr "%%(done)s setlists leídos"
+
+#: events/templates/events/artist_import.html:55
+#, python-format
+msgid "back to %%(day)s"
+msgstr "hasta el %%(day)s"
+
+#: events/templates/events/artist_import.html:55
+#, python-format
 msgid "%%(n)s setlist.fm requests left today"
 msgstr "Quedan %%(n)s consultas a setlist.fm hoy"
 
@@ -2025,68 +2047,90 @@ msgstr "En pausa: la conexión siguió fallando. Presiona Reanudar para continua
 
 #: events/templates/events/artist_import_new.html:10
 #, python-format
-msgid "Imports every setlist setlist.fm has for one artist: about one request per 20 setlists, at most 2 per second. If the day's requests run low (%(n)s left now) the import pauses; resume it later and it continues where it stopped. Everything imported until then is kept."
-msgstr "Importa todos los setlists que setlist.fm tiene de un artista: cerca de una consulta cada 20 setlists, con un máximo de 2 por segundo. Si quedan pocas consultas del día (quedan %(n)s) la importación se pausa; reanúdala después y sigue donde quedó. Todo lo importado hasta entonces se conserva."
+msgid "Imports every setlist setlist.fm has for one artist, or for one country in a recent period: about one request per 20 setlists, at most 2 per second. If the day's requests run low (%(n)s left now) the import pauses; resume it later and it continues where it stopped. Everything imported until then is kept."
+msgstr "Importa todos los setlists que setlist.fm tiene de un artista, o de un país en un período reciente: cerca de una consulta cada 20 setlists, con un máximo de 2 por segundo. Si quedan pocas consultas del día (quedan %(n)s) la importación se pausa; reanúdala después y sigue donde quedó. Todo lo importado hasta entonces se conserva."
 
-#: events/templates/events/artist_import_new.html:33
+#: events/templates/events/artist_import_new.html:17
+msgid "An artist"
+msgstr "Un artista"
+
+#: events/templates/events/artist_import_new.html:34
 msgid "Only shows in"
 msgstr "Solo shows en"
 
-#: events/templates/events/artist_import_new.html:38
+#: events/templates/events/artist_import_new.html:39
 #: events/templates/events/artist_list.html:13
 #: events/templates/events/diary.html:23
 msgid "All countries"
 msgstr "Todos los países"
 
-#: events/templates/events/artist_import_new.html:41
+#: events/templates/events/artist_import_new.html:42
 msgid "Since year"
 msgstr "Desde el año"
 
-#: events/templates/events/artist_import_new.html:42
+#: events/templates/events/artist_import_new.html:43
 msgid "all"
 msgstr "todos"
 
-#: events/templates/events/artist_import_new.html:45
+#: events/templates/events/artist_import_new.html:46
+#: events/templates/events/artist_import_new.html:76
 msgid "Only setlists with songs"
 msgstr "Solo setlists con canciones"
 
-#: events/templates/events/artist_import_new.html:48
+#: events/templates/events/artist_import_new.html:49
 msgid "Count setlists"
 msgstr "Contar setlists"
 
-#: events/templates/events/artist_import_new.html:51
+#: events/templates/events/artist_import_new.html:52
 msgid "Import all setlists"
 msgstr "Importar todos los setlists"
 
-#: events/templates/events/artist_import_new.html:54
+#: events/templates/events/artist_import_new.html:55
 msgid "No artist with that name on setlist.fm."
 msgstr "No hay ningún artista con ese nombre en setlist.fm."
 
-#: events/templates/events/artist_import_new.html:65
+#: events/templates/events/artist_import_new.html:59
+msgid "A country"
+msgstr "Un país"
+
+#: events/templates/events/artist_import_new.html:64
+msgid "Every show in"
+msgstr "Todos los shows en"
+
+#: events/templates/events/artist_import_new.html:70
+msgid "from the"
+msgstr "de"
+
+#: events/templates/events/artist_import_new.html:78
+#: events/templates/events/setlistfm_shows.html:83
+msgid "Import"
+msgstr "Importar"
+
+#: events/templates/events/artist_import_new.html:88
 msgid "Counting…"
 msgstr "Contando…"
 
-#: events/templates/events/artist_import_new.html:65
+#: events/templates/events/artist_import_new.html:88
 #, python-format
 msgid "%%(n)s setlist"
 msgstr "%%(n)s setlist"
 
-#: events/templates/events/artist_import_new.html:65
+#: events/templates/events/artist_import_new.html:88
 #, python-format
 msgid "%%(n)s setlists"
 msgstr "%%(n)s setlists"
 
-#: events/templates/events/artist_import_new.html:66
+#: events/templates/events/artist_import_new.html:89
 #, python-format
 msgid "about %%(n)s requests (%%(left)s left today)"
 msgstr "cerca de %%(n)s consultas (quedan %%(left)s hoy)"
 
-#: events/templates/events/artist_import_new.html:66
+#: events/templates/events/artist_import_new.html:89
 #, python-format
 msgid "all years: the import stops at %%(year)s"
 msgstr "todos los años: la importación se detiene en %%(year)s"
 
-#: events/templates/events/artist_import_new.html:66
+#: events/templates/events/artist_import_new.html:89
 msgid "Couldn't count them."
 msgstr "No se pudieron contar."
 
@@ -3887,10 +3931,6 @@ msgstr "sin canciones"
 msgid "Already imported:"
 msgstr "Ya importado:"
 
-#: events/templates/events/setlistfm_shows.html:83
-msgid "Import"
-msgstr "Importar"
-
 #: events/templates/events/setlistfm_shows.html:91
 #, python-format
 msgid "Page %(page)s"
@@ -4380,20 +4420,44 @@ msgstr "Se agregó el %(date)s. Edítalo si algo cambia ese día."
 msgid "The show already has that date."
 msgstr "El espectáculo ya tiene esa fecha."
 
-#: events/views_admin.py:56 events/views_admin.py:161
-msgid "Pick an artist first."
-msgstr "Primero elige un artista."
+#: events/views_admin.py:55
+msgid "Pick a country and a period."
+msgstr "Elige un país y un período."
 
-#: events/views_admin.py:62
+#: events/views_admin.py:61 events/views_admin.py:93
 #, python-format
 msgid "There's already an unfinished import for %(name)s."
 msgstr "Ya hay una importación sin terminar de %(name)s."
 
-#: events/views_admin.py:129 events/views_merge.py:206
+#: events/views_admin.py:87 events/views_admin.py:194
+msgid "Pick an artist first."
+msgstr "Primero elige un artista."
+
+#: events/views_admin.py:116
+msgid "Last day"
+msgstr "El último día"
+
+#: events/views_admin.py:116
+msgid "Last week"
+msgstr "La última semana"
+
+#: events/views_admin.py:116
+msgid "Last month"
+msgstr "El último mes"
+
+#: events/views_admin.py:117
+msgid "Last year"
+msgstr "El último año"
+
+#: events/views_admin.py:117
+msgid "Last 2 years"
+msgstr "Los últimos 2 años"
+
+#: events/views_admin.py:162 events/views_merge.py:206
 msgid "Give the festival a name."
 msgstr "Ponle un nombre al festival."
 
-#: events/views_admin.py:132
+#: events/views_admin.py:165
 #, python-format
 msgid "“%(event)s” is now a festival day of %(name)s."
 msgstr "“%(event)s” ahora es un día del festival %(name)s."
@@ -4664,6 +4728,12 @@ msgstr "La foto pesa más de 8 MB."
 #: events/views_venues.py:428
 msgid "That link isn't an image."
 msgstr "Ese enlace no es una imagen."
+
+#~ msgid "Artist imports"
+#~ msgstr "Importaciones de artistas"
+
+#~ msgid "Import an artist's setlists"
+#~ msgstr "Importar los setlists de un artista"
 
 #~ msgid "Report a mistake"
 #~ msgstr "Reportar un error"

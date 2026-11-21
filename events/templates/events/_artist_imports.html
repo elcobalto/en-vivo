@@ -4,11 +4,11 @@
     <thead><tr><th>{% translate "Artist" %}</th><th>{% translate "Status" %}</th><th>{% translate "Progress" %}</th><th class="text-end">{% translate "New events" %}</th><th>{% translate "Started" %}</th></tr></thead>
     {% for job in imports %}
       <tr>
-        <td><a href="{% url 'events:artist_import' job.pk %}">{{ job.artist_name }}</a>{% if job.country %} <span class="text-body-secondary">· {{ job.country.code }}</span>{% endif %}{% if job.since_year %} <span class="text-body-secondary">· {{ job.since_year }}+</span>{% endif %}</td>
+        <td><a href="{% url 'events:artist_import' job.pk %}">{{ job.artist_name }}</a>{% if job.country and not job.is_country_import %} <span class="text-body-secondary">· {{ job.country.code }}</span>{% endif %}{% if job.since_year %} <span class="text-body-secondary">· {{ job.since_year }}+</span>{% endif %}{% if job.since_date %} <span class="text-body-secondary">· {% blocktranslate with day=job.since_date|date:"j M Y" %}since {{ day }}{% endblocktranslate %}</span>{% endif %}</td>
         <td><span class="badge {% if job.status == 'done' %}text-bg-success{% elif job.status == 'running' %}text-bg-info{% else %}text-bg-warning{% endif %}">{{ job.get_status_display }}</span></td>
         <td style="min-width: 8rem">
           <div class="progress" style="height: 6px"><div class="progress-bar bg-success" style="width: {{ job.percent }}%"></div></div>
-          <span class="text-body-secondary">{{ job.processed }} / {{ job.total|default:"?" }}</span>
+          <span class="text-body-secondary">{% if job.is_country_import %}{{ job.processed }}{% else %}{{ job.processed }} / {{ job.total|default:"?" }}{% endif %}</span>
         </td>
         <td class="text-end">{{ job.created }}</td>
         <td class="text-nowrap text-body-secondary">{{ job.created_at|date:"j M H:i" }}</td>

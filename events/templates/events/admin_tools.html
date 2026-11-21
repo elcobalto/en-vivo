@@ -105,10 +105,10 @@
 
   {# ------------------------------------------------------------ artist imports #}
   <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mt-4 mb-2">
-    <h2 class="h5 m-0">{% translate "Artist imports" %}</h2>
-    <a class="btn btn-sm btn-success" href="{% url 'events:artist_import_new' %}">{% translate "Import an artist's setlists" %}</a>
+    <h2 class="h5 m-0">{% translate "Imports" %}</h2>
+    <a class="btn btn-sm btn-success" href="{% url 'events:artist_import_new' %}">{% translate "Import setlists" %}</a>
   </div>
   {% if imports %}{% include "events/_artist_imports.html" %}{% else %}
-    <p class="small text-body-secondary">{% translate "Import every setlist of an artist (e.g. The Beatles), paced to stay inside setlist.fm's limits." %}</p>
+    <p class="small text-body-secondary">{% translate "Import every setlist of an artist (e.g. The Beatles), or every show in a country in a recent period, paced to stay inside setlist.fm's limits." %}</p>
   {% endif %}
 {% endblock %}

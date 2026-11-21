@@ -6,11 +6,11 @@
 {% block content %}
   <a class="small text-body-secondary" href="{% url 'events:artist_import_new' %}">← {% translate "Imports" %}</a>
   <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mt-1 mb-2">
-    <h1 class="h4 m-0">{% blocktranslate with name=job.artist_name %}All setlists of {{ name }}{% endblocktranslate %}</h1>
+    <h1 class="h4 m-0">{% if job.is_country_import %}{% blocktranslate with country=job.artist_name day=job.since_date|date:"j M Y" %}Every show in {{ country }} since {{ day }}{% endblocktranslate %}{% else %}{% blocktranslate with name=job.artist_name %}All setlists of {{ name }}{% endblocktranslate %}{% endif %}</h1>
     <span class="badge fs-6" id="imp-status"></span>
   </div>
   <p class="small text-body-secondary mb-3">
-    {% if job.country %}{% blocktranslate with country=job.country.name %}Only shows in {{ country }}.{% endblocktranslate %}{% else %}{% translate "Shows in every country." %}{% endif %}
+    {% if not job.is_country_import %}{% if job.country %}{% blocktranslate with country=job.country.name %}Only shows in {{ country }}.{% endblocktranslate %}{% else %}{% translate "Shows in every country." %}{% endif %}{% endif %}
     {% if job.since_year %}{% blocktranslate with year=job.since_year %}Only shows from {{ year }} on.{% endblocktranslate %}{% endif %}
     {% if job.only_with_songs %}{% translate "Only setlists with songs." %}{% else %}{% translate "Setlists with and without songs." %}{% endif %}
     {% if job.look_up_venues %}{% translate "New venues are matched on Google." %}{% endif %}
@@ -30,7 +30,7 @@
     <div class="col-6 col-md"><div class="card"><div class="card-body py-2"><div class="text-body-secondary">{% translate "Added to existing events" %}</div><div class="h5 m-0" data-count="joined">0</div></div></div></div>
     <div class="col-6 col-md"><div class="card"><div class="card-body py-2"><div class="text-body-secondary">{% translate "Already imported" %}</div><div class="h5 m-0" data-count="already">0</div></div></div></div>
     <div class="col-6 col-md"><div class="card"><div class="card-body py-2"><div class="text-body-secondary">{% translate "Without songs (skipped)" %}</div><div class="h5 m-0" data-count="empty">0</div></div></div></div>
-    {% if job.since_year %}<div class="col-6 col-md"><div class="card"><div class="card-body py-2"><div class="text-body-secondary">{% blocktranslate with year=job.since_year %}Before {{ year }} (skipped){% endblocktranslate %}</div><div class="h5 m-0" data-count="older">0</div></div></div></div>{% endif %}
+    {% if job.cutoff %}<div class="col-6 col-md"><div class="card"><div class="card-body py-2"><div class="text-body-secondary">{% if job.since_date %}{% blocktranslate with day=job.since_date|date:"j M" %}Before {{ day }} (skipped){% endblocktranslate %}{% else %}{% blocktranslate with year=job.since_year %}Before {{ year }} (skipped){% endblocktranslate %}{% endif %}</div><div class="h5 m-0" data-count="older">0</div></div></div></div>{% endif %}
     <div class="col-6 col-md"><div class="card"><div class="card-body py-2"><div class="text-body-secondary">{% translate "Failed" %}</div><div class="h5 m-0" data-count="failed">0</div></div></div></div>
   </div>
 
@@ -52,7 +52,7 @@
   </div>
 
   {{ state|json_script:"imp-state" }}
-  {% translate "%(done)s of %(total)s setlists" as count_text %}{% translate "%(n)s setlist.fm requests left today" as budget_text %}
+  {% translate "%(done)s of %(total)s setlists" as count_text %}{% translate "%(done)s setlists read" as country_count_text %}{% translate "back to %(day)s" as reached_text %}{% translate "%(n)s setlist.fm requests left today" as budget_text %}
   {% translate "Lost the connection; retrying…" as retry_text %}{% translate "Paused: the connection kept failing. Press Resume to continue." as gave_up_text %}
   <script>
     (function () {
@@ -72,8 +72,10 @@
         bar.classList.toggle("bg-warning", s.status === "paused");
         statusEl.textContent = s.status_label;
         statusEl.className = "badge fs-6 " + (s.status === "done" ? "text-bg-success" : s.status === "running" ? "text-bg-info" : "text-bg-warning");
-        document.getElementById("imp-count").textContent =
-          "{{ count_text|escapejs }}".replace("%(done)s", s.processed).replace("%(total)s", s.total === null ? "?" : s.total);
+        document.getElementById("imp-count").textContent = {% if job.is_country_import %}
+          // A country's all-time total means nothing here: how far back in time it has read instead.
+          "{{ country_count_text|escapejs }}".replace("%(done)s", s.processed) + (s.reached ? " · " + "{{ reached_text|escapejs }}".replace("%(day)s", s.reached) : "");{% else %}
+          "{{ count_text|escapejs }}".replace("%(done)s", s.processed).replace("%(total)s", s.total === null ? "?" : s.total);{% endif %}
         document.getElementById("imp-budget").textContent = "{{ budget_text|escapejs }}".replace("%(n)s", s.remaining_requests);
         document.querySelectorAll("[data-count]").forEach(function (el) { el.textContent = s[el.dataset.count]; });
         errorEl.textContent = s.last_error || "";

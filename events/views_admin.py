@@ -39,6 +39,35 @@ def setlistfm_usage(request: HttpRequest) -> HttpResponse:
     return render(request, "events/setlistfm_usage.html", {"u": setlistfm_quota.usage()})
 
 
+# "Import all shows in a country from the last …": the period's length in days.
+COUNTRY_PERIODS = {"day": 1, "week": 7, "month": 30, "year": 365, "2years": 730}
+
+
+def _start_country_import(request: HttpRequest) -> HttpResponse:
+    """Every setlist setlist.fm has in one country from the last day … two years (newest first, any artist)."""
+    from datetime import timedelta
+
+    from django.utils import timezone
+
+    country = (request.POST.get("country") or "").strip().upper()[:2]
+    days = COUNTRY_PERIODS.get(request.POST.get("period") or "")
+    if country not in dict(countries) or not days:
+        messages.error(request, gettext("Pick a country and a period."))
+        return redirect("events:artist_import_new")
+    since = timezone.localdate() - timedelta(days=days)
+    job = ArtistImport.objects.filter(artist_mbid="", country=country, since_date=since) \
+        .exclude(status=ArtistImport.Status.DONE).first()
+    if job:
+        messages.info(request, gettext("There's already an unfinished import for %(name)s.") % {"name": job.artist_name})
+    else:
+        job = ArtistImport.objects.create(
+            artist_name=countries.name(country), artist_mbid="", country=country, since_date=since,
+            started_by=request.user, look_up_venues=True,
+            only_with_songs=request.POST.get("only_with_songs") == "1",
+        )
+    return redirect("events:artist_import", pk=job.pk)
+
+
 def _since_year(raw) -> int | None:
     """A "since year" typed in the import form, or None (every year)."""
     raw = (raw or "").strip()
@@ -49,6 +78,8 @@ def _since_year(raw) -> int | None:
 def artist_import_new(request: HttpRequest) -> HttpResponse:
     """Find the artist on setlist.fm (GET ?artist=), then start importing all their setlists (POST)."""
     _require_admin(request)
+    if request.method == "POST" and request.POST.get("period"):
+        return _start_country_import(request)
     if request.method == "POST":
         mbid = (request.POST.get("mbid") or "").strip()[:40]
         name = (request.POST.get("name") or "").strip()[:200]
@@ -82,6 +113,8 @@ def artist_import_new(request: HttpRequest) -> HttpResponse:
         # Shows in the admin's home country by default (setlist.fm's own country filter); they can untick it.
         "country": (request.GET.get("country") or home_place(request.user)[1] or "").upper()[:2],
         "countries": list(countries),
+        "periods": [("day", gettext("Last day")), ("week", gettext("Last week")), ("month", gettext("Last month")),
+                    ("year", gettext("Last year")), ("2years", gettext("Last 2 years"))],
     })
 
 

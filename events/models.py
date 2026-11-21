@@ -920,10 +920,12 @@ class ArtistImport(TimestampedModel):
         DONE = "done", _("Done")
 
     artist_name = models.CharField(max_length=200)
-    artist_mbid = models.CharField(max_length=40)
+    artist_mbid = models.CharField(max_length=40, blank=True, default="")  # empty: every artist (a country import)
     started_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name="+")
     country = CountryField(blank=True, default="")  # only shows in this country; empty: everywhere
     since_year = models.PositiveSmallIntegerField(null=True, blank=True)  # only shows from this year on
+    since_date = models.DateField(null=True, blank=True)  # only shows from this day on (country imports)
+    reached_date = models.DateField(null=True, blank=True)  # the oldest show read so far (newest come first)
     only_with_songs = models.BooleanField(default=False)  # skip setlists without songs
     look_up_venues = models.BooleanField(default=True)  # match new venues on Google Places (paid API)
     status = models.CharField(max_length=10, choices=Status.choices, default=Status.RUNNING)
@@ -935,7 +937,7 @@ class ArtistImport(TimestampedModel):
     joined = models.PositiveIntegerField(default=0)  # added to an event we had
     already = models.PositiveIntegerField(default=0)  # setlist imported before
     empty = models.PositiveIntegerField(default=0)  # skipped: no songs
-    older = models.PositiveIntegerField(default=0)  # skipped: before since_year
+    older = models.PositiveIntegerField(default=0)  # skipped: before since_year / since_date
     failed = models.PositiveIntegerField(default=0)
     last_error = models.TextField(blank=True, default="")
     locked_until = models.DateTimeField(null=True, blank=True)  # a step is running
@@ -948,7 +950,29 @@ class ArtistImport(TimestampedModel):
         return f"{self.artist_name}: {self.processed}/{self.total or '?'} ({self.status})"
 
     @property
+    def cutoff(self):
+        """The first day this import covers (shows before it are skipped), or None for all of them."""
+        from datetime import date
+
+        if self.since_date:
+            return self.since_date
+        return date(self.since_year, 1, 1) if self.since_year else None
+
+    @property
+    def is_country_import(self) -> bool:
+        return not self.artist_mbid
+
+    @property
     def percent(self) -> int:
         if self.status == self.Status.DONE:
             return 100
+        cutoff = self.cutoff
+        if cutoff and self.is_country_import:
+            # setlist.fm lists the newest first: how far back from today towards the first day it has read.
+            from django.utils import timezone
+
+            today = timezone.localdate()
+            if not self.reached_date or today <= cutoff:
+                return 0
+            return max(0, min(99, round(100 * (today - self.reached_date).days / (today - cutoff).days)))
         return min(99, round(100 * self.processed / self.total)) if self.total else 0
