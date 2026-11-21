@@ -44,6 +44,19 @@ BILLED_TYPES = ("music", "festival")
 UNTAGGED_ROLES = ("headliner", "support", "none")
 
 
+@register.simple_tag(takes_context=True)
+def page_query(context, param: str, number) -> str:
+    """The current query string with ``param`` set to ``number`` (other filters and pages kept)."""
+    query = context["request"].GET.copy()
+    query[param] = number
+    return query.urlencode()
+
+
+@register.filter
+def get_item(mapping, key):
+    return mapping.get(key) if mapping else None
+
+
 @register.filter
 def role_tag(link, event_type) -> str:
     """The label next to an act on a lineup ("Host", "Cast"…), or "" where the bill's order and bold say it."""

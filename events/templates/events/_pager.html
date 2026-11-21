@@ -1,0 +1,9 @@
+{% load i18n event_extras %}{% comment %}"← Previous · Page 2 of 5 · Next →" for a Paginator page. ``param`` is the query parameter ("page" by
+default); the other query parameters are kept.{% endcomment %}
+{% if pager.has_other_pages %}
+  <nav class="d-flex justify-content-center align-items-center gap-2 my-3" aria-label="{% translate 'Pages' %}">
+    {% if pager.has_previous %}<a class="btn btn-sm btn-outline-secondary" href="?{% page_query param|default:'page' pager.previous_page_number %}">{% translate "← Previous" %}</a>{% endif %}
+    <span class="small text-body-secondary">{% blocktranslate with number=pager.number total=pager.paginator.num_pages %}Page {{ number }} of {{ total }}{% endblocktranslate %}</span>
+    {% if pager.has_next %}<a class="btn btn-sm btn-outline-secondary" href="?{% page_query param|default:'page' pager.next_page_number %}">{% translate "Next →" %}</a>{% endif %}
+  </nav>
+{% endif %}

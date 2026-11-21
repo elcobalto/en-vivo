@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from datetime import date
+from datetime import date, timedelta
 from unittest import mock
 
 from django.contrib.auth import get_user_model
@@ -4818,3 +4818,23 @@ class FestivalSameSlotTests(BaseTestCase):
         Event.objects.create(title="Green Day in Chile", event_type=EventType.MUSIC, date=date(2001, 1, 1))
         page = self.client.get(self.event.get_absolute_url())
         self.assertEqual([e.pk for e in page.context["duplicate_candidates"]], [self.festival.pk])
+
+
+class ProductionPaginationTests(BaseTestCase):
+    def test_dates_and_reviews_come_a_page_at_a_time(self):
+        tour = Production.objects.create(title="World Tour")
+        band = Artist.objects.create(name="Band")
+        for i in range(35):
+            event = Event.objects.create(title=f"Date {i}", venue=self.venue, date=date(2024, 1, 1) + timedelta(days=i))
+            EventArtist.objects.create(event=event, artist=band, production=tour)
+            for n in range(1 if i < 25 else 0):
+                user = get_user_model().objects.create_user(f"fan{i}")
+                Log.objects.create(user=user, event=event, rating=8, review="Great")
+        url = reverse("events:production_detail", args=[tour.pk])
+        first = self.client.get(url)
+        self.assertEqual((len(first.context["events"]), len(first.context["reviews"].object_list)), (30, 20))
+        self.assertContains(first, "35 dates")  # the year heading counts every page
+        self.assertContains(first, "Page 1 of 2")
+        second = self.client.get(url, {"page": 2, "rpage": 2})
+        self.assertEqual((len(second.context["events"]), len(second.context["reviews"].object_list)), (5, 5))
+        self.assertContains(second, "?page=1&amp;rpage=2")  # the other list keeps its page

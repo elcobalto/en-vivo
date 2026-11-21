@@ -283,6 +283,10 @@ def event_detail(request: HttpRequest, pk: int) -> HttpResponse:
     )
 
 
+PRODUCTION_DATES_PER_PAGE = 30
+PRODUCTION_REVIEWS_PER_PAGE = 20
+
+
 def production_detail(request: HttpRequest, pk: int) -> HttpResponse:
     production = get_object_or_404(Production.objects.select_related("artist"), pk=pk)
     if production.event_type == EventType.FESTIVAL:
@@ -297,16 +301,26 @@ def production_detail(request: HttpRequest, pk: int) -> HttpResponse:
         rated = ActLog.objects.filter(log__event__in=events, artist_id=production.artist_id) \
             if production.artist_id else logs
     stats = rated.aggregate(avg_rating=Avg("rating"), log_count=Count("id"))
+    # A long tour or festival can have hundreds of dates and reviews: a page of each at a time.
+    dates = Paginator(
+        events.with_stats().select_related("venue")
+        .prefetch_related(Prefetch("eventartist_set", queryset=EventArtist.objects.select_related("artist")
+                                   .filter(role=EventArtist.Role.HEADLINER)))
+        .order_by(F("date").asc(nulls_last=True), "pk"),
+        PRODUCTION_DATES_PER_PAGE,
+    ).get_page(request.GET.get("page"))
+    # Dates per year across every page, for the year headings.
+    year_counts = dict(events.order_by().annotate(y=ExtractYear("date")).values("y").annotate(n=Count("id", distinct=True))
+                       .values_list("y", "n"))
     return render(
         request,
         "events/production_detail.html",
         {
             "production": production,
-            "events": events.with_stats().select_related("venue")
-            .prefetch_related(Prefetch("eventartist_set", queryset=EventArtist.objects.select_related("artist")
-                                       .filter(role=EventArtist.Role.HEADLINER)))
-            .order_by(F("date").asc(nulls_last=True)),
-            "reviews": _reviews(logs),
+            "events": dates.object_list,
+            "dates_page": dates,
+            "year_counts": year_counts,
+            "reviews": Paginator(_reviews(logs), PRODUCTION_REVIEWS_PER_PAGE).get_page(request.GET.get("rpage")),
             "production_logs": rated,
             **stats,
         },
