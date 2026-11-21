@@ -22,7 +22,7 @@ from django.utils.translation import gettext
 
 from . import setlistfm_quota
 from .models import ArtistImport
-from .setlistfm import SetlistFmError, _as_list, search_setlists_page
+from .setlistfm import SetlistFmError, _as_list, parse_event_date, search_setlists_page
 from .setlistfm_events import create_event_from_setlist
 
 logger = logging.getLogger(__name__)
@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 STEP_SECONDS = 10  # well under the server's 30 s request limit
 LOCK_SECONDS = 60  # a step that died (worker killed) stops blocking the job after this
 # What a step saves as it goes; the status only changes on purpose (a pause from the page wins).
-PROGRESS_FIELDS = ["total", "page", "index", "processed", "created", "joined", "already", "empty", "failed",
+PROGRESS_FIELDS = ["total", "page", "index", "processed", "created", "joined", "already", "empty", "older", "failed",
                    "last_error", "updated_at"]
 
 
@@ -82,6 +82,12 @@ def _work(job: ArtistImport, deadline: float) -> None:
         job.total = max(total, job.processed)
         if _paused_meanwhile(job):
             return
+        if job.since_year and results and all(_year(r) is not None and _year(r) < job.since_year for r in results):
+            # setlist.fm lists the newest first: a page entirely before the year means nothing later is left.
+            job.status = ArtistImport.Status.DONE
+            job.finished_at = timezone.now()
+            job.save(update_fields=PROGRESS_FIELDS + ["status", "finished_at"])
+            return
         while job.index < len(results) and time.monotonic() < deadline:
             if _paused_meanwhile(job):
                 return
@@ -101,7 +107,15 @@ def _work(job: ArtistImport, deadline: float) -> None:
         job.save(update_fields=PROGRESS_FIELDS)
 
 
+def _year(payload: dict) -> int | None:
+    day = parse_event_date(payload.get("eventDate"))
+    return day.year if day else None
+
+
 def _import_one(job: ArtistImport, payload: dict) -> None:
+    if job.since_year and (_year(payload) or 0) < job.since_year:
+        job.older += 1
+        return
     if job.only_with_songs and not has_songs(payload):
         job.empty += 1
         return
@@ -137,6 +151,7 @@ def as_json(job: ArtistImport, busy: bool = False) -> dict:
         "joined": job.joined,
         "already": job.already,
         "empty": job.empty,
+        "older": job.older,
         "failed": job.failed,
         "last_error": job.last_error,
         "remaining_requests": setlistfm_quota.remaining(),

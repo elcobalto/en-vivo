@@ -37,6 +37,10 @@
               <div class="form-check m-0 text-nowrap"><input class="form-check-input" type="checkbox" name="all_countries" value="1" id="all-{{ forloop.counter }}"{% if not country %} checked{% endif %} />
                 <label class="form-check-label" for="all-{{ forloop.counter }}">{% translate "All countries" %}</label></div>
             </div>
+            <div class="d-flex align-items-center gap-2">
+              <label class="text-nowrap" for="since-{{ forloop.counter }}">{% translate "Since year" %}</label>
+              <input class="form-control form-control-sm" style="width: 6rem" type="number" min="1900" max="2100" name="since_year" id="since-{{ forloop.counter }}" placeholder="{% translate 'all' %}" />
+            </div>
             <div class="form-check m-0"><input class="form-check-input" type="checkbox" name="only_with_songs" value="1" id="songs-{{ forloop.counter }}" checked />
               <label class="form-check-label" for="songs-{{ forloop.counter }}">{% translate "Only setlists with songs" %}</label></div>
             <div class="form-check m-0"><input class="form-check-input" type="checkbox" name="look_up_venues" value="1" id="venues-{{ forloop.counter }}" checked />
@@ -61,7 +65,7 @@
 
 {% block scripts %}
 {% translate "Counting…" as counting %}{% translate "%(n)s setlist" as one_setlist %}{% translate "%(n)s setlists" as many_setlists %}
-{% translate "about %(n)s requests (%(left)s left today)" as requests_text %}{% translate "Couldn't count them." as count_failed %}
+{% translate "about %(n)s requests (%(left)s left today)" as requests_text %}{% translate "all years: the import stops at %(year)s" as since_text %}{% translate "Couldn't count them." as count_failed %}
 <script>
   // "All countries" turns the country filter off (the select greys out).
   document.querySelectorAll("[data-country-filter]").forEach(function (box) {
@@ -86,6 +90,8 @@
           if (d.error) { slot.textContent = d.error; return; }
           var text = (d.total === 1 ? "{{ one_setlist|escapejs }}" : "{{ many_setlists|escapejs }}").replace("%(n)s", d.total.toLocaleString());
           if (d.total) text += " · " + "{{ requests_text|escapejs }}".replace("%(n)s", d.requests).replace("%(left)s", d.remaining);
+          var since = form.querySelector("input[name=since_year]").value;
+          if (d.total && since) text += " · " + "{{ since_text|escapejs }}".replace("%(year)s", since);
           slot.textContent = text;
         })
         .catch(function () { slot.textContent = "{{ count_failed|escapejs }}"; });

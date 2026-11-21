@@ -4095,6 +4095,19 @@ class ArtistImportTests(BaseTestCase):
         artist_import.run_step(job, seconds=0.01)
         self.assertEqual(self.pages_read, [1])  # page 1 came from the preview's cached answer
 
+    def test_since_year_skips_older_shows_and_stops_at_them(self):
+        from . import artist_import
+
+        # Newest first, like setlist.fm: 30 setlists in 1966, then 15 in 1965 (page 2 has both years).
+        for i, setlist in enumerate(self.setlists):
+            setlist["eventDate"] = f"{(i % 28) + 1:02d}-0{(i % 9) + 1}-{1966 if i < 30 else 1965}"
+        job = self._job(since_year=1966, only_with_songs=False)
+        while job.status == "running":
+            artist_import.run_step(job)
+        self.assertEqual((job.created + job.joined + job.already, job.older), (30, 10))
+        self.assertEqual(self.pages_read, [1, 2, 3])  # page 3 (all 1965) ends it
+        self.assertEqual(Setlist.objects.count(), 30)
+
 
 class SetlistSingleImportTests(BaseTestCase):
     """Everyone imports one show with its own button; only admins get checkboxes and "Create selected events"."""
@@ -4463,3 +4476,18 @@ class DiaryCountryFilterTests(BaseTestCase):
         self.assertContains(page, '<option value="GB" selected>')
         stats = self.client.get(reverse("events:user_stats", args=["ana"]))
         self.assertContains(stats, f'href="{diary}?country=GB"')  # the list under the world map
+
+
+class DiaryCityFilterTests(BaseTestCase):
+    def test_most_visited_cities_link_to_this_persons_shows_there(self):
+        vina = Venue.objects.create(name="Quinta Vergara", city="Viña del Mar", country="CL")
+        Log.objects.create(user=self.user, event=Event.objects.create(title="Santiago show", venue=self.venue, date=date(2020, 1, 1)))
+        Log.objects.create(user=self.user, event=Event.objects.create(title="Viña show", venue=vina, date=date(2021, 1, 1)))
+        Event.objects.create(title="Someone else's Santiago show", venue=self.venue, date=date(2022, 1, 1))
+        diary = reverse("events:user_diary", args=["ana"])
+        stats = self.client.get(reverse("events:user_stats", args=["ana"]))
+        self.assertContains(stats, f'href="{diary}?city=Santiago"')
+        ranking = self.client.get(reverse("events:user_ranking", args=["ana", "cities"]))
+        self.assertContains(ranking, f'{diary}?city=Santiago')
+        page = self.client.get(diary, {"city": "santiago"})
+        self.assertEqual([log.event.title for log in page.context["logs"]], ["Santiago show"])

@@ -242,7 +242,7 @@ def user_ranking(request: HttpRequest, username: str, kind: str) -> HttpResponse
     elif kind == "venues":
         rows = [(v.get_absolute_url() + seen_by, v.name, v.n, "visit") for v in _seen_venues(owner)]
     else:
-        base = reverse("events:event_list")
+        base = reverse("events:user_diary", args=[owner.get_username()])  # this person's shows there
         rows = [(f"{base}?city={quote(c['event__venue__city'])}", c["event__venue__city"], c["n"], "show")
                 for c in _seen_cities(owner)]
     return render(

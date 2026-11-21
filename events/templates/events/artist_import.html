@@ -11,6 +11,7 @@
   </div>
   <p class="small text-body-secondary mb-3">
     {% if job.country %}{% blocktranslate with country=job.country.name %}Only shows in {{ country }}.{% endblocktranslate %}{% else %}{% translate "Shows in every country." %}{% endif %}
+    {% if job.since_year %}{% blocktranslate with year=job.since_year %}Only shows from {{ year }} on.{% endblocktranslate %}{% endif %}
     {% if job.only_with_songs %}{% translate "Only setlists with songs." %}{% else %}{% translate "Setlists with and without songs." %}{% endif %}
     {% if job.look_up_venues %}{% translate "New venues are matched on Google." %}{% endif %}
     {% translate "Keep this page open while it runs; closing it pauses the import, and nothing imported is lost." %}
@@ -29,6 +30,7 @@
     <div class="col-6 col-md"><div class="card"><div class="card-body py-2"><div class="text-body-secondary">{% translate "Added to existing events" %}</div><div class="h5 m-0" data-count="joined">0</div></div></div></div>
     <div class="col-6 col-md"><div class="card"><div class="card-body py-2"><div class="text-body-secondary">{% translate "Already imported" %}</div><div class="h5 m-0" data-count="already">0</div></div></div></div>
     <div class="col-6 col-md"><div class="card"><div class="card-body py-2"><div class="text-body-secondary">{% translate "Without songs (skipped)" %}</div><div class="h5 m-0" data-count="empty">0</div></div></div></div>
+    {% if job.since_year %}<div class="col-6 col-md"><div class="card"><div class="card-body py-2"><div class="text-body-secondary">{% blocktranslate with year=job.since_year %}Before {{ year }} (skipped){% endblocktranslate %}</div><div class="h5 m-0" data-count="older">0</div></div></div></div>{% endif %}
     <div class="col-6 col-md"><div class="card"><div class="card-body py-2"><div class="text-body-secondary">{% translate "Failed" %}</div><div class="h5 m-0" data-count="failed">0</div></div></div></div>
   </div>
 

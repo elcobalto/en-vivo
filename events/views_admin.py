@@ -39,6 +39,12 @@ def setlistfm_usage(request: HttpRequest) -> HttpResponse:
     return render(request, "events/setlistfm_usage.html", {"u": setlistfm_quota.usage()})
 
 
+def _since_year(raw) -> int | None:
+    """A "since year" typed in the import form, or None (every year)."""
+    raw = (raw or "").strip()
+    return int(raw) if raw.isdigit() and 1900 <= int(raw) <= 2100 else None
+
+
 @login_required
 def artist_import_new(request: HttpRequest) -> HttpResponse:
     """Find the artist on setlist.fm (GET ?artist=), then start importing all their setlists (POST)."""
@@ -50,7 +56,8 @@ def artist_import_new(request: HttpRequest) -> HttpResponse:
             messages.error(request, gettext("Pick an artist first."))
             return redirect("events:artist_import_new")
         country = "" if request.POST.get("all_countries") == "1" else (request.POST.get("country") or "").strip().upper()[:2]
-        job = ArtistImport.objects.filter(artist_mbid=mbid, country=country).exclude(status=ArtistImport.Status.DONE).first()
+        job = ArtistImport.objects.filter(artist_mbid=mbid, country=country, since_year=_since_year(request.POST.get("since_year"))) \
+            .exclude(status=ArtistImport.Status.DONE).first()
         if job:  # one unfinished import per artist and country: continue it
             messages.info(request, gettext("There's already an unfinished import for %(name)s.") % {"name": job.artist_name})
         else:
@@ -58,6 +65,7 @@ def artist_import_new(request: HttpRequest) -> HttpResponse:
                 artist_name=name, artist_mbid=mbid, started_by=request.user, country=country,
                 only_with_songs=request.POST.get("only_with_songs") == "1",
                 look_up_venues=request.POST.get("look_up_venues") == "1",
+                since_year=_since_year(request.POST.get("since_year")),
             )
         return redirect("events:artist_import", pk=job.pk)
     query = (request.GET.get("artist") or "").strip()[:200]

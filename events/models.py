@@ -923,6 +923,7 @@ class ArtistImport(TimestampedModel):
     artist_mbid = models.CharField(max_length=40)
     started_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name="+")
     country = CountryField(blank=True, default="")  # only shows in this country; empty: everywhere
+    since_year = models.PositiveSmallIntegerField(null=True, blank=True)  # only shows from this year on
     only_with_songs = models.BooleanField(default=True)  # skip setlists without songs
     look_up_venues = models.BooleanField(default=True)  # match new venues on Google Places (paid API)
     status = models.CharField(max_length=10, choices=Status.choices, default=Status.RUNNING)
@@ -934,6 +935,7 @@ class ArtistImport(TimestampedModel):
     joined = models.PositiveIntegerField(default=0)  # added to an event we had
     already = models.PositiveIntegerField(default=0)  # setlist imported before
     empty = models.PositiveIntegerField(default=0)  # skipped: no songs
+    older = models.PositiveIntegerField(default=0)  # skipped: before since_year
     failed = models.PositiveIntegerField(default=0)
     last_error = models.TextField(blank=True, default="")
     locked_until = models.DateTimeField(null=True, blank=True)  # a step is running

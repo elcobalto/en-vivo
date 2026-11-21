@@ -36,7 +36,7 @@
         <ol class="list-unstyled mb-0">
           {% for c in top_cities %}
             <li class="d-flex justify-content-between py-1 border-bottom border-secondary-subtle">
-              <a href="{% url 'events:event_list' %}?city={{ c.event__venue__city|urlencode }}">{{ c.event__venue__city }}</a><span class="text-body-secondary small">{% blocktranslate count counter=c.n %}{{ counter }} show{% plural %}{{ counter }} shows{% endblocktranslate %}</span>
+              <a href="{% url 'events:user_diary' owner.get_username %}?city={{ c.event__venue__city|urlencode }}">{{ c.event__venue__city }}</a><span class="text-body-secondary small">{% blocktranslate count counter=c.n %}{{ counter }} show{% plural %}{{ counter }} shows{% endblocktranslate %}</span>
             </li>
           {% empty %}<li class="small text-body-secondary">{% translate "No cities yet." %}</li>{% endfor %}
         </ol>
