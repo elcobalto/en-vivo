@@ -80,7 +80,9 @@
   {% endif %}
 
   {% url 'events:user_diary' owner.get_username as diary_url %}
-  <div style="max-width:28rem">
+  {# The whole width of the page, and taller than the small charts elsewhere. #}
+  <style>.year-wide .rating-bars { height: 120px; gap: 4px; }</style>
+  <div class="year-wide mb-4">
     {% year_histogram owner_logs _("Events by year") diary_url %}
   </div>
   {% if not top_artists and not top_venues and not top_cities and not owner_logs %}
