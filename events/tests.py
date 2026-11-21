@@ -4763,3 +4763,31 @@ class BulkImportVenueTests(BaseTestCase):
         self.assertEqual((events[22].venue.name, events[22].venue.city, events[22].venue.country.code),
                          ("Estadio Nuevo", "Santiago", "CL"))
         self.assertIsNone(events[24].venue)
+
+
+class FestivalProductionTests(BaseTestCase):
+    def test_list_import_links_festivals_to_their_festival(self):
+        self.client.force_login(self.user)
+        lines = "2024-03-15, Lollapalooza Chile, festival\n2024-03-16, Lollapalooza Chile, festival\n2024-03-17, Blur\n"
+        self.client.post(reverse("events:bulk_import"), {"lines": lines, "confirm": "1"})
+        days = Event.objects.filter(title="Lollapalooza Chile")
+        self.assertEqual({e.production.title for e in days}, {"Lollapalooza Chile"})
+        self.assertEqual(days.first().production.event_type, EventType.FESTIVAL)
+        self.assertIsNone(Event.objects.get(title="Blur").production)
+
+    def test_existing_festivals_get_theirs(self):
+        import importlib
+
+        from django.apps import apps
+
+        migration = importlib.import_module("events.migrations.0050_festivals_get_their_festival")
+        named = Event.objects.create(title="Fauna Primavera", event_type=EventType.FESTIVAL, date=date(2024, 11, 1))
+        auto = Event.objects.create(title="Festival event", title_is_auto=True, event_type=EventType.FESTIVAL)
+        Production.objects.create(title="Rock en Conce", event_type=EventType.MUSIC)  # a tour with that name
+        clash = Event.objects.create(title="Rock en Conce", event_type=EventType.FESTIVAL)
+        migration.link_festivals(apps, None)
+        for event in (named, auto, clash):
+            event.refresh_from_db()
+        self.assertEqual((named.production.title, named.production.event_type), ("Fauna Primavera", "festival"))
+        self.assertIsNone(auto.production)
+        self.assertEqual(clash.production.title, "Rock en Conce (festival)")

@@ -3,7 +3,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: En Vivo\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-21 21:44+0000\n"
+"POT-Creation-Date: 2026-11-21 21:48+0000\n"
 "PO-Revision-Date: 2026-11-20 18:00-0300\n"
 "Last-Translator: En Vivo\n"
 "Language-Team: Spanish\n"
@@ -4551,47 +4551,47 @@ msgstr "Ponle un nombre al festival."
 msgid "“%(event)s” is now a festival day of %(name)s."
 msgstr "“%(event)s” ahora es un día del festival %(name)s."
 
-#: events/views_bulk.py:72
+#: events/views_bulk.py:73
 msgid "Needs at least a date and an event name."
 msgstr "Necesita al menos una fecha y un nombre de evento."
 
-#: events/views_bulk.py:77
+#: events/views_bulk.py:78
 #, python-format
 msgid "Couldn't read the date “%(date)s” (use 2019-03-20 or 20-03-2019)."
 msgstr "No se pudo leer la fecha “%(date)s” (usa 2019-03-20 o 20-03-2019)."
 
-#: events/views_bulk.py:84
+#: events/views_bulk.py:85
 #, python-format
 msgid "Unknown type “%(type)s” (music, theater, comedy, dance, festival, other)."
 msgstr "Tipo desconocido “%(type)s” (música, teatro, comedia, danza, festival, otro)."
 
-#: events/views_bulk.py:125
+#: events/views_bulk.py:131
 #, python-format
 msgid "%(created)s, %(existing)s. Now add venues and lineups."
 msgstr "%(created)s, %(existing)s. Ahora agrega los recintos y line-ups."
 
-#: events/views_bulk.py:126 events/views_venues.py:150
+#: events/views_bulk.py:132 events/views_venues.py:150
 #, python-format
 msgid "%(n)s event created"
 msgid_plural "%(n)s events created"
 msgstr[0] "%(n)s evento creado"
 msgstr[1] "%(n)s eventos creados"
 
-#: events/views_bulk.py:127
+#: events/views_bulk.py:133
 #, python-format
 msgid "%(n)s already existed"
 msgid_plural "%(n)s already existed"
 msgstr[0] "%(n)s ya existía"
 msgstr[1] "%(n)s ya existían"
 
-#: events/views_bulk.py:129
+#: events/views_bulk.py:135
 #, python-format
 msgid "%(n)s event created. Now add venues and lineups."
 msgid_plural "%(n)s events created. Now add venues and lineups."
 msgstr[0] "%(n)s evento creado. Ahora agrega los recintos y line-ups."
 msgstr[1] "%(n)s eventos creados. Ahora agrega los recintos y line-ups."
 
-#: events/views_bulk.py:181
+#: events/views_bulk.py:187
 #, python-format
 msgid "Updated %(n)s event."
 msgid_plural "Updated %(n)s events."

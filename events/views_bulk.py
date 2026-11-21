@@ -16,7 +16,8 @@ from django.urls import reverse
 from django.utils.html import format_html
 from django.utils.translation import gettext, ngettext
 
-from .models import Event, EventArtist, EventType, Artist, Venue, added_act_role, fit_role, normalize_name
+from .models import (Event, EventArtist, EventType, Artist, Venue, added_act_role, fit_role, normalize_name,
+                     production_named)
 from .roles import can_edit_event, home_place
 
 MAX_ROWS = 200
@@ -110,15 +111,20 @@ def bulk_import(request: HttpRequest) -> HttpResponse:
                     venue = new_venues[key]
                 existing = next((e for e in Event.objects.filter(date=row.date, event_type=row.event_type)
                                  if normalize_name(e.title) == normalize_name(row.title)), None)
+                # A festival day belongs to the festival of the same name (found or created).
+                festival = production_named(row.title, EventType.FESTIVAL) if row.event_type == EventType.FESTIVAL else None
                 if existing:
                     if venue and not existing.venue_id:  # the list knows where it was
                         existing.venue = venue
                         existing.save(update_fields=["venue", "updated_at"])
+                    if festival and not existing.production_id:
+                        existing.production = festival
+                        existing.save(update_fields=["production", "updated_at"])
                     ids.append(existing.pk)
                     reused += 1
                     continue
                 event = Event.objects.create(title=row.title, date=row.date, event_type=row.event_type,
-                                             venue=venue, created_by=request.user)
+                                             venue=venue, production=festival, created_by=request.user)
                 ids.append(event.pk)
         new = len(ids) - reused
         if reused:
