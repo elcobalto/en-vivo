@@ -599,6 +599,14 @@ def venue_detail(request: HttpRequest, pk: int) -> HttpResponse:
     )
 
 
+def _iso_date(raw):
+    """A YYYY-MM-DD date from the query string, or None."""
+    try:
+        return date.fromisoformat((raw or "").strip())
+    except ValueError:
+        return None
+
+
 def diary(request: HttpRequest, username: str | None = None) -> HttpResponse:
     if username is None:
         if not request.user.is_authenticated:
@@ -614,6 +622,8 @@ def diary(request: HttpRequest, username: str | None = None) -> HttpResponse:
         rating = ""  # ratings are stored 1–10 (half stars)
     country = (request.GET.get("country") or "").strip().upper()[:2]  # from the stats page's world map
     city = (request.GET.get("city") or "").strip()[:120]  # from the stats page's "Most visited cities"
+    # A date range (the stats page's month and week bars): ?from=2026-03-01&to=2026-03-31.
+    since, until = _iso_date(request.GET.get("from")), _iso_date(request.GET.get("to"))
     logs = all_logs.select_related("event", "event__venue").order_by("-event__date", "-created_at")
     if event_type in EventType.values:
         logs = logs.filter(event__event_type=event_type)
@@ -625,6 +635,10 @@ def diary(request: HttpRequest, username: str | None = None) -> HttpResponse:
         logs = logs.filter(event__venue__country=country)
     if city:
         logs = logs.filter(event__venue__city__iexact=city)
+    if since:
+        logs = logs.filter(event__date__gte=since)
+    if until:
+        logs = logs.filter(event__date__lte=until)
     years = (all_logs.exclude(event__date=None).annotate(y=ExtractYear("event__date"))
              .values_list("y", flat=True).distinct().order_by("-y"))
     types_logged = all_logs.values_list("event__event_type", flat=True).distinct()
@@ -647,7 +661,8 @@ def diary(request: HttpRequest, username: str | None = None) -> HttpResponse:
             seen = {act.artist_id for act in log.acts.all()}
             log.seen_bill = [link for link in log.event.bill if link.role in CREDIT_ROLES or link.artist_id in seen]
     filters = {k: v for k, v in {"type": event_type, "year": year, "rating": rating, "country": country,
-                                 "city": city}.items() if v}
+                                 "city": city, "from": since.isoformat() if since else "",
+                                 "to": until.isoformat() if until else ""}.items() if v}
     countries_logged = sorted(
         ((code, countries.name(code)) for code in all_logs.exclude(event__venue__country="").exclude(event__venue=None)
          .values_list("event__venue__country", flat=True).distinct()), key=lambda c: c[1])
@@ -661,7 +676,8 @@ def diary(request: HttpRequest, username: str | None = None) -> HttpResponse:
             "page": page,
             "querystring": urlencode({**filters, **({"view": "expanded"} if expanded else {})}),
             "filters_qs": urlencode(filters),  # for the List / Expanded switch
-            "f": {"type": event_type, "year": year, "rating": rating, "country": country, "city": city},
+            "f": {"type": event_type, "year": year, "rating": rating, "country": country, "city": city,
+                  "since": since, "until": until},
             "countries_logged": countries_logged,
             "ratings": [(r, stars(r)) for r in range(10, 0, -1)],
             "expanded": expanded,

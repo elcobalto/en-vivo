@@ -64,7 +64,7 @@ def artist_import_new(request: HttpRequest) -> HttpResponse:
             job = ArtistImport.objects.create(
                 artist_name=name, artist_mbid=mbid, started_by=request.user, country=country,
                 only_with_songs=request.POST.get("only_with_songs") == "1",
-                look_up_venues=request.POST.get("look_up_venues") == "1",
+                look_up_venues=True,  # new venues are always matched on Google Places
                 since_year=_since_year(request.POST.get("since_year")),
             )
         return redirect("events:artist_import", pk=job.pk)

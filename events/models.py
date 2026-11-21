@@ -924,7 +924,7 @@ class ArtistImport(TimestampedModel):
     started_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name="+")
     country = CountryField(blank=True, default="")  # only shows in this country; empty: everywhere
     since_year = models.PositiveSmallIntegerField(null=True, blank=True)  # only shows from this year on
-    only_with_songs = models.BooleanField(default=True)  # skip setlists without songs
+    only_with_songs = models.BooleanField(default=False)  # skip setlists without songs
     look_up_venues = models.BooleanField(default=True)  # match new venues on Google Places (paid API)
     status = models.CharField(max_length=10, choices=Status.choices, default=Status.RUNNING)
     total = models.PositiveIntegerField(null=True, blank=True)  # setlists setlist.fm has for the artist

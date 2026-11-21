@@ -169,10 +169,21 @@ def _this_year(owner) -> dict:
         months[d.month - 1] += 1
         weeks[(d - date(year, 1, 1)).days // 7] += 1
 
-    def bars(counts, starts, label, short):
+    diary = reverse("events:user_diary", args=[owner.get_username()])
+
+    def bars(counts, starts, label, short, end):
         peak = max(counts) or 1
         return [{"label": label(start, i), "short": short(start, i), "count": n, "height": round(n / peak * 100),
-                 "future": start > today} for i, (n, start) in enumerate(zip(counts, starts))]
+                 "future": start > today,
+                 # A bar with shows opens the diary for that month or week.
+                 "url": f"{diary}?from={start.isoformat()}&to={end(start).isoformat()}" if n else ""}
+                for i, (n, start) in enumerate(zip(counts, starts))]
+
+    def month_end(start):
+        return (date(year + 1, 1, 1) if start.month == 12 else date(year, start.month + 1, 1)) - timedelta(days=1)
+
+    def week_end(start):
+        return min(start + timedelta(days=6), date(year, 12, 31))
 
     month_starts = [date(year, m, 1) for m in range(1, 13)]
     week_starts = [date(year, 1, 1) + timedelta(days=7 * i) for i in range(53)]
@@ -182,10 +193,11 @@ def _this_year(owner) -> dict:
         "year": year,
         "total": len(dates),
         "periods": [
-            ("months", bars(months, month_starts, lambda d, i: date_format(d, "F Y"), lambda d, i: date_format(d, "M"))),
+            ("months", bars(months, month_starts, lambda d, i: date_format(d, "F Y"), lambda d, i: date_format(d, "M"),
+                            month_end)),
             ("weeks", bars(weeks, week_starts,
                            lambda d, i: gettext("Week %(n)s (from %(date)s)") % {"n": i + 1, "date": date_format(d, "j M")},
-                           lambda d, i: date_format(d, "j M"))),
+                           lambda d, i: date_format(d, "j M"), week_end)),
         ],
     }
 

@@ -3996,7 +3996,7 @@ class ArtistImportTests(BaseTestCase):
     def test_imports_everything_in_steps_one_request_per_page(self):
         from . import artist_import
 
-        job = self._job()
+        job = self._job(only_with_songs=True)
         steps = 0
         while job.status == "running" and steps < 20:
             artist_import.run_step(job, seconds=0.05)
@@ -4069,6 +4069,8 @@ class ArtistImportTests(BaseTestCase):
         self.client.force_login(self.boss)
         page = self.client.get(reverse("events:artist_import_new"), {"artist": "beatles"})
         self.assertContains(page, '<option value="GB" selected>')
+        self.assertNotContains(page, 'name="look_up_venues"')  # always on
+        self.assertNotContains(page, 'name="only_with_songs" value="1" id="songs-1" checked')  # off by default
         url = reverse("events:artist_import_new")
         self.client.post(url, {"mbid": "b10bbbfc", "name": "The Beatles", "country": "GB"})
         self.client.post(url, {"mbid": "b10bbbfc", "name": "The Beatles", "country": "GB", "all_countries": "1"})
@@ -4460,6 +4462,14 @@ class ThisYearChartTests(BaseTestCase):
         self.assertEqual([b["count"] for b in periods["months"]][:3], [3, 0, 2])
         self.assertEqual([b["count"] for b in periods["weeks"]][:2], [2, 1])  # 1–7 January, then 8–14
         self.assertEqual(len(periods["weeks"]), 53)
+        diary = reverse("events:user_diary", args=["ana"])
+        self.assertEqual(periods["months"][0]["url"], f"{diary}?from={year}-01-01&to={year}-01-31")
+        self.assertEqual(periods["months"][1]["url"], "")  # no shows in February: not a link
+        self.assertEqual(periods["weeks"][1]["url"], f"{diary}?from={year}-01-08&to={year}-01-14")
+        in_range = self.client.get(diary, {"from": f"{year}-01-01", "to": f"{year}-01-07"})
+        self.assertEqual(sorted(log.event.title for log in in_range.context["logs"]),
+                         [f"{year}-01-01", f"{year}-01-07"])
+        self.assertContains(page, f'href="{diary}?from={year}-03-01&amp;to={year}-03-31"')
         html = page.content.decode()
         self.assertLess(html.index("Events by year"), html.index('id="map-world"'))
         self.assertLess(html.index(f"Events in {year}"), html.index('id="map-world"'))

@@ -41,10 +41,8 @@
               <label class="text-nowrap" for="since-{{ forloop.counter }}">{% translate "Since year" %}</label>
               <input class="form-control form-control-sm" style="width: 6rem" type="number" min="1900" max="2100" name="since_year" id="since-{{ forloop.counter }}" placeholder="{% translate 'all' %}" />
             </div>
-            <div class="form-check m-0"><input class="form-check-input" type="checkbox" name="only_with_songs" value="1" id="songs-{{ forloop.counter }}" checked />
+            <div class="form-check m-0"><input class="form-check-input" type="checkbox" name="only_with_songs" value="1" id="songs-{{ forloop.counter }}" />
               <label class="form-check-label" for="songs-{{ forloop.counter }}">{% translate "Only setlists with songs" %}</label></div>
-            <div class="form-check m-0"><input class="form-check-input" type="checkbox" name="look_up_venues" value="1" id="venues-{{ forloop.counter }}" checked />
-              <label class="form-check-label" for="venues-{{ forloop.counter }}" title="{% translate 'One Google Places lookup per new venue (a paid API)' %}">{% translate "Match new venues on Google" %}</label></div>
           </div>
           <div class="small text-body-secondary mt-1" data-preview="{{ a.mbid }}"{% if forloop.first %} data-auto{% endif %} aria-live="polite">
             <button class="btn btn-link btn-sm p-0 align-baseline" type="button">{% translate "Count setlists" %}</button>
