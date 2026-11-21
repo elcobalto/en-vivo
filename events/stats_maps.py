@@ -17,8 +17,10 @@ def _rows(qs, *fields):
     return list(qs.values(*fields).annotate(n=Count("id")).order_by("-n", *fields))
 
 
-def map_data(owner) -> dict:
+def map_data(owner, event_type: str = "") -> dict:
     logs = Log.objects.filter(user=owner).exclude(event__venue=None)
+    if event_type:
+        logs = logs.filter(event__event_type=event_type)
 
     by_country = _rows(logs.exclude(event__venue__country=""), "event__venue__country")
     world = [{"code": r["event__venue__country"], "id": countries.numeric(r["event__venue__country"], padded=True),

@@ -4540,3 +4540,37 @@ class AlbumYearEditTests(BaseTestCase):
         self.assertIsNone(album.year)
         page = self.client.get(band.get_absolute_url())
         self.assertContains(page, f'name="update" value="{album.pk}"')
+
+
+class StatsTypeFilterTests(BaseTestCase):
+    def test_the_whole_stats_page_follows_the_type(self):
+        from django.utils import timezone
+
+        from .models import add_all_acts
+
+        year = timezone.localdate().year
+        band, comic = Artist.objects.create(name="Band"), Artist.objects.create(name="Comic")
+        vina = Venue.objects.create(name="Quinta Vergara", city="Viña del Mar", country="CL")
+        for title, kind, venue, artist in [("Gig", "music", self.venue, band), ("Stand-up", "comedy", vina, comic)]:
+            event = Event.objects.create(title=title, event_type=kind, venue=venue, date=date(year, 1, 5))
+            EventArtist.objects.create(event=event, artist=artist)
+            log = Log.objects.create(user=self.user, event=event)
+            add_all_acts(log)
+        url = reverse("events:user_stats", args=["ana"])
+        everything = self.client.get(url)
+        self.assertEqual(sorted(p.name for p in everything.context["top_artists"]), ["Band", "Comic"])
+        self.assertContains(everything, 'href="?type=comedy"')
+
+        comedy = self.client.get(url, {"type": "comedy"})
+        self.assertEqual([p.name for p in comedy.context["top_artists"]], ["Comic"])
+        self.assertEqual([v.name for v in comedy.context["top_venues"]], ["Quinta Vergara"])
+        self.assertEqual([c["event__venue__city"] for c in comedy.context["top_cities"]], ["Viña del Mar"])
+        self.assertEqual(comedy.context["this_year"]["total"], 1)
+        self.assertEqual(comedy.context["maps"]["cities"], [])  # no coordinates in this test
+        diary = reverse("events:user_diary", args=["ana"])
+        self.assertContains(comedy, f'href="{diary}?type=comedy&amp;city=Vi%C3%B1a%20del%20Mar"')
+        self.assertContains(comedy, f'{diary}?type=comedy&amp;year={year}')
+        self.assertContains(comedy, f'{reverse("events:user_ranking", args=["ana", "venues"])}?type=comedy')
+        ranking = self.client.get(reverse("events:user_ranking", args=["ana", "venues"]), {"type": "comedy"})
+        self.assertEqual([r[1] for r in ranking.context["rows"]], ["Quinta Vergara"])
+        self.assertEqual(self.client.get(url, {"type": "nope"}).context["event_type"], "")

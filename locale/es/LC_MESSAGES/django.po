@@ -3,7 +3,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: En Vivo\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-21 05:16+0000\n"
+"POT-Creation-Date: 2026-11-21 05:23+0000\n"
 "PO-Revision-Date: 2026-11-20 18:00-0300\n"
 "Last-Translator: En Vivo\n"
 "Language-Team: Spanish\n"
@@ -61,6 +61,7 @@ msgstr "Título"
 #: events/templates/events/bulk_import.html:32
 #: events/templates/events/diary.html:9 events/templates/events/diary.html:75
 #: events/templates/events/event_list.html:21
+#: events/templates/events/profile_stats.html:15
 #: events/templates/events/setlistfm_usage.html:88
 msgid "Type"
 msgstr "Tipo"
@@ -1011,7 +1012,7 @@ msgid "Started"
 msgstr "Iniciada"
 
 #: events/templates/events/_artist_rank.html:7
-#: events/templates/events/profile_stats.html:39
+#: events/templates/events/profile_stats.html:48
 #: events/templates/events/user_ranking.html:15
 #, python-format
 msgid "%(counter)s show"
@@ -1025,8 +1026,8 @@ msgid "None yet."
 msgstr "Nada todavía."
 
 #: events/templates/events/_artist_rank.html:11
-#: events/templates/events/profile_stats.html:32
-#: events/templates/events/profile_stats.html:43
+#: events/templates/events/profile_stats.html:41
+#: events/templates/events/profile_stats.html:52
 msgid "See all →"
 msgstr "Ver todo →"
 
@@ -1163,7 +1164,7 @@ msgstr "de"
 #: events/templates/events/_year_histogram.html:9
 #: events/templates/events/artist_list.html:38
 #: events/templates/events/home.html:68
-#: events/templates/events/profile_stats.html:72
+#: events/templates/events/profile_stats.html:81
 #: events/templates/events/search.html:26
 #: events/templates/events/search.html:40
 #, python-format
@@ -1240,7 +1241,7 @@ msgstr "Calificaciones"
 
 #: events/templates/events/_rating_histogram.html:10
 #: events/templates/events/_year_histogram.html:10
-#: events/templates/events/profile_stats.html:73
+#: events/templates/events/profile_stats.html:82
 msgid "show in diary"
 msgstr "ver en el diario"
 
@@ -3578,7 +3579,7 @@ msgid "Diary →"
 msgstr "Diario →"
 
 #: events/templates/events/profile.html:34
-#: events/templates/events/profile_stats.html:122
+#: events/templates/events/profile_stats.html:131
 msgid "Nothing logged yet."
 msgstr "Todavía no hay nada registrado."
 
@@ -3623,28 +3624,32 @@ msgstr "Las estadísticas serán parte de un plan de pago; durante la beta son g
 msgid "Free during the beta"
 msgstr "Gratis durante la beta"
 
-#: events/templates/events/profile_stats.html:17 events/views_social.py:230
+#: events/templates/events/profile_stats.html:16
+msgid "All events"
+msgstr "Todos los eventos"
+
+#: events/templates/events/profile_stats.html:26 events/views_social.py:256
 msgid "Most seen local artists"
 msgstr "Artistas locales más vistos"
 
-#: events/templates/events/profile_stats.html:18 events/views_social.py:231
+#: events/templates/events/profile_stats.html:27 events/views_social.py:257
 msgid "Most seen foreign artists"
 msgstr "Artistas extranjeros más vistos"
 
-#: events/templates/events/profile_stats.html:20 events/views_social.py:229
+#: events/templates/events/profile_stats.html:29 events/views_social.py:255
 msgid "Most seen artists"
 msgstr "Artistas más vistos"
 
-#: events/templates/events/profile_stats.html:21
+#: events/templates/events/profile_stats.html:30
 #, python-format
 msgid "<a href=\"%(profile_edit_url)s\">Set your home country</a> to split local and foreign artists."
 msgstr "<a href=\"%(profile_edit_url)s\">Indica tu país</a> para separar los artistas locales de los extranjeros."
 
-#: events/templates/events/profile_stats.html:24 events/views_social.py:232
+#: events/templates/events/profile_stats.html:33 events/views_social.py:258
 msgid "Most visited venues"
 msgstr "Recintos más visitados"
 
-#: events/templates/events/profile_stats.html:28
+#: events/templates/events/profile_stats.html:37
 #: events/templates/events/user_ranking.html:15
 #, python-format
 msgid "%(counter)s visit"
@@ -3652,86 +3657,86 @@ msgid_plural "%(counter)s visits"
 msgstr[0] "%(counter)s visita"
 msgstr[1] "%(counter)s visitas"
 
-#: events/templates/events/profile_stats.html:30
+#: events/templates/events/profile_stats.html:39
 msgid "No venues yet."
 msgstr "Todavía no hay recintos."
 
-#: events/templates/events/profile_stats.html:35 events/views_social.py:233
+#: events/templates/events/profile_stats.html:44 events/views_social.py:259
 msgid "Most visited cities"
 msgstr "Ciudades más visitadas"
 
-#: events/templates/events/profile_stats.html:41
+#: events/templates/events/profile_stats.html:50
 msgid "No cities yet."
 msgstr "Todavía no hay ciudades."
 
-#: events/templates/events/profile_stats.html:52
+#: events/templates/events/profile_stats.html:61
 #: events/templatetags/event_extras.py:63
 msgid "Events by year"
 msgstr "Eventos por año"
 
-#: events/templates/events/profile_stats.html:59
+#: events/templates/events/profile_stats.html:68
 #, python-format
 msgid "Events in %(year)s"
 msgstr "Eventos en %(year)s"
 
-#: events/templates/events/profile_stats.html:61
+#: events/templates/events/profile_stats.html:70
 msgid "Group by"
 msgstr "Agrupar por"
 
-#: events/templates/events/profile_stats.html:62
+#: events/templates/events/profile_stats.html:71
 msgid "Month"
 msgstr "Mes"
 
-#: events/templates/events/profile_stats.html:63
+#: events/templates/events/profile_stats.html:72
 msgid "Week"
 msgstr "Semana"
 
-#: events/templates/events/profile_stats.html:89
+#: events/templates/events/profile_stats.html:98
 msgid "Maps"
 msgstr "Mapas"
 
-#: events/templates/events/profile_stats.html:93
+#: events/templates/events/profile_stats.html:102
 msgid "Countries"
 msgstr "Países"
 
-#: events/templates/events/profile_stats.html:94
+#: events/templates/events/profile_stats.html:103
 #, python-format
 msgid "%(counter)s country"
 msgid_plural "%(counter)s countries"
 msgstr[0] "%(counter)s país"
 msgstr[1] "%(counter)s países"
 
-#: events/templates/events/profile_stats.html:96
+#: events/templates/events/profile_stats.html:105
 msgid "World map of the countries with shows attended"
 msgstr "Mapa mundial de los países con shows a los que fuiste"
 
-#: events/templates/events/profile_stats.html:102
+#: events/templates/events/profile_stats.html:111
 #, python-format
 msgid "Map of %(country)s with the cities of shows attended"
 msgstr "Mapa de %(country)s con las ciudades de los shows a los que fuiste"
 
-#: events/templates/events/profile_stats.html:105
+#: events/templates/events/profile_stats.html:114
 msgid "Regions:"
 msgstr "Regiones:"
 
-#: events/templates/events/profile_stats.html:114
+#: events/templates/events/profile_stats.html:123
 #, python-format
 msgid "Map of %(city)s with the venues attended"
 msgstr "Mapa de %(city)s con los recintos a los que fuiste"
 
-#: events/templates/events/profile_stats.html:115
+#: events/templates/events/profile_stats.html:124
 #, python-format
 msgid "%(counter)s venue has no location yet, so it isn't on the map."
 msgid_plural "%(counter)s venues have no location yet, so they aren't on the map."
 msgstr[0] "%(counter)s recinto aún no tiene ubicación, así que no aparece en el mapa."
 msgstr[1] "%(counter)s recintos aún no tienen ubicación, así que no aparecen en el mapa."
 
-#: events/templates/events/profile_stats.html:154
+#: events/templates/events/profile_stats.html:163
 #, python-format
 msgid "%%(n)s show"
 msgstr "%%(n)s show"
 
-#: events/templates/events/profile_stats.html:154
+#: events/templates/events/profile_stats.html:163
 #, python-format
 msgid "%%(n)s shows"
 msgstr "%%(n)s shows"
@@ -4524,24 +4529,24 @@ msgstr "Se fusionó “%(removed)s” con “%(kept)s”."
 msgid "Merged the duplicate “%(removed)s” into this event."
 msgstr "Se fusionó el duplicado “%(removed)s” con este evento."
 
-#: events/views_social.py:199
+#: events/views_social.py:214
 #, python-format
 msgid "Week %(n)s (from %(date)s)"
 msgstr "Semana %(n)s (desde el %(date)s)"
 
-#: events/views_social.py:287
+#: events/views_social.py:316
 msgid "Profile saved."
 msgstr "Perfil guardado."
 
-#: events/views_social.py:309
+#: events/views_social.py:338
 msgid "Favourites saved."
 msgstr "Favoritos guardados."
 
-#: events/views_social.py:343
+#: events/views_social.py:372
 msgid "You can't follow yourself."
 msgstr "No puedes seguirte a ti mismo."
 
-#: events/views_social.py:420
+#: events/views_social.py:449
 msgid "Your reply can't be empty."
 msgstr "Tu respuesta no puede estar vacía."
 

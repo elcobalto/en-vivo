@@ -75,7 +75,7 @@ def year_histogram(logs, title: str = gettext_lazy("Events by year"), link: str 
     peak = max(counts.values())
     years = range(min(counts), max(counts) + 1)
     bars = [{"year": y, "count": counts.get(y, 0), "height": round(counts.get(y, 0) / peak * 100),
-             "url": f"{link}?year={y}" if link and counts.get(y) else ""} for y in years]
+             "url": f"{link}{'&' if '?' in link else '?'}year={y}" if link and counts.get(y) else ""} for y in years]
     return {"bars": bars, "total": sum(counts.values()), "title": title, "first": years[0], "last": years[-1]}
 
 

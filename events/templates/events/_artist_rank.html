@@ -8,5 +8,5 @@
       </li>
     {% empty %}<li class="small text-body-secondary">{% translate "None yet." %}</li>{% endfor %}
   </ol>
-  {% if artists and kind %}<a class="small d-inline-block mt-2" href="{% url 'events:user_ranking' owner.get_username kind %}">{% translate "See all →" %}</a>{% endif %}
+  {% if artists and kind %}<a class="small d-inline-block mt-2" href="{% url 'events:user_ranking' owner.get_username kind %}{% if event_type %}?type={{ event_type }}{% endif %}">{% translate "See all →" %}</a>{% endif %}
 </div>

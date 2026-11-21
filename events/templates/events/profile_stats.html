@@ -10,6 +10,15 @@
     <h2 class="section-title m-0">{% translate "Stats" %}</h2>
     <span class="badge text-bg-warning" title="{% translate 'Stats will be part of a paid plan; during the beta they are free for everyone.' %}">{% translate "Free during the beta" %}</span>
   </div>
+  {% if event_types|length > 1 %}
+    {# One filter for the whole page: every event, or one type. #}
+    <div class="d-flex flex-wrap gap-2 mb-4" role="group" aria-label="{% translate 'Type' %}">
+      <a class="btn btn-sm {% if not event_type %}btn-light{% else %}btn-outline-secondary{% endif %}" href="{{ request.path }}"{% if not event_type %} aria-current="page"{% endif %}>{% translate "All events" %}</a>
+      {% for value, label in event_types %}
+        <a class="btn btn-sm {% if event_type == value %}btn-light{% else %}btn-outline-secondary{% endif %}" href="?type={{ value }}"{% if event_type == value %} aria-current="page"{% endif %}>{{ label }}</a>
+      {% endfor %}
+    </div>
+  {% endif %}
 
   {% if top_artists or top_venues or top_cities %}
     <div class="row g-4 mb-5">
@@ -29,23 +38,23 @@
             </li>
           {% empty %}<li class="small text-body-secondary">{% translate "No venues yet." %}</li>{% endfor %}
         </ol>
-        {% if top_venues %}<a class="small d-inline-block mt-2" href="{% url 'events:user_ranking' owner.get_username 'venues' %}">{% translate "See all →" %}</a>{% endif %}
+        {% if top_venues %}<a class="small d-inline-block mt-2" href="{% url 'events:user_ranking' owner.get_username 'venues' %}{% if event_type %}?type={{ event_type }}{% endif %}">{% translate "See all →" %}</a>{% endif %}
       </div>
       <div class="col-12 col-md-6">
         <h2 class="section-title mb-2">{% translate "Most visited cities" %}</h2>
         <ol class="list-unstyled mb-0">
           {% for c in top_cities %}
             <li class="d-flex justify-content-between py-1 border-bottom border-secondary-subtle">
-              <a href="{% url 'events:user_diary' owner.get_username %}?city={{ c.event__venue__city|urlencode }}">{{ c.event__venue__city }}</a><span class="text-body-secondary small">{% blocktranslate count counter=c.n %}{{ counter }} show{% plural %}{{ counter }} shows{% endblocktranslate %}</span>
+              <a href="{% url 'events:user_diary' owner.get_username %}?{{ type_qs }}city={{ c.event__venue__city|urlencode }}">{{ c.event__venue__city }}</a><span class="text-body-secondary small">{% blocktranslate count counter=c.n %}{{ counter }} show{% plural %}{{ counter }} shows{% endblocktranslate %}</span>
             </li>
           {% empty %}<li class="small text-body-secondary">{% translate "No cities yet." %}</li>{% endfor %}
         </ol>
-        {% if top_cities %}<a class="small d-inline-block mt-2" href="{% url 'events:user_ranking' owner.get_username 'cities' %}">{% translate "See all →" %}</a>{% endif %}
+        {% if top_cities %}<a class="small d-inline-block mt-2" href="{% url 'events:user_ranking' owner.get_username 'cities' %}{% if event_type %}?type={{ event_type }}{% endif %}">{% translate "See all →" %}</a>{% endif %}
       </div>
     </div>
   {% endif %}
 
-  {% url 'events:user_diary' owner.get_username as diary_url %}
+
   {# The whole width of the page, and taller than the small charts elsewhere. #}
   <style>.year-wide .rating-bars { height: 120px; gap: 4px; }</style>
   <div class="year-wide mb-4">
@@ -94,7 +103,7 @@
           <span class="small text-body-secondary">{% blocktranslate count counter=maps.world|length %}{{ counter }} country{% plural %}{{ counter }} countries{% endblocktranslate %}</span>
         </div>
         <div id="map-world" class="stats-map stats-map-world" role="img" aria-label="{% translate 'World map of the countries with shows attended' %}"></div>
-        <div class="small text-body-secondary mt-1">{% for c in maps.world %}<a href="{% url 'events:user_diary' owner.get_username %}?country={{ c.code }}">{{ c.name }}</a> <span class="text-body">{{ c.n }}</span>{% if not forloop.last %} · {% endif %}{% endfor %}</div>
+        <div class="small text-body-secondary mt-1">{% for c in maps.world %}<a href="{% url 'events:user_diary' owner.get_username %}?{{ type_qs }}country={{ c.code }}">{{ c.name }}</a> <span class="text-body">{{ c.n }}</span>{% if not forloop.last %} · {% endif %}{% endfor %}</div>
       </div>
       {% if maps.country.code %}
         <div class="col-12 col-lg-6">
@@ -161,7 +170,7 @@
       var data = JSON.parse(document.getElementById("map-data").textContent),
           accent = getComputedStyle(document.documentElement).getPropertyValue("--ev-accent").trim() || "#ff8000",
           venueUrl = "{% url 'events:venue_detail' 0 %}".replace("/0/", "/{id}/") + "?seen_by={{ owner.get_username|urlencode }}",
-          diaryUrl = "{% url 'events:user_diary' owner.get_username %}";
+          diaryUrl = "{% url 'events:user_diary' owner.get_username %}?{{ type_qs }}";
       function shows(n) { return (n === 1 ? "{{ one_show|escapejs }}" : "{{ many_shows|escapejs }}").replace("%(n)s", n); }
       function esc(text) { var d = document.createElement("div"); d.textContent = text; return d.innerHTML; }
       var seen = {}, max = 1;
@@ -195,7 +204,7 @@
             t.textContent = c.name + ": " + shows(c.n);
             p.appendChild(t);
             var link = document.createElementNS(ns, "a");
-            link.setAttribute("href", diaryUrl + "?country=" + c.code);
+            link.setAttribute("href", diaryUrl + "country=" + c.code);
             link.setAttribute("aria-label", c.name + ": " + shows(c.n));
             link.appendChild(p);
             svg.appendChild(link);
