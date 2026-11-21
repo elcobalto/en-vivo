@@ -4429,3 +4429,24 @@ class ImportMessageLinkTests(BaseTestCase):
         [message] = self._import(["3b8e1c4c", "43b8e1c8"])
         self.assertIn(f'href="{reverse("events:event_list")}?sort=added"', message)
         self.assertIn(f'<a class="alert-link" href="{reverse("events:event_list")}?sort=added">', self.page)  # not escaped
+
+
+class ThisYearChartTests(BaseTestCase):
+    def test_events_by_month_and_week_this_year(self):
+        from django.utils import timezone
+
+        year = timezone.localdate().year
+        for day in [date(year, 1, 1), date(year, 1, 7), date(year, 1, 8), date(year, 3, 15), date(year - 1, 12, 31)]:
+            Log.objects.create(user=self.user, event=Event.objects.create(title=str(day), venue=self.venue, date=day))
+        Log.objects.create(user=self.user, event=Event.objects.create(title="Wembley", date=date(year, 3, 1),
+                                                                       venue=Venue.objects.create(name="W", country="GB")))
+        page = self.client.get(reverse("events:user_stats", args=["ana"]))
+        this_year = page.context["this_year"]
+        periods = dict(this_year["periods"])
+        self.assertEqual(this_year["total"], 5)  # last year's show doesn't count
+        self.assertEqual([b["count"] for b in periods["months"]][:3], [3, 0, 2])
+        self.assertEqual([b["count"] for b in periods["weeks"]][:2], [2, 1])  # 1–7 January, then 8–14
+        self.assertEqual(len(periods["weeks"]), 53)
+        html = page.content.decode()
+        self.assertLess(html.index("Events by year"), html.index('id="map-world"'))
+        self.assertLess(html.index(f"Events in {year}"), html.index('id="map-world"'))

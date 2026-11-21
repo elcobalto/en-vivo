@@ -151,6 +151,45 @@ def profile(request: HttpRequest, username: str) -> HttpResponse:
     )
 
 
+def _this_year(owner) -> dict:
+    """The current year's shows by month and by week (7-day blocks from 1 January), for the stats page.
+
+    {"year", "total", "periods": [("months", bars), ("weeks", bars)]}; each bar is {"label", "short", "count",
+    "height" (% of the busiest), "future"}."""
+    from datetime import date, timedelta
+
+    from django.utils.formats import date_format
+
+    today = timezone.localdate()
+    year = today.year
+    dates = list(Log.objects.filter(user=owner, event__date__year=year).values_list("event__date", flat=True))
+    months = [0] * 12
+    weeks = [0] * 53  # day 365 (or 366) of the year starts a 53rd block
+    for d in dates:
+        months[d.month - 1] += 1
+        weeks[(d - date(year, 1, 1)).days // 7] += 1
+
+    def bars(counts, starts, label, short):
+        peak = max(counts) or 1
+        return [{"label": label(start, i), "short": short(start, i), "count": n, "height": round(n / peak * 100),
+                 "future": start > today} for i, (n, start) in enumerate(zip(counts, starts))]
+
+    month_starts = [date(year, m, 1) for m in range(1, 13)]
+    week_starts = [date(year, 1, 1) + timedelta(days=7 * i) for i in range(53)]
+    week_starts = [d for d in week_starts if d.year == year]
+    weeks = weeks[:len(week_starts)]
+    return {
+        "year": year,
+        "total": len(dates),
+        "periods": [
+            ("months", bars(months, month_starts, lambda d, i: date_format(d, "F Y"), lambda d, i: date_format(d, "M"))),
+            ("weeks", bars(weeks, week_starts,
+                           lambda d, i: gettext("Week %(n)s (from %(date)s)") % {"n": i + 1, "date": date_format(d, "j M")},
+                           lambda d, i: date_format(d, "j M"))),
+        ],
+    }
+
+
 def user_stats(request: HttpRequest, username: str) -> HttpResponse:
     """Most seen artists, venues and cities, events by year, and maps. Meant for a paid plan; free for everyone in the beta."""
     from . import stats_maps
@@ -164,6 +203,7 @@ def user_stats(request: HttpRequest, username: str) -> HttpResponse:
             "tab": "stats",
             "owner_logs": Log.objects.filter(user=owner),
             "maps": stats_maps.map_data(owner),
+            "this_year": _this_year(owner),
             # Only acts the person actually saw count.
             "top_artists": _seen_artists(owner)[:5],
             **_local_foreign_artists(owner),

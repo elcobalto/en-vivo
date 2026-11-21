@@ -45,6 +45,45 @@
     </div>
   {% endif %}
 
+  {% url 'events:user_diary' owner.get_username as diary_url %}
+  {# The whole width of the page, and taller than the small charts elsewhere. #}
+  <style>.year-wide .rating-bars { height: 120px; gap: 4px; }</style>
+  <div class="year-wide mb-4">
+    {% year_histogram owner_logs _("Events by year") diary_url %}
+  </div>
+
+  {% if this_year.total %}
+    {# This year's shows by month or by week (the switch only changes which bars show). #}
+    <div class="year-wide mb-4" id="this-year">
+      <div class="d-flex flex-wrap justify-content-between align-items-end gap-2 mb-1">
+        <span class="section-title border-0 p-0">{% blocktranslate with year=this_year.year %}Events in {{ year }}{% endblocktranslate %}</span>
+        <div class="d-flex align-items-center gap-2">
+          <div class="btn-group btn-group-sm" role="group" aria-label="{% translate 'Group by' %}">
+            <button type="button" class="btn btn-outline-secondary active" data-period="months" aria-pressed="true">{% translate "Month" %}</button>
+            <button type="button" class="btn btn-outline-secondary" data-period="weeks" aria-pressed="false">{% translate "Week" %}</button>
+          </div>
+          <span class="small text-body-secondary text-nowrap">{{ this_year.total }}</span>
+        </div>
+      </div>
+      {% for period, bars in this_year.periods %}
+        <div data-bars="{{ period }}"{% if period != "months" %} hidden{% endif %}>
+          <div class="rating-bars" role="img" aria-label="{% for b in bars %}{{ b.label }} {{ b.count }}{% if not forloop.last %}, {% endif %}{% endfor %}">
+            {% for b in bars %}
+              {% blocktranslate count counter=b.count asvar events_text %}{{ counter }} event{% plural %}{{ counter }} events{% endblocktranslate %}
+              <div class="rating-bar" title="{{ b.label }}: {{ events_text }}"{% if b.future %} style="opacity:.35"{% endif %}>
+                <div style="height: {{ b.height }}%{% if b.count %};min-height:2px{% endif %}"></div>
+              </div>
+            {% endfor %}
+          </div>
+          <div class="d-flex justify-content-between mt-1 small text-body-secondary" aria-hidden="true">
+            {% if period == "months" %}{% for b in bars %}<span class="flex-fill text-center">{{ b.short }}</span>{% endfor %}
+            {% else %}<span>{{ bars.0.short }}</span>{% with b=bars|last %}<span>{{ b.short }}</span>{% endwith %}{% endif %}
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+
   {% if maps.world %}
     {# Maps: drawn in the browser (world borders from world-atlas; streets from OpenStreetMap). #}
     <h2 class="section-title mb-3">{% translate "Maps" %}</h2>
@@ -79,18 +118,25 @@
     </div>
   {% endif %}
 
-  {% url 'events:user_diary' owner.get_username as diary_url %}
-  {# The whole width of the page, and taller than the small charts elsewhere. #}
-  <style>.year-wide .rating-bars { height: 120px; gap: 4px; }</style>
-  <div class="year-wide mb-4">
-    {% year_histogram owner_logs _("Events by year") diary_url %}
-  </div>
   {% if not top_artists and not top_venues and not top_cities and not owner_logs %}
     <p class="text-body-secondary">{% translate "Nothing logged yet." %}</p>
   {% endif %}
 {% endblock %}
 
 {% block scripts %}
+<script>
+  // "Events in <year>": Month / Week.
+  document.querySelectorAll("#this-year [data-period]").forEach(function (button) {
+    button.addEventListener("click", function () {
+      document.querySelectorAll("#this-year [data-period]").forEach(function (b) {
+        var on = b === button;
+        b.classList.toggle("active", on);
+        b.setAttribute("aria-pressed", on ? "true" : "false");
+      });
+      document.querySelectorAll("#this-year [data-bars]").forEach(function (box) { box.hidden = box.dataset.bars !== button.dataset.period; });
+    });
+  });
+</script>
 {% if maps.world %}
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" />
   <style>
