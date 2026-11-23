@@ -309,14 +309,81 @@ class VenueForm(BootstrapMixin, forms.ModelForm):
                   "country": _("Country"), "capacity": _("Capacity"), "image_url": _("Photo URL")}
 
 
+NEW_ARTIST_PREFIX = "new:"
+
+
+class ArtistsOrNewField(forms.ModelMultipleChoiceField):
+    """Pick artists from the catalog, or type new names (sent as "new:Name") to add them when the form saves.
+
+    Cleans to a list of Artists and new names (strings); the form creates the new ones on save."""
+
+    def clean(self, value):
+        values = [str(v).strip() for v in (value or []) if str(v).strip()]
+        names, picked = [], []
+        for v in values:
+            if v.startswith(NEW_ARTIST_PREFIX):
+                name = " ".join(v[len(NEW_ARTIST_PREFIX):].split())[:200]
+                if name and name.casefold() not in {n.casefold() for n in names}:
+                    names.append(name)
+            else:
+                picked.append(v)
+        artists = list(super().clean(picked)) if picked else []
+        if self.required and not (artists or names):
+            raise forms.ValidationError(self.error_messages["required"], code="required")
+        return artists + names
+
+
+def artists_for(items) -> list:
+    """Artists for a cleaned ArtistsOrNewField value: typed names become artists (a known name is reused)."""
+    from .models import normalize_name
+
+    out = []
+    for item in items:
+        if isinstance(item, str):
+            wanted = normalize_name(item)
+            # Same name ignoring capitals and accents (narrowed by its longest word first).
+            word = max(item.split(), key=len)
+            known = next((a for a in Artist.objects.filter(name__icontains=word) if normalize_name(a.name) == wanted), None)
+            item = known or Artist.objects.create(name=item)
+        if item not in out:
+            out.append(item)
+    return out
+
+
+PLAY_CREDIT_FIELDS = ("music_by", "lyrics_by", "authors", "book_by")
+
+
 class PlayForm(BootstrapMixin, forms.ModelForm):
     class Meta:
         model = Play
-        fields = ["title", "authors", "description", "image_url"]
-        widgets = {"description": forms.Textarea(attrs={"rows": 4}), "authors": forms.SelectMultiple(attrs={"size": 6})}
-        labels = {"title": _("Title"), "authors": _("Author(s)"), "description": _("Description"),
-                  "image_url": _("Poster / image URL")}
-        help_texts = {"authors": _("Who wrote it. Hold Ctrl/Cmd to pick more than one.")}
+        fields = ["title", "music_by", "lyrics_by", "authors", "book_by", "description", "image_url"]
+        field_classes = {name: ArtistsOrNewField for name in PLAY_CREDIT_FIELDS}
+        widgets = {"description": forms.Textarea(attrs={"rows": 4})}
+        labels = {"title": _("Title"), "music_by": _("Music"), "lyrics_by": _("Lyrics"), "authors": _("Author"),
+                  "book_by": _("Book"), "description": _("Description"), "image_url": _("Poster / image URL")}
+        help_texts = {
+            "music_by": _("Who composed the music (musicals, operas…)."),
+            "lyrics_by": _("Who wrote the song lyrics."),
+            "authors": _("Who wrote the play."),
+            "book_by": _("Who wrote the book (the spoken script of a musical)."),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for name in PLAY_CREDIT_FIELDS:
+            field = self.fields[name]
+            field.widget.attrs.update({"data-search-multi": "", "data-allow-new": "",
+                                       "data-placeholder": gettext("Search people, or type a new name…")})
+            # Names typed in before a failed save show again as chosen.
+            typed = [v for v in (self.data.getlist(self.add_prefix(name)) if self.is_bound else [])
+                     if str(v).startswith(NEW_ARTIST_PREFIX)]
+            if typed:
+                field.widget.choices = list(field.choices) + [(v, v[len(NEW_ARTIST_PREFIX):]) for v in typed]
+
+    def _save_m2m(self):
+        for name in PLAY_CREDIT_FIELDS:
+            self.cleaned_data[name] = artists_for(self.cleaned_data.get(name) or [])
+        super()._save_m2m()
 
 
 class ProductionForm(BootstrapMixin, forms.ModelForm):

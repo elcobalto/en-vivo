@@ -8,6 +8,13 @@
 
   var CREDITS = ["author", "director"];
 
+  function typeHasHeadliners() {
+    var rules = document.getElementById("event-type-rules"), type = document.getElementById("id_event_type");
+    if (!rules || !type) return true;
+    rules = JSON.parse(rules.textContent);
+    return (rules.roles[type.value] || rules.all).indexOf("headliner") >= 0;
+  }
+
   function renumber() {
     var rows = list.querySelectorAll(".lineup-row");
     rows.forEach(function (row, i) {
@@ -21,7 +28,8 @@
       var named = rows[i].querySelector('input[name$="-new_artist"]');
       var hasAct = (filled && filled.value) || (named && named.value);
       if (!hasAct || (role && CREDITS.indexOf(role.value) !== -1)) continue;
-      if (role) role.value = "headliner";
+      // Only types that have headliners (theater and dance list their cast in order instead).
+      if (role && typeHasHeadliners()) role.value = "headliner";
       break;
     }
   }
@@ -221,7 +229,8 @@
   new MutationObserver(function () { list.querySelectorAll(".lineup-row").forEach(setupSearch); })
     .observe(list, { childList: true });
 
-  // "Type support acts in bulk": one row per typed name (one per line, or split by • · * ;), as Support.
+  // "Type acts, cast or crew as text": one row per typed name. "Role: A, B" gives A and B that role; lines
+  // without a role are Support (Cast in theater and dance) and can hold several names split by • · * ;.
   var bulkText = document.getElementById("bulk-acts-text");
   var bulkAdd = document.getElementById("bulk-acts-add");
   var bulkStatus = document.getElementById("bulk-acts-status");
@@ -235,12 +244,66 @@
       return !rowName(r) && !r.querySelector('input[name$="-id"]').value;
     });
   }
+  function plain(text) {
+    return text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
+  }
+  // Words people write before a colon, in English and Spanish, and the role each one means.
+  var ROLE_WORDS = {
+    headliner: "headliner", headliners: "headliner", estelar: "headliner", principal: "headliner",
+    support: "support", soporte: "support", telonero: "support", teloneros: "support", "opening act": "support",
+    guest: "guest", guests: "guest", invitado: "guest", invitados: "guest", invitada: "guest", invitadas: "guest",
+    cast: "cast", elenco: "cast", reparto: "cast", actores: "cast", actors: "cast", interpretes: "cast",
+    host: "host", hosts: "host", anfitrion: "host", animador: "host", animadora: "host", presenta: "host",
+    director: "director", directora: "director", direction: "director", directed: "director", "directed by": "director",
+    direccion: "director", dirige: "director", "direccion general": "director",
+    author: "author", authors: "author", autor: "author", autora: "author", autores: "author",
+    playwright: "author", dramaturgia: "author", dramaturgo: "author", dramaturga: "author", "written by": "author",
+    "escrita por": "author", texto: "author",
+    // The original production's credits (music, lyrics, book) are credits too, not acts on stage.
+    music: "author", "music by": "author", musica: "author", composer: "author", compositor: "author",
+    lyrics: "author", letra: "author", letras: "author", book: "author", libreto: "author",
+    choreographer: "choreographer", choreography: "choreographer", coreografia: "choreographer",
+    coreografo: "choreographer", coreografa: "choreographer",
+    other: "other", otro: "other", otros: "other", crew: "other", equipo: "other"
+  };
+  function roleFor(word, select) {
+    var key = plain(word), role = ROLE_WORDS[key];
+    if (!role && select) {  // the role menu's own labels (in the page's language)
+      Array.prototype.forEach.call(select.options, function (o) {
+        if (o.value && plain(o.text).split(/\s*\/\s*/).indexOf(key) >= 0) role = o.value;
+      });
+    }
+    return role || "other";
+  }
+  function usable(select, role) {
+    var o = select && select.querySelector('option[value="' + role + '"]');
+    return o && !o.disabled ? role : null;
+  }
+  function defaultRole() {
+    var type = document.getElementById("id_event_type");
+    return type && (type.value === "theater" || type.value === "dance") ? "cast" : "support";
+  }
+  function parseLines(text) {
+    var entries = [];
+    text.split(/[\n\r]+/).forEach(function (line) {
+      var m = line.match(/^\s*([^:,•·*;]{2,30}):\s*(.*)$/);
+      if (m) {
+        m[2].split(/[,•·*;]+/).forEach(function (n) {
+          if (n.trim()) entries.push({ name: n.trim(), word: m[1] });
+        });
+      } else {
+        line.split(/[•·*;]+/).forEach(function (n) { if (n.trim()) entries.push({ name: n.trim(), word: null }); });
+      }
+    });
+    return entries;
+  }
   if (bulkAdd) bulkAdd.addEventListener("click", function () {
-    var names = bulkText.value.split(/[\n\r•·*;]+/).map(function (n) { return n.trim(); }).filter(Boolean);
+    var entries = parseLines(bulkText.value);
     var have = {};
     list.querySelectorAll(".lineup-row").forEach(function (r) { var n = rowName(r); if (n) have[n] = true; });
-    var added = 0, skipped = 0;
-    names.forEach(function (name) {
+    var added = 0, skipped = 0, fallback = defaultRole();
+    entries.forEach(function (entry) {
+      var name = entry.name;
       if (have[name.toLowerCase()]) { skipped++; return; }
       have[name.toLowerCase()] = true;
       var row = emptyRow() || addRow();
@@ -249,15 +312,18 @@
       box.value = name;
       box.dispatchEvent(new Event("change"));  // picks a known artist or marks a new one
       var role = row.querySelector('select[name$="-role"]');
-      if (role) role.value = "support";
+      if (role) {
+        var wanted = entry.word ? roleFor(entry.word, role) : fallback;
+        role.value = usable(role, wanted) || usable(role, "other") || usable(role, fallback) || role.value;
+      }
       added++;
     });
     renumber();  // with no acts before, the first one typed heads the bill
     bulkStatus.textContent = (skipped
-      ? interpolate(ngettext("%(added)s act added, %(skipped)s already in the lineup. Save to keep them.",
-                             "%(added)s acts added, %(skipped)s already in the lineup. Save to keep them.", added),
+      ? interpolate(ngettext("%(added)s added, %(skipped)s already in the lineup. Save to keep them.",
+                             "%(added)s added, %(skipped)s already in the lineup. Save to keep them.", added),
                     {added: added, skipped: skipped}, true)
-      : interpolate(ngettext("%(added)s act added. Save to keep them.", "%(added)s acts added. Save to keep them.", added),
+      : interpolate(ngettext("%(added)s added. Save to keep them.", "%(added)s added. Save to keep them.", added),
                     {added: added}, true));
     if (added) bulkText.value = "";
   });

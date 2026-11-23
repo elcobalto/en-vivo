@@ -1206,14 +1206,15 @@ def _credit_play_authors(event: Event) -> None:
 
 def play_list(request: HttpRequest) -> HttpResponse:
     q = request.GET.get("q", "").strip()
-    plays = Play.objects.prefetch_related("authors").annotate(n=Count("stagings", distinct=True))
+    plays = Play.objects.prefetch_related("authors", "music_by", "lyrics_by", "book_by").annotate(n=Count("stagings", distinct=True))
     if q:
-        plays = plays.filter(Q(title__icontains=q) | Q(authors__name__icontains=q)).distinct()
+        plays = plays.filter(Q(title__icontains=q) | Q(authors__name__icontains=q) | Q(music_by__name__icontains=q)
+                             | Q(lyrics_by__name__icontains=q) | Q(book_by__name__icontains=q)).distinct()
     return render(request, "events/play_list.html", {"plays": plays.order_by("title"), "q": q})
 
 
 def play_detail(request: HttpRequest, pk: int) -> HttpResponse:
-    play = get_object_or_404(Play.objects.prefetch_related("authors"), pk=pk)
+    play = get_object_or_404(Play.objects.prefetch_related("authors", "music_by", "lyrics_by", "book_by"), pk=pk)
     stagings = play.stagings.with_stats().select_related("venue").order_by(F("date").desc(nulls_last=True))
     return render(request, "events/play_detail.html", {"play": play, "stagings": stagings})
 

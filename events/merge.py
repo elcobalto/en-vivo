@@ -183,6 +183,13 @@ def merge_artists(keep, remove):
 
     Production.objects.filter(artist=remove).update(artist=keep)
 
+    # Play credits (author, music, lyrics, book): the duplicate's plays credit `keep` instead.
+    for related in ("plays_written", "plays_music", "plays_lyrics", "plays_book"):
+        plays = list(getattr(remove, related).all())
+        if plays:
+            getattr(keep, related).add(*plays)
+            getattr(remove, related).clear()
+
     # Followers: people following both stay following one.
     ArtistFollow.objects.filter(artist=remove, user__artist_follows__artist=keep).delete()
     ArtistFollow.objects.filter(artist=remove).update(artist=keep)

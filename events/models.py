@@ -263,7 +263,11 @@ class Play(TimestampedModel):
     """An original play. Each staging of it is a theater event linked here (one play, many adaptations)."""
 
     title = models.CharField(max_length=240, db_index=True)
+    # The original production's credits: who wrote it, its music, its lyrics and its book (musicals).
     authors = models.ManyToManyField("Artist", blank=True, related_name="plays_written")
+    music_by = models.ManyToManyField("Artist", blank=True, related_name="plays_music")
+    lyrics_by = models.ManyToManyField("Artist", blank=True, related_name="plays_lyrics")
+    book_by = models.ManyToManyField("Artist", blank=True, related_name="plays_book")
     description = models.TextField(blank=True, default="")
     image_url = models.URLField(max_length=1000, blank=True, default="")
 
@@ -275,6 +279,22 @@ class Play(TimestampedModel):
 
     def get_absolute_url(self) -> str:
         return reverse("events:play_detail", args=[self.pk])
+
+    def credits(self) -> list[tuple[str, list]]:
+        """(label, artists) for each credit that has someone: Music, Lyrics, Author, Book."""
+        rows = [(_("Music"), self.music_by.all()), (_("Lyrics"), self.lyrics_by.all()),
+                (_("Author"), self.authors.all()), (_("Book"), self.book_by.all())]
+        return [(label, list(people)) for label, people in rows if people]
+
+    def credited_artists(self) -> list:
+        """Everyone credited on the original production, each once (authors first)."""
+        seen, out = set(), []
+        for people in (self.authors.all(), self.music_by.all(), self.lyrics_by.all(), self.book_by.all()):
+            for a in people:
+                if a.pk not in seen:
+                    seen.add(a.pk)
+                    out.append(a)
+        return out
 
 
 class EventQuerySet(LogStatsQuerySet):

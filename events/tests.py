@@ -2417,9 +2417,48 @@ class PlayTests(BaseTestCase):
         self.assertEqual(event.title, "La casa de Bernarda Alba")
         self.assertTrue(event.eventartist_set.filter(artist=lorca, role="author").exists())
         page = self.client.get(play.get_absolute_url())
-        self.assertContains(page, "Written by")
+        self.assertContains(page, "<dt class=\"col-4 col-sm-3 col-lg-2 fw-normal\">Author</dt>", html=False)
         self.assertContains(page, event.get_absolute_url())
         self.assertContains(self.client.get(event.get_absolute_url()), "Staging of")
+
+    def test_a_play_has_music_lyrics_author_and_book_and_new_names_become_artists(self):
+        from events.models import Artist, Play
+        sondheim = Artist.objects.create(name="Stephen Sondheim")
+        self.client.force_login(self.user)
+        resp = self.client.post(reverse("events:play_create"), {
+            "title": "West Side Story",
+            "music_by": ["new:Leonard Bernstein"],
+            "lyrics_by": [str(sondheim.pk)],
+            "authors": ["new:Arthur Laurents", "new:jerome robbins"],
+            "book_by": ["new:arthur  laurents"],  # same person as an author: one artist
+        })
+        play = Play.objects.get(title="West Side Story")
+        self.assertRedirects(resp, play.get_absolute_url(), fetch_redirect_response=False)
+        self.assertEqual([a.name for a in play.music_by.all()], ["Leonard Bernstein"])
+        self.assertEqual(list(play.lyrics_by.all()), [sondheim])
+        self.assertEqual(sorted(a.name for a in play.authors.all()), ["Arthur Laurents", "jerome robbins"])
+        self.assertEqual(list(play.book_by.all()), list(play.authors.filter(name="Arthur Laurents")))
+        self.assertEqual(Artist.objects.filter(name__iexact="arthur laurents").count(), 1)
+        page = self.client.get(play.get_absolute_url())
+        for label in ("Music", "Lyrics", "Author", "Book", "Leonard Bernstein", "Stephen Sondheim"):
+            self.assertContains(page, label)
+
+    def test_a_typed_name_that_already_exists_is_reused(self):
+        from events.models import Artist, Play
+        lorca = Artist.objects.create(name="Federico García Lorca")
+        self.client.force_login(self.user)
+        self.client.post(reverse("events:play_create"), {"title": "Yerma", "authors": ["new:federico garcia lorca"]})
+        self.assertEqual(list(Play.objects.get(title="Yerma").authors.all()), [lorca])
+        self.assertEqual(Artist.objects.count(), 1)
+
+    def test_merging_artists_moves_their_play_credits(self):
+        from events.merge import merge_artists
+        from events.models import Artist, Play
+        keep, dupe = Artist.objects.create(name="Bernstein"), Artist.objects.create(name="L. Bernstein")
+        play = Play.objects.create(title="Candide")
+        play.music_by.add(dupe)
+        merge_artists(keep, dupe)
+        self.assertEqual(list(play.music_by.all()), [keep])
 
 
 class ExpandedDiaryTests(BaseTestCase):

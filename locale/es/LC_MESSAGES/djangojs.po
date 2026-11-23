@@ -3,7 +3,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: En Vivo\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-20 21:27+0000\n"
+"POT-Creation-Date: 2026-11-23 21:30+0000\n"
 "PO-Revision-Date: 2026-11-20 18:00-0300\n"
 "Last-Translator: En Vivo\n"
 "Language-Team: Spanish\n"
@@ -33,59 +33,62 @@ msgstr "Artista"
 msgid "New artist: created when you save."
 msgstr "Artista nuevo: se crea al guardar."
 
-#: events/static/events/lineup-order.js:257
-msgid ""
-"%(added)s act added, %(skipped)s already in the lineup. Save to keep them."
-msgid_plural ""
-"%(added)s acts added, %(skipped)s already in the lineup. Save to keep them."
-msgstr[0] ""
-"Se agregó %(added)s artista; %(skipped)s ya estaban en el line-up. Guarda para conservarlos."
-msgstr[1] ""
-"Se agregaron %(added)s artistas; %(skipped)s ya estaban en el line-up. Guarda para conservarlos."
+#: events/static/events/lineup-order.js:302
+msgid "%(added)s added, %(skipped)s already in the lineup. Save to keep them."
+msgid_plural "%(added)s added, %(skipped)s already in the lineup. Save to keep them."
+msgstr[0] "Se agregó %(added)s; %(skipped)s ya estaban en el line-up. Guarda para conservarlos."
+msgstr[1] "Se agregaron %(added)s; %(skipped)s ya estaban en el line-up. Guarda para conservarlos."
 
-#: events/static/events/lineup-order.js:260
-msgid "%(added)s act added. Save to keep them."
-msgid_plural "%(added)s acts added. Save to keep them."
-msgstr[0] "Se agregó %(added)s artista. Guarda para conservarlo."
-msgstr[1] "Se agregaron %(added)s artistas. Guarda para conservarlos."
+#: events/static/events/lineup-order.js:305
+msgid "%(added)s added. Save to keep them."
+msgid_plural "%(added)s added. Save to keep them."
+msgstr[0] "Se agregó %(added)s. Guarda para conservarlo."
+msgstr[1] "Se agregaron %(added)s. Guarda para conservarlos."
 
-#: events/static/events/multi-search.js:23
+#: events/static/events/multi-search.js:26
 msgid "Type to search…"
 msgstr "Escribe para buscar…"
 
-#: events/static/events/multi-search.js:42
+#: events/static/events/multi-search.js:41
+#, javascript-format
+msgid "%s (new)"
+msgstr "%s (nuevo)"
+
+#: events/static/events/multi-search.js:46
 #, javascript-format
 msgid "Remove %s"
 msgstr "Quitar %s"
 
-#: events/static/events/multi-search.js:59
+#: events/static/events/multi-search.js:63
+#, javascript-format
+msgid "“%s” isn't on En Vivo yet."
+msgstr "“%s” todavía no está en En Vivo."
+
+#: events/static/events/multi-search.js:67
+#, javascript-format
+msgid "+ Add “%s” as new"
+msgstr "+ Agregar “%s” como nuevo"
+
+#: events/static/events/multi-search.js:72
 #, javascript-format
 msgid "“%s” isn't in the list."
 msgstr "“%s” no está en la lista."
 
 #: events/static/events/photo-drop.js:69
-msgid ""
-"This is Google's small preview. For a sharper photo, click it on Google first and drag the large version."
-msgstr ""
-"Esta es la vista previa pequeña de Google. Para una foto más nítida, haz clic en ella en Google y arrastra la versión grande."
+msgid "This is Google's small preview. For a sharper photo, click it on Google first and drag the large version."
+msgstr "Esta es la vista previa pequeña de Google. Para una foto más nítida, haz clic en ella en Google y arrastra la versión grande."
 
 #: events/static/events/photo-drop.js:72
-msgid ""
-"That's Google's small preview, which can't be saved. Click the photo on Google first, then drag the large version."
-msgstr ""
-"Esa es la vista previa pequeña de Google, que no se puede guardar. Haz clic en la foto en Google y luego arrastra la versión grande."
+msgid "That's Google's small preview, which can't be saved. Click the photo on Google first, then drag the large version."
+msgstr "Esa es la vista previa pequeña de Google, que no se puede guardar. Haz clic en la foto en Google y luego arrastra la versión grande."
 
 #: events/static/events/photo-drop.js:75
-msgid ""
-"That's a link to the search results, not the photo. Drag the photo itself."
-msgstr ""
-"Ese es un enlace a los resultados de búsqueda, no a la foto. Arrastra la foto misma."
+msgid "That's a link to the search results, not the photo. Drag the photo itself."
+msgstr "Ese es un enlace a los resultados de búsqueda, no a la foto. Arrastra la foto misma."
 
 #: events/static/events/photo-drop.js:77
-msgid ""
-"That didn't include a photo link. Try dragging the photo itself, or right-click it → “Copy image address”."
-msgstr ""
-"Eso no traía un enlace a una foto. Prueba arrastrando la foto misma, o haz clic derecho → “Copiar dirección de la imagen”."
+msgid "That didn't include a photo link. Try dragging the photo itself, or right-click it → “Copy image address”."
+msgstr "Eso no traía un enlace a una foto. Prueba arrastrando la foto misma, o haz clic derecho → “Copiar dirección de la imagen”."
 
 #: events/static/events/photo-drop.js:99
 msgid "Drop another photo to replace it"
@@ -96,22 +99,16 @@ msgid "Use this photo"
 msgstr "Usar esta foto"
 
 #: events/static/events/photo-drop.js:108
-msgid ""
-"This photo doesn't load here (its site may block other pages from showing it). Try another one."
-msgstr ""
-"Esta foto no carga aquí (puede que su sitio no deje que otras páginas la muestren). Prueba con otra."
+msgid "This photo doesn't load here (its site may block other pages from showing it). Try another one."
+msgstr "Esta foto no carga aquí (puede que su sitio no deje que otras páginas la muestren). Prueba con otra."
 
 #: events/static/events/photo-drop.js:138
-msgid ""
-"We only save links to photos, not files. Drag the photo from a web page instead."
-msgstr ""
-"Solo guardamos enlaces a fotos, no archivos. Arrastra la foto desde una página web."
+msgid "We only save links to photos, not files. Drag the photo from a web page instead."
+msgstr "Solo guardamos enlaces a fotos, no archivos. Arrastra la foto desde una página web."
 
 #: events/static/events/photo-drop.js:158
-msgid ""
-"That's a link to the search results, not the photo. Right-click the photo → “Copy image address”."
-msgstr ""
-"Ese es un enlace a los resultados de búsqueda, no a la foto. Haz clic derecho en la foto → “Copiar dirección de la imagen”."
+msgid "That's a link to the search results, not the photo. Right-click the photo → “Copy image address”."
+msgstr "Ese es un enlace a los resultados de búsqueda, no a la foto. Haz clic derecho en la foto → “Copiar dirección de la imagen”."
 
 #: events/static/events/photo-openverse.js:18
 msgid "Public domain"
@@ -122,22 +119,16 @@ msgid "source"
 msgstr "fuente"
 
 #: events/static/events/photo-openverse.js:86
-msgid ""
-"Still looking… Openverse can take a while for a search nobody has made before."
-msgstr ""
-"Sigo buscando… Openverse puede tardar con una búsqueda que nadie ha hecho antes."
+msgid "Still looking… Openverse can take a while for a search nobody has made before."
+msgstr "Sigo buscando… Openverse puede tardar con una búsqueda que nadie ha hecho antes."
 
 #: events/static/events/photo-openverse.js:100
-msgid ""
-"Openverse isn't answering right now; reload the page in a moment to try again."
-msgstr ""
-"Openverse no responde en este momento; recarga la página en un rato para intentarlo de nuevo."
+msgid "Openverse isn't answering right now; reload the page in a moment to try again."
+msgstr "Openverse no responde en este momento; recarga la página en un rato para intentarlo de nuevo."
 
 #: events/static/events/photo-openverse.js:101
-msgid ""
-"No openly licensed photos found. Try a shorter search, like just the artist's name."
-msgstr ""
-"No se encontraron fotos con licencia abierta. Prueba una búsqueda más corta, como solo el nombre del artista."
+msgid "No openly licensed photos found. Try a shorter search, like just the artist's name."
+msgstr "No se encontraron fotos con licencia abierta. Prueba una búsqueda más corta, como solo el nombre del artista."
 
 #: events/static/events/photo-openverse.js:113
 msgid "Nothing for “%(first)s”, so these are for “%(used)s”."
@@ -158,10 +149,8 @@ msgstr "error %s"
 
 #: events/static/events/poster-lineup.js:102
 #, javascript-format
-msgid ""
-"Couldn't get the photo: %s Try saving a copy of the poster on another site and using that link."
-msgstr ""
-"No se pudo obtener la foto: %s Prueba guardando una copia del afiche en otro sitio y usando ese enlace."
+msgid "Couldn't get the photo: %s Try saving a copy of the poster on another site and using that link."
+msgstr "No se pudo obtener la foto: %s Prueba guardando una copia del afiche en otro sitio y usando ese enlace."
 
 #: events/static/events/poster-lineup.js:121
 msgid "The photo couldn't be opened as an image."
@@ -181,18 +170,15 @@ msgstr "Cargando el lector de afiches… (la primera vez toma unos segundos)"
 
 #: events/static/events/poster-lineup.js:160
 msgid "The poster reader couldn't start. Check your connection and try again."
-msgstr ""
-"El lector de afiches no pudo partir. Revisa tu conexión e inténtalo de nuevo."
+msgstr "El lector de afiches no pudo partir. Revisa tu conexión e inténtalo de nuevo."
 
 #: events/static/events/poster-lineup.js:164
 msgid "Reading the poster…"
 msgstr "Leyendo el afiche…"
 
 #: events/static/events/poster-lineup.js:175
-msgid ""
-"Couldn't read any of these names on the poster. The lineup wasn't changed."
-msgstr ""
-"No se pudo leer ninguno de estos nombres en el afiche. El line-up no cambió."
+msgid "Couldn't read any of these names on the poster. The lineup wasn't changed."
+msgstr "No se pudo leer ninguno de estos nombres en el afiche. El line-up no cambió."
 
 #: events/static/events/poster-lineup.js:202
 #, javascript-format
@@ -248,8 +234,7 @@ msgstr "Sin resultados."
 
 #: events/static/events/venue-search.js:147
 msgid "No matches. Google search isn't configured, add it by hand below."
-msgstr ""
-"Sin resultados. La búsqueda de Google no está configurada; agrégalo a mano abajo."
+msgstr "Sin resultados. La búsqueda de Google no está configurada; agrégalo a mano abajo."
 
 #: events/static/events/venue-search.js:163
 msgid "Search failed, try again."
