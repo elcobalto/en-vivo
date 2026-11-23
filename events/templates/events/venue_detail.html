@@ -4,7 +4,20 @@
 {% block title %}{{ venue.name }} · en vivo{% endblock %}
 
 {% block content %}
-  <div class="mb-4">
+  <div class="d-flex flex-wrap gap-4 align-items-start mb-4">
+  <div style="width:180px" class="flex-shrink-0">
+    {% if venue.image_url %}
+      <img class="event-photo" src="{{ venue.image_url }}" alt="{{ venue.name }}" referrerpolicy="no-referrer" />
+      {% if user|is_admin %}<a class="btn btn-sm btn-outline-secondary w-100 mt-2" href="{% url 'events:venue_photo' venue.pk %}">{% translate "Change photo" %}</a>{% endif %}
+    {% else %}
+      <div class="poster position-relative">
+        {% if user.is_authenticated %}
+          <a class="poster-placeholder text-decoration-none flex-column gap-1" href="{% url 'events:venue_photo' venue.pk %}"><span class="fs-4">＋</span><span>{% translate "Find photo" %}</span></a>
+        {% else %}<div class="poster-placeholder">{% translate "Venue" %}</div>{% endif %}
+      </div>
+    {% endif %}
+  </div>
+  <div class="flex-grow-1">
     <div class="small text-body-secondary text-uppercase">{% translate "Venue" %}</div>
     <h1 class="h3 fw-bold">{{ venue.name }}</h1>
     {% if user|is_admin %}<a class="btn btn-sm btn-outline-secondary mb-2" href="{% url 'events:venue_edit' venue.pk %}">{% translate "Edit venue" %}</a>{% endif %}
@@ -13,6 +26,7 @@
       {% if venue.latitude and venue.longitude %} · <a href="https://www.google.com/maps/search/?api=1&amp;query={{ venue.latitude }},{{ venue.longitude }}{% if venue.google_place_id %}&amp;query_place_id={{ venue.google_place_id|urlencode }}{% endif %}" target="_blank" rel="noreferrer">{% translate "Map" %}</a>{% endif %}
       {% if venue.capacity %} · {% blocktranslate with capacity=venue.capacity %}Capacity {{ capacity }}{% endblocktranslate %}{% endif %}
     </div>
+  </div>
   </div>
 
   {% if seen_by %}

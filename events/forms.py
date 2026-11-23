@@ -304,9 +304,9 @@ class ArtistForm(BootstrapMixin, forms.ModelForm):
 class VenueForm(BootstrapMixin, forms.ModelForm):
     class Meta:
         model = Venue
-        fields = ["name", "address", "city", "region", "country", "capacity"]
+        fields = ["name", "address", "city", "region", "country", "capacity", "image_url"]
         labels = {"name": _("Name"), "address": _("Address"), "city": _("City"), "region": _("Region"),
-                  "country": _("Country"), "capacity": _("Capacity")}
+                  "country": _("Country"), "capacity": _("Capacity"), "image_url": _("Photo URL")}
 
 
 class PlayForm(BootstrapMixin, forms.ModelForm):

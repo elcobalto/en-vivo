@@ -75,6 +75,12 @@
         color: #c8c8c8; white-space: nowrap;
       }
       .clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+      /* Stats rankings as pictures (artists, venues, cities): square, numbered. */
+      .rank-pic { aspect-ratio: 1 / 1; border-radius: .4rem; overflow: hidden; background: var(--ev-surface-2); border: 1px solid var(--ev-line); }
+      .rank-pic img { width: 100%; height: 100%; object-fit: cover; display: block; }
+      .rank-pic-empty { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; font-size: 2.5rem; font-weight: 700; color: var(--bs-secondary-color); }
+      .rank-num { position: absolute; left: .4rem; top: .4rem; min-width: 1.6rem; padding: 0 .35rem; border-radius: 1rem; background: rgba(0,0,0,.75); color: #fff; font-size: .8rem; font-weight: 700; text-align: center; line-height: 1.6rem; }
+      a.rank-card:hover .rank-pic { border-color: var(--ev-accent); }
       .poster-title { position: relative; font-weight: 600; font-size: .9rem; line-height: 1.2; text-shadow: 0 1px 4px #000; }
       .type-badge { font-size: .7rem; text-transform: uppercase; letter-spacing: .06em; }
       .section-title { font-size: .8rem; text-transform: uppercase; letter-spacing: .1em; color: #a8a8a8; border-bottom: 1px solid var(--ev-line); padding-bottom: .4rem; }

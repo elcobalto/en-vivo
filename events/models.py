@@ -119,6 +119,8 @@ class Venue(TimestampedModel):
     region = models.CharField(max_length=120, blank=True, default="")
     country = CountryField(blank=True, default="")
     capacity = models.PositiveIntegerField(null=True, blank=True)
+    # A photo of the place (stats cards; without one, the photo of its latest show stands in).
+    image_url = models.URLField(max_length=1000, blank=True, default="")
     latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
     longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
 

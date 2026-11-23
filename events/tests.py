@@ -1432,8 +1432,8 @@ class ProfileStatsAndArtistPhotoTests(BaseTestCase):
         Log.objects.create(user=stranger, event=self.event)  # not counted for ana
 
         page = self.client.get(reverse("events:user_stats", args=["ana"]))
-        self.assertEqual([(p.name, p.n) for p in page.context["top_artists"]], [("Green Day", 3)])
-        self.assertEqual([(v.name, v.n) for v in page.context["top_venues"]],
+        self.assertEqual([(r["name"], r["n"]) for r in page.context["top_artists"]], [("Green Day", 3)])
+        self.assertEqual([(r["name"], r["n"]) for r in page.context["top_venues"]],
                          [("Teatro Caupolicán", 2), ("Movistar Arena", 1)])
         self.assertContains(page, "Most seen artists")
         self.assertContains(page, "2 visits")
@@ -1735,7 +1735,7 @@ class ActLogTests(BaseTestCase):
     def test_artist_stats_count_only_acts_seen(self):
         self._log(acts_submitted="1", **{f"act_seen_{self.star.pk}": "1", f"act_rating_{self.star.pk}": "6"})
         profile = self.client.get(reverse("events:user_stats", args=["ana"]))
-        self.assertEqual([p.name for p in profile.context["top_artists"]], ["Star"])
+        self.assertEqual([r["name"] for r in profile.context["top_artists"]], ["Star"])
         opener_page = self.client.get(self.opener.get_absolute_url())
         self.assertEqual(opener_page.context["log_count"], 0)
         star_page = self.client.get(self.star.get_absolute_url())
@@ -2093,8 +2093,8 @@ class LocalForeignAndSearchTests(BaseTestCase):
         self.user.profile.home_country = "CL"
         self.user.profile.save()
         page = self.client.get(reverse("events:user_stats", args=["ana"]))
-        self.assertEqual([p.name for p in page.context["local_artists"]], ["Los Bunkers"])
-        self.assertEqual([p.name for p in page.context["foreign_artists"]], ["Green Day"])
+        self.assertEqual([r["name"] for r in page.context["local_artists"]], ["Los Bunkers"])
+        self.assertEqual([r["name"] for r in page.context["foreign_artists"]], ["Green Day"])
         self.assertNotIn("unknown_artists", page.context)
         self.assertNotContains(page, "Mystery")  # artists without a country aren't listed
         self.assertContains(page, "Most seen local artists · Chile")
@@ -2198,8 +2198,8 @@ class MostSeenTieBreakTests(BaseTestCase):
             EventArtist.objects.create(event=e, artist=artist)
             Log.objects.create(user=self.user, event=e)
         page = self.client.get(reverse("events:user_stats", args=["ana"]))
-        self.assertEqual([p.name for p in page.context["top_artists"]], ["Zzz Recent", "Aaa Old"])
-        self.assertEqual([v.name for v in page.context["top_venues"]][:2], ["Zzz Arena", "Aaa Hall"])
+        self.assertEqual([r["name"] for r in page.context["top_artists"]], ["Zzz Recent", "Aaa Old"])
+        self.assertEqual([r["name"] for r in page.context["top_venues"]][:2], ["Zzz Arena", "Aaa Hall"])
 
 
 class ProductionPhotoTests(BaseTestCase):
@@ -2305,7 +2305,7 @@ class ProfileLayoutTests(BaseTestCase):
         self.assertNotContains(page, "Most visited venues")  # moved to the stats page
         self.assertContains(page, reverse("events:user_stats", args=["ana"]))  # the Stats button
         page = self.client.get(reverse("events:user_stats", args=["ana"]))
-        self.assertEqual([(c["event__venue__city"], c["n"]) for c in page.context["top_cities"]],
+        self.assertEqual([(c["name"], c["n"]) for c in page.context["top_cities"]],
                          [("Santiago", 2), ("Valparaíso", 1)])
         self.assertContains(page, "Most visited cities")
 
@@ -4422,43 +4422,6 @@ class FestivalNoLabelTests(BaseTestCase):
 
 
 
-class StatsMapTests(BaseTestCase):
-    def test_countries_regions_cities_and_venues(self):
-        from decimal import Decimal
-
-        self.user.profile.home_country = "CL"
-        self.user.profile.home_city = "santiago"
-        self.user.profile.save()
-        self.venue.region, self.venue.latitude, self.venue.longitude = "Región Metropolitana", Decimal("-33.45"), Decimal("-70.66")
-        self.venue.save()
-        estadio = Venue.objects.create(name="Estadio Nacional", city="Santiago", country="CL", region="Región Metropolitana",
-                                       latitude=Decimal("-33.46"), longitude=Decimal("-70.61"))
-        quinta = Venue.objects.create(name="Quinta Vergara", city="Viña del Mar", country="CL", region="Valparaíso",
-                                      latitude=Decimal("-33.03"), longitude=Decimal("-71.55"))
-        no_place = Venue.objects.create(name="Bar sin mapa", city="Santiago", country="CL")
-        wembley = Venue.objects.create(name="Wembley", city="London", country="GB")
-        for venue, day in [(self.venue, 1), (estadio, 2), (estadio, 3), (quinta, 4), (no_place, 5), (wembley, 6)]:
-            event = Event.objects.create(title=f"Show {day}", venue=venue, date=date(2024, 1, day))
-            Log.objects.create(user=self.user, event=event)
-
-        page = self.client.get(reverse("events:user_stats", args=["ana"]))
-        maps = page.context["maps"]
-        self.assertEqual([(c["code"], c["id"], c["n"]) for c in maps["world"]], [("CL", "152", 5), ("GB", "826", 1)])
-        self.assertEqual(maps["country"]["code"], "CL")
-        self.assertEqual([(r["name"], r["n"]) for r in maps["regions"]], [("Región Metropolitana", 4), ("Valparaíso", 1)])
-        self.assertEqual([c["name"] for c in maps["cities"]], ["Santiago", "Viña del Mar"])
-        self.assertEqual(maps["city"], "Santiago")
-        self.assertEqual([(v["name"], v["n"]) for v in maps["venues"]], [("Estadio Nacional", 2), ("Teatro Caupolicán", 1)])
-        self.assertEqual(maps["venues_without_place"], 1)
-        self.assertContains(page, 'id="map-world"')
-        self.assertContains(page, "1 venue has no location yet")
-
-    def test_no_maps_without_shows(self):
-        page = self.client.get(reverse("events:user_stats", args=["ana"]))
-        self.assertNotContains(page, 'id="map-world"')
-        self.assertNotContains(page, "leaflet")
-
-
 class ArtistTabsTests(BaseTestCase):
     """Artists with hundreds of shows: the page previews the latest, the Shows tab pages through all of them."""
 
@@ -4545,9 +4508,7 @@ class ThisYearChartTests(BaseTestCase):
         self.assertEqual(sorted(log.event.title for log in in_range.context["logs"]),
                          [f"{year}-01-01", f"{year}-01-07"])
         self.assertContains(page, f'href="{diary}?from={year}-03-01&amp;to={year}-03-31"')
-        html = page.content.decode()
-        self.assertLess(html.index("Events by year"), html.index('id="map-world"'))
-        self.assertLess(html.index(f"Events in {year}"), html.index('id="map-world"'))
+        self.assertContains(page, f"Events in {year}")
 
 
 class DiaryCountryFilterTests(BaseTestCase):
@@ -4559,8 +4520,6 @@ class DiaryCountryFilterTests(BaseTestCase):
         page = self.client.get(diary, {"country": "gb"})
         self.assertEqual([log.event.title for log in page.context["logs"]], ["London show"])
         self.assertContains(page, '<option value="GB" selected>')
-        stats = self.client.get(reverse("events:user_stats", args=["ana"]))
-        self.assertContains(stats, f'href="{diary}?country=GB"')  # the list under the world map
 
 
 class DiaryCityFilterTests(BaseTestCase):
@@ -4625,22 +4584,21 @@ class StatsTypeFilterTests(BaseTestCase):
             add_all_acts(log)
         url = reverse("events:user_stats", args=["ana"])
         everything = self.client.get(url)
-        self.assertEqual(sorted(p.name for p in everything.context["top_artists"]), ["Band", "Comic"])
+        self.assertEqual(sorted(r["name"] for r in everything.context["top_artists"]), ["Band", "Comic"])
         self.assertContains(everything, 'href="?type=comedy"')
 
         comedy = self.client.get(url, {"type": "comedy"})
-        self.assertEqual([p.name for p in comedy.context["top_artists"]], ["Comic"])
-        self.assertEqual([v.name for v in comedy.context["top_venues"]], ["Quinta Vergara"])
-        self.assertEqual([c["event__venue__city"] for c in comedy.context["top_cities"]], ["Viña del Mar"])
+        self.assertEqual([r["name"] for r in comedy.context["top_artists"]], ["Comic"])
+        self.assertEqual([r["name"] for r in comedy.context["top_venues"]], ["Quinta Vergara"])
+        self.assertEqual([c["name"] for c in comedy.context["top_cities"]], ["Viña del Mar"])
         self.assertEqual(comedy.context["this_year"]["total"], 1)
-        self.assertEqual(comedy.context["maps"]["cities"], [])  # no coordinates in this test
         diary = reverse("events:user_diary", args=["ana"])
         self.assertContains(comedy, f'href="{diary}?type=comedy&amp;city=Vi%C3%B1a%20del%20Mar"')
         self.assertContains(comedy, f'{diary}?type=comedy&amp;year={year}')
         self.assertContains(comedy, f'{reverse("events:user_ranking", args=["ana", "venues"])}?type=comedy')
         ranking = self.client.get(reverse("events:user_ranking", args=["ana", "venues"]), {"type": "comedy"})
-        self.assertEqual([r[1] for r in ranking.context["rows"]], ["Quinta Vergara"])
-        self.assertEqual(self.client.get(url, {"type": "nope"}).context["event_type"], "")
+        self.assertEqual([r["name"] for r in ranking.context["rows"]], ["Quinta Vergara"])
+        self.assertEqual(self.client.get(url, {"type": "nope"}).context["types"], [])
 
 
 class CrowdsourcedNoteTests(BaseTestCase):
@@ -5071,3 +5029,99 @@ class StandardPlacesTests(BaseTestCase):
         venue.refresh_from_db()
         self.assertEqual((venue.city, venue.district), ("Viña del Mar", ""))
         self.assertEqual(Venue.objects.create(name="Beach", city="reñaca", country="CL").district, "Reñaca")
+
+
+class StatsReworkTests(BaseTestCase):
+    def setUp(self):
+        super().setUp()
+        from .models import ActLog, Song, SetlistSong
+
+        self.us = Artist.objects.create(name="Green Day", country="US", image_url="https://img.example/gd.jpg")
+        self.cl = Artist.objects.create(name="Los Bunkers", country="CL")
+        self.comic = Artist.objects.create(name="Comic", country="CL")
+        # Six US rock shows rated 9 (act ratings left empty: they take the show's), six Chilean ones rated 6 with
+        # the act rated 4, and one comedy show rated 10.
+        for i in range(6):
+            for artist, rating, act_rating in [(self.us, 9, None), (self.cl, 6, 4)]:
+                event = Event.objects.create(title=f"{artist.name} {i}", venue=self.venue, date=date(2020, 1, i + 1))
+                EventArtist.objects.create(event=event, artist=artist)
+                log = Log.objects.create(user=self.user, event=event, rating=rating)
+                ActLog.objects.update_or_create(log=log, artist=artist, defaults={"rating": act_rating})
+        comedy = Event.objects.create(title="Stand-up", event_type="comedy", venue=self.venue, date=date(2021, 1, 1))
+        EventArtist.objects.create(event=comedy, artist=self.comic)
+        ActLog.objects.get_or_create(log=Log.objects.create(user=self.user, event=comedy, rating=10), artist=self.comic)
+        # Songs heard at the first Green Day show: one of theirs (1994) twice-heard across two shows, one cover.
+        song = Song.objects.create(artist=self.us, title="Basket Case", album_year=1994)
+        cover = Song.objects.create(artist=self.us, title="Rockin' in the Free World", cover_of_name="Neil Young")
+        for i, event in enumerate(Event.objects.filter(title__in=["Green Day 0", "Green Day 1"])):
+            setlist = Setlist.objects.create(event=event, artist=self.us)
+            SetlistSong.objects.create(setlist=setlist, song=song, position=1)
+            if i == 0:
+                SetlistSong.objects.create(setlist=setlist, song=cover, position=2)
+        self.url = reverse("events:user_stats", args=["ana"])
+
+    def test_highest_rated_artists_use_the_show_rating_when_the_act_has_none(self):
+        rated = self.client.get(self.url).context["rated_artists"]
+        self.assertEqual([(r["name"], r["avg"]) for r in rated], [("Comic", 10), ("Green Day", 9), ("Los Bunkers", 4)])
+
+    def test_types_countries_and_highest_rated_need_more_than_five_events(self):
+        page = self.client.get(self.url)
+        self.assertEqual([(c.key, c.n) for c in page.context["top_types"]], [("music", 12), ("comedy", 1)])
+        self.assertEqual([(c.key, c.n) for c in page.context["top_countries"]], [("CL", 7), ("US", 6)])
+        self.assertEqual([c.key for c in page.context["rated_types"]], ["music"])  # comedy: only one show
+        self.assertEqual([(c.key, round(c.avg, 2)) for c in page.context["rated_countries"]],
+                         [("US", 9), ("CL", 4.86)])  # (6×4 + 10) / 7
+        music = self.client.get(self.url, {"type": "music"})
+        self.assertNotIn("top_types", music.context)  # only across every event
+
+    def test_songs_heard_with_their_original_artists(self):
+        page = self.client.get(self.url, {"type": "music"})
+        self.assertEqual([(s["title"], s["n"], s["cover_of"]) for s in page.context["top_songs"]],
+                         [("Basket Case", 2, ""), ("Rockin' in the Free World", 1, "Neil Young")])
+        self.assertContains(page, "Neil Young (covered by Green Day)")
+        self.assertEqual([(b["year"], b["n"]) for b in page.context["song_years"]["bars"]], [(1994, 2)])
+        self.assertEqual(page.context["song_years"]["unknown"], 1)
+        comedy = self.client.get(self.url, {"type": "comedy"})
+        self.assertNotIn("top_songs", comedy.context)  # no setlists: no songs section
+
+    def test_several_types_at_once(self):
+        both = self.client.get(self.url, {"type": ["music", "comedy"]})
+        self.assertEqual(both.context["types"], ["music", "comedy"])
+        self.assertEqual(both.context["owner_logs"].count(), 13)
+        self.assertContains(both, 'href="/u/ana/stats/?type=music"')  # the comedy button takes comedy out
+        diary = self.client.get(reverse("events:user_diary", args=["ana"]), {"type": ["music", "comedy"]})
+        self.assertEqual(diary.context["page"].paginator.count, 13)
+
+    def test_cards_have_pictures_and_venues_fall_back_to_their_latest_show(self):
+        self.user.profile.home_country = "CL"
+        self.user.profile.save()
+        page = self.client.get(self.url, {"type": "music"})
+        self.assertEqual(page.context["foreign_artists"][0]["picture"], "https://img.example/gd.jpg")
+        self.assertEqual(page.context["top_venues"][0]["picture"], "https://img.example/gd.jpg")  # a show's photo
+        self.assertEqual(page.context["top_cities"][0]["picture"], "https://img.example/gd.jpg")
+        self.venue.image_url = "https://img.example/venue.jpg"
+        self.venue.save()
+        page = self.client.get(self.url, {"type": "music"})
+        self.assertEqual(page.context["top_venues"][0]["picture"], "https://img.example/venue.jpg")
+
+    def test_see_all_as_list_or_grid_a_page_at_a_time(self):
+        for i in range(30):
+            venue = Venue.objects.create(name=f"Venue {i:02d}", city="Santiago", country="CL")
+            Log.objects.create(user=self.user, event=Event.objects.create(title=f"V{i}", venue=venue, date=date(2019, 1, 1)))
+        url = reverse("events:user_ranking", args=["ana", "venues"])
+        listed = self.client.get(url)
+        self.assertEqual((len(listed.context["rows"]), listed.context["page"].paginator.num_pages), (31, 1))
+        grid = self.client.get(url, {"view": "grid"})
+        self.assertEqual((len(grid.context["rows"]), grid.context["page"].paginator.num_pages), (24, 2))
+        second = self.client.get(url, {"view": "grid", "page": 2})
+        self.assertEqual([r["rank"] for r in second.context["rows"]][0], 25)
+        rated = self.client.get(reverse("events:user_ranking", args=["ana", "rated-artists"]), {"view": "grid"})
+        self.assertEqual([r["name"] for r in rated.context["rows"]], ["Comic", "Green Day", "Los Bunkers"])
+
+    def test_venue_photo_picker(self):
+        self.client.force_login(self.user)
+        self.assertContains(self.client.get(self.venue.get_absolute_url()), reverse("events:venue_photo", args=[self.venue.pk]))
+        self.client.post(reverse("events:venue_photo", args=[self.venue.pk]), {"url": "https://img.example/v.jpg"})
+        self.venue.refresh_from_db()
+        self.assertEqual(self.venue.image_url, "https://img.example/v.jpg")
+        self.assertEqual(self.client.get(reverse("events:venue_photo", args=[self.venue.pk])).status_code, 403)

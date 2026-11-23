@@ -11,49 +11,104 @@
     {% include "events/_pro_badge.html" %}
   </div>
   {% if event_types|length > 1 %}
-    {# One filter for the whole page: every event, or one type. #}
+    {# One filter for the whole page: every event, or any mix of types (each button adds or removes its type). #}
     <div class="d-flex flex-wrap gap-2 mb-4" role="group" aria-label="{% translate 'Type' %}">
-      <a class="btn btn-sm {% if not event_type %}btn-light{% else %}btn-outline-secondary{% endif %}" href="{{ request.path }}"{% if not event_type %} aria-current="page"{% endif %}>{% translate "All events" %}</a>
-      {% for value, label in event_types %}
-        <a class="btn btn-sm {% if event_type == value %}btn-light{% else %}btn-outline-secondary{% endif %}" href="?type={{ value }}"{% if event_type == value %} aria-current="page"{% endif %}>{{ label }}</a>
+      <a class="btn btn-sm {% if not types %}btn-light{% else %}btn-outline-secondary{% endif %}" href="{{ request.path }}"{% if not types %} aria-current="page"{% endif %}>{% translate "All events" %}</a>
+      {% for value, label, on, toggled_qs in event_types %}
+        <a class="btn btn-sm {% if on %}btn-light{% else %}btn-outline-secondary{% endif %}" href="{{ request.path }}{% if toggled_qs %}?{{ toggled_qs|slice:':-1' }}{% endif %}" aria-pressed="{{ on|yesno:'true,false' }}">{% if on %}✓ {% endif %}{{ label }}</a>
       {% endfor %}
     </div>
   {% endif %}
 
-  {% if top_artists or top_venues or top_cities %}
-    <div class="row g-4 mb-5">
-      {% if home_country %}
-        {% include "events/_artist_rank.html" with title=_("Most seen local artists") subtitle=home_country.name artists=local_artists kind="local-artists" %}
-        {% include "events/_artist_rank.html" with title=_("Most seen foreign artists") artists=foreign_artists kind="foreign-artists" %}
-      {% else %}
-        {% include "events/_artist_rank.html" with title=_("Most seen artists") artists=top_artists kind="artists" %}
-        {% if owner == user %}<div class="col-12 small text-body-secondary mt-n3">{% url 'events:profile_edit' as profile_edit_url %}{% blocktranslate %}<a href="{{ profile_edit_url }}">Set your home country</a> to split local and foreign artists.{% endblocktranslate %}</div>{% endif %}
-      {% endif %}
-      <div class="col-12 col-md-6">
-        <h2 class="section-title mb-2">{% translate "Most visited venues" %}</h2>
-        <ol class="list-unstyled mb-0">
-          {% for v in top_venues %}
-            <li class="d-flex justify-content-between py-1 border-bottom border-secondary-subtle">
-              <a href="{{ v.get_absolute_url }}?seen_by={{ owner.get_username|urlencode }}">{{ v.name }}</a><span class="text-body-secondary small">{% blocktranslate count counter=v.n %}{{ counter }} visit{% plural %}{{ counter }} visits{% endblocktranslate %}</span>
-            </li>
-          {% empty %}<li class="small text-body-secondary">{% translate "No venues yet." %}</li>{% endfor %}
-        </ol>
-        {% if top_venues %}<a class="small d-inline-block mt-2" href="{% url 'events:user_ranking' owner.get_username 'venues' %}{% if event_type %}?type={{ event_type }}{% endif %}">{% translate "See all →" %}</a>{% endif %}
-      </div>
-      <div class="col-12 col-md-6">
-        <h2 class="section-title mb-2">{% translate "Most visited cities" %}</h2>
-        <ol class="list-unstyled mb-0">
-          {% for c in top_cities %}
-            <li class="d-flex justify-content-between py-1 border-bottom border-secondary-subtle">
-              <a href="{% url 'events:user_diary' owner.get_username %}?{{ type_qs }}city={{ c.event__venue__city|urlencode }}">{{ c.event__venue__city }}</a><span class="text-body-secondary small">{% blocktranslate count counter=c.n %}{{ counter }} show{% plural %}{{ counter }} shows{% endblocktranslate %}</span>
-            </li>
-          {% empty %}<li class="small text-body-secondary">{% translate "No cities yet." %}</li>{% endfor %}
-        </ol>
-        {% if top_cities %}<a class="small d-inline-block mt-2" href="{% url 'events:user_ranking' owner.get_username 'cities' %}{% if event_type %}?type={{ event_type }}{% endif %}">{% translate "See all →" %}</a>{% endif %}
-      </div>
-    </div>
-  {% endif %}
+  {% if owner_logs %}
+    {% if home_country %}
+      {% include "events/_rank_cards.html" with title=_("Most seen local artists") subtitle=home_country.name rows=local_artists kind="local-artists" %}
+      {% include "events/_rank_cards.html" with title=_("Most seen foreign artists") rows=foreign_artists kind="foreign-artists" %}
+    {% else %}
+      {% include "events/_rank_cards.html" with title=_("Most seen artists") rows=top_artists kind="artists" %}
+      {% if owner == user %}<p class="small text-body-secondary mt-n4 mb-5">{% url 'events:profile_edit' as profile_edit_url %}{% blocktranslate %}<a href="{{ profile_edit_url }}">Set your home country</a> to split local and foreign artists.{% endblocktranslate %}</p>{% endif %}
+    {% endif %}
+    {% include "events/_rank_cards.html" with title=_("Highest rated artists") rows=rated_artists kind="rated-artists" %}
+    {% include "events/_rank_cards.html" with title=_("Most visited venues") rows=top_venues kind="venues" %}
+    {% include "events/_rank_cards.html" with title=_("Most visited cities") rows=top_cities kind="cities" %}
 
+    {% if not types %}
+      {# Across every event: kinds of shows and where the artists come from. #}
+      <div class="row g-4 mb-5">
+        <div class="col-12 col-md-6">
+          <h2 class="section-title mb-2">{% translate "Most attended types" %}</h2>
+          <ol class="list-unstyled mb-0">
+            {% for c in top_types %}
+              <li class="d-flex justify-content-between py-1 border-bottom border-secondary-subtle">
+                <a href="?type={{ c.key }}">{{ c.label }}</a><span class="text-body-secondary small">{% blocktranslate count counter=c.n %}{{ counter }} show{% plural %}{{ counter }} shows{% endblocktranslate %}</span>
+              </li>
+            {% endfor %}
+          </ol>
+        </div>
+        <div class="col-12 col-md-6">
+          <h2 class="section-title mb-2">{% translate "Where your artists are from" %}</h2>
+          <ol class="list-unstyled mb-0">
+            {% for c in top_countries %}
+              <li class="d-flex justify-content-between py-1 border-bottom border-secondary-subtle">
+                <span>{{ c.label }}</span><span class="text-body-secondary small">{% blocktranslate count counter=c.n %}{{ counter }} show{% plural %}{{ counter }} shows{% endblocktranslate %}</span>
+              </li>
+            {% empty %}<li class="small text-body-secondary">{% translate "None yet." %}</li>{% endfor %}
+          </ol>
+        </div>
+        <div class="col-12 col-md-6">
+          <h2 class="section-title mb-2">{% translate "Highest rated types" %}</h2>
+          <ol class="list-unstyled mb-0">
+            {% for c in rated_types %}
+              <li class="d-flex justify-content-between py-1 border-bottom border-secondary-subtle">
+                <a href="?type={{ c.key }}">{{ c.label }}</a><span class="small"><span class="stars">{{ c.avg|stars }}</span> <span class="text-body-secondary">{{ c.avg|avg_stars }}</span></span>
+              </li>
+            {% empty %}<li class="small text-body-secondary">{% blocktranslate %}A type shows here once you've been to {{ min_events }} or more of them and rated them.{% endblocktranslate %}</li>{% endfor %}
+          </ol>
+        </div>
+        <div class="col-12 col-md-6">
+          <h2 class="section-title mb-2">{% translate "Highest rated countries" %}</h2>
+          <ol class="list-unstyled mb-0">
+            {% for c in rated_countries %}
+              <li class="d-flex justify-content-between py-1 border-bottom border-secondary-subtle">
+                <span>{{ c.label }}</span><span class="small"><span class="stars">{{ c.avg|stars }}</span> <span class="text-body-secondary">{{ c.avg|avg_stars }}</span></span>
+              </li>
+            {% empty %}<li class="small text-body-secondary">{% blocktranslate %}A country shows here once you've seen its artists at {{ min_events }} or more rated shows.{% endblocktranslate %}</li>{% endfor %}
+          </ol>
+        </div>
+      </div>
+    {% endif %}
+
+    {% if top_songs %}
+      {# Only when these shows have setlists: the songs heard live. #}
+      <div class="row g-4 mb-5">
+        <div class="col-12 col-lg-6">
+          <h2 class="section-title mb-2">{% translate "Most heard songs" %}</h2>
+          <ol class="mb-0 ps-4">
+            {% for s in top_songs %}
+              <li class="py-1 border-bottom border-secondary-subtle">
+                <div class="d-flex justify-content-between gap-2">
+                  <span><span class="fw-semibold">{{ s.title }}</span> <span class="small text-body-secondary">· {% if s.cover_of %}{% blocktranslate with original=s.cover_of artist=s.artist %}{{ original }} (covered by {{ artist }}){% endblocktranslate %}{% else %}{{ s.artist }}{% endif %}</span></span>
+                  <span class="text-body-secondary small text-nowrap">{% blocktranslate count counter=s.n %}{{ counter }} time{% plural %}{{ counter }} times{% endblocktranslate %}</span>
+                </div>
+              </li>
+            {% endfor %}
+          </ol>
+        </div>
+        <div class="col-12 col-lg-6">
+          <h2 class="section-title mb-2">{% translate "Songs heard by year released" %}</h2>
+          {% if song_years.bars %}
+            <div class="rating-bars" style="height: 120px" role="img" aria-label="{% for b in song_years.bars %}{% if b.n %}{{ b.year }} {{ b.n }}, {% endif %}{% endfor %}">
+              {% for b in song_years.bars %}
+                <div class="rating-bar" title="{{ b.year }}: {% blocktranslate count counter=b.n %}{{ counter }} song{% plural %}{{ counter }} songs{% endblocktranslate %}"><div style="height: {{ b.height }}%{% if b.n %};min-height:2px{% endif %}"></div></div>
+              {% endfor %}
+            </div>
+            <div class="d-flex justify-content-between mt-1 small text-body-secondary"><span>{{ song_years.bars.0.year }}</span>{% with b=song_years.bars|last %}<span>{{ b.year }}</span>{% endwith %}</div>
+          {% endif %}
+          {% if song_years.unknown %}<div class="small text-body-secondary mt-1">{% blocktranslate count counter=song_years.unknown %}{{ counter }} song heard has no album year yet.{% plural %}{{ counter }} songs heard have no album year yet.{% endblocktranslate %}</div>{% endif %}
+        </div>
+      </div>
+    {% endif %}
+  {% endif %}
 
   {# The whole width of the page, and taller than the small charts elsewhere. #}
   <style>.year-wide .rating-bars { height: 120px; gap: 4px; }</style>
@@ -93,41 +148,7 @@
     </div>
   {% endif %}
 
-  {% if maps.world %}
-    {# Maps: drawn in the browser (world borders from world-atlas; streets from OpenStreetMap). #}
-    <h2 class="section-title mb-3">{% translate "Maps" %}</h2>
-    <div class="row g-4 mb-5">
-      <div class="col-12">
-        <div class="d-flex flex-wrap justify-content-between align-items-baseline gap-2 mb-1">
-          <h3 class="h6 m-0">{% translate "Countries" %}</h3>
-          <span class="small text-body-secondary">{% blocktranslate count counter=maps.world|length %}{{ counter }} country{% plural %}{{ counter }} countries{% endblocktranslate %}</span>
-        </div>
-        <div id="map-world" class="stats-map stats-map-world" role="img" aria-label="{% translate 'World map of the countries with shows attended' %}"></div>
-        <div class="small text-body-secondary mt-1">{% for c in maps.world %}<a href="{% url 'events:user_diary' owner.get_username %}?{{ type_qs }}country={{ c.code }}">{{ c.name }}</a> <span class="text-body">{{ c.n }}</span>{% if not forloop.last %} · {% endif %}{% endfor %}</div>
-      </div>
-      {% if maps.country.code %}
-        <div class="col-12 col-lg-6">
-          <h3 class="h6 mb-1">{{ maps.country.name }}</h3>
-          <div id="map-country" class="stats-map" role="img" aria-label="{% blocktranslate with country=maps.country.name %}Map of {{ country }} with the cities of shows attended{% endblocktranslate %}"></div>
-          {% if maps.regions %}
-            <div class="small mt-2">
-              <span class="text-body-secondary">{% translate "Regions:" %}</span>
-              {% for r in maps.regions %}{{ r.name }} <span class="text-body-secondary">{{ r.n }}</span>{% if not forloop.last %} · {% endif %}{% endfor %}
-            </div>
-          {% endif %}
-        </div>
-      {% endif %}
-      {% if maps.city %}
-        <div class="col-12 col-lg-6">
-          <h3 class="h6 mb-1">{{ maps.city }}</h3>
-          <div id="map-city" class="stats-map" role="img" aria-label="{% blocktranslate with city=maps.city %}Map of {{ city }} with the venues attended{% endblocktranslate %}"></div>
-          {% if maps.venues_without_place %}<div class="small text-body-secondary mt-1">{% blocktranslate count counter=maps.venues_without_place %}{{ counter }} venue has no location yet, so it isn't on the map.{% plural %}{{ counter }} venues have no location yet, so they aren't on the map.{% endblocktranslate %}</div>{% endif %}
-        </div>
-      {% endif %}
-    </div>
-  {% endif %}
-
-  {% if not top_artists and not top_venues and not top_cities and not owner_logs %}
+  {% if not owner_logs %}
     <p class="text-body-secondary">{% translate "Nothing logged yet." %}</p>
   {% endif %}
 {% endblock %}
@@ -146,117 +167,4 @@
     });
   });
 </script>
-{% if maps.world %}
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" />
-  <style>
-    .stats-map { height: 320px; border-radius: .4rem; border: 1px solid var(--ev-line); background: var(--ev-surface); overflow: hidden; }
-    .stats-map-world { height: auto; aspect-ratio: 2 / 1; }
-    .stats-map-world path { stroke: var(--ev-bg); stroke-width: .5; }
-    .stats-map-world path.seen { cursor: pointer; transition: fill-opacity .15s; }
-    .stats-map-world a:hover path.seen, .stats-map-world a:focus path.seen { fill-opacity: 1; stroke: #fff; }
-    /* Dark streets to match the site (OpenStreetMap's tiles, inverted). */
-    .stats-map .leaflet-tile-pane { filter: invert(1) hue-rotate(180deg) brightness(.9) contrast(.9); }
-    .stats-map .leaflet-container { background: var(--ev-surface); }
-    .leaflet-popup-content-wrapper, .leaflet-popup-tip { background: var(--ev-surface-2); color: #f5f5f5; }
-  </style>
-  {{ maps|json_script:"map-data" }}
-  {% translate "%(n)s show" as one_show %}{% translate "%(n)s shows" as many_shows %}
-  <script src="https://cdn.jsdelivr.net/npm/d3-array@3.2.4/dist/d3-array.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/d3-geo@3.1.1/dist/d3-geo.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/topojson-client@3.1.0/dist/topojson-client.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script>
-    (function () {
-      var data = JSON.parse(document.getElementById("map-data").textContent),
-          accent = getComputedStyle(document.documentElement).getPropertyValue("--ev-accent").trim() || "#ff8000",
-          venueUrl = "{% url 'events:venue_detail' 0 %}".replace("/0/", "/{id}/") + "?seen_by={{ owner.get_username|urlencode }}",
-          diaryUrl = "{% url 'events:user_diary' owner.get_username %}?{{ type_qs }}";
-      function shows(n) { return (n === 1 ? "{{ one_show|escapejs }}" : "{{ many_shows|escapejs }}").replace("%(n)s", n); }
-      function esc(text) { var d = document.createElement("div"); d.textContent = text; return d.innerHTML; }
-      var seen = {}, max = 1;
-      data.world.forEach(function (c) { seen[c.id] = c; max = Math.max(max, c.n); });
-
-      fetch("https://cdn.jsdelivr.net/npm/world-atlas@2.0.2/countries-110m.json").then(function (r) { return r.json(); }).then(function (atlas) {
-        var land = topojson.feature(atlas, atlas.objects.countries);
-        land.features = land.features.filter(function (f) { return f.id !== "010"; });  // no Antarctica
-        drawWorld(land);
-        drawCountry(land);
-      }).catch(function (error) {
-        console.error("World map:", error);  // the lists under the maps still show everything
-      });
-
-      function drawWorld(land) {
-        var box = document.getElementById("map-world"), width = box.clientWidth || 800, height = width / 2,
-            projection = d3.geoNaturalEarth1().fitSize([width, height], land), path = d3.geoPath(projection),
-            ns = "http://www.w3.org/2000/svg", svg = document.createElementNS(ns, "svg");
-        svg.setAttribute("viewBox", "0 0 " + width + " " + height);
-        svg.setAttribute("width", "100%");
-        land.features.forEach(function (f) {
-          var p = document.createElementNS(ns, "path"), c = seen[f.id];
-          p.setAttribute("d", path(f));
-          if (c) {
-            // Brighter for more shows (square root, so one show is still clearly visible). A click opens the
-            // diary filtered to that country.
-            p.setAttribute("fill", accent);
-            p.setAttribute("fill-opacity", (0.45 + 0.55 * Math.sqrt(c.n / max)).toFixed(2));
-            p.setAttribute("class", "seen");
-            var t = document.createElementNS(ns, "title");
-            t.textContent = c.name + ": " + shows(c.n);
-            p.appendChild(t);
-            var link = document.createElementNS(ns, "a");
-            link.setAttribute("href", diaryUrl + "country=" + c.code);
-            link.setAttribute("aria-label", c.name + ": " + shows(c.n));
-            link.appendChild(p);
-            svg.appendChild(link);
-          } else {
-            p.setAttribute("fill", "#2a2a2a");
-            svg.appendChild(p);
-          }
-        });
-        box.appendChild(svg);
-      }
-
-      function tiles(map) {
-        // OpenStreetMap refuses tiles without a Referer, and the site's policy (same-origin) sends none to other sites:
-        // tiles send just our origin.
-        L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
-          maxZoom: 18, referrerPolicy: "strict-origin-when-cross-origin",
-          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-        }).addTo(map);
-      }
-
-      function drawCountry(land) {
-        var box = document.getElementById("map-country");
-        if (!box) return;
-        var map = L.map(box, {scrollWheelZoom: false}), shape = land.features.filter(function (f) { return f.id === data.country.id; })[0];
-        var outline = shape && L.geoJSON(shape, {style: {color: accent, weight: 2, fillColor: accent, fillOpacity: 0.08}});
-        var points = data.cities.map(function (c) { return [c.lat, c.lng]; });
-        // The view first: Leaflet draws shapes only once the map knows where it is.
-        if (outline) map.fitBounds(outline.getBounds(), {padding: [10, 10]});
-        else if (points.length) map.fitBounds(points, {padding: [30, 30], maxZoom: 10});
-        else map.setView([0, 0], 2);
-        tiles(map);
-        if (outline) outline.addTo(map);
-        var top = Math.max.apply(null, data.cities.map(function (c) { return c.n; }).concat([1]));
-        data.cities.forEach(function (c) {
-          L.circleMarker([c.lat, c.lng], {radius: 5 + 13 * Math.sqrt(c.n / top), color: accent, weight: 1, fillColor: accent, fillOpacity: 0.6})
-            .bindTooltip(esc(c.name) + ": " + shows(c.n)).addTo(map);
-        });
-      }
-
-      (function drawCity() {
-        var box = document.getElementById("map-city");
-        if (!box) return;
-        if (!data.venues.length) { box.remove(); return; }
-        var map = L.map(box, {scrollWheelZoom: false}), top = Math.max.apply(null, data.venues.map(function (v) { return v.n; }));
-        map.fitBounds(data.venues.map(function (v) { return [v.lat, v.lng]; }), {padding: [30, 30], maxZoom: 15});
-        tiles(map);
-        data.venues.forEach(function (v) {
-          L.circleMarker([v.lat, v.lng], {radius: 6 + 12 * Math.sqrt(v.n / top), color: accent, weight: 1, fillColor: accent, fillOpacity: 0.7})
-            .bindPopup('<a href="' + venueUrl.replace("{id}", v.id) + '">' + esc(v.name) + "</a><br>" + shows(v.n)).addTo(map);
-        });
-      })();
-    })();
-  </script>
-{% endif %}
 {% endblock %}

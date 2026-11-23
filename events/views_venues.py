@@ -300,6 +300,20 @@ def artist_photo(request: HttpRequest, pk: int) -> HttpResponse:
     )
 
 
+@login_required
+def venue_photo(request: HttpRequest, pk: int) -> HttpResponse:
+    """Like an artist's: anyone logged in adds a photo to a venue without one; changing it is for admins."""
+    venue = get_object_or_404(Venue, pk=pk)
+    if venue.image_url and not is_admin(request.user):
+        raise PermissionDenied
+    return _photo_picker(
+        request, obj=venue, default_query=" ".join(bit for bit in [venue.name, venue.city] if bit), artist="",
+        context={"subject_title": venue.name, "back_url": venue.get_absolute_url(),
+                 "edit_url": reverse("events:venue_edit", args=[venue.pk]) if is_admin(request.user) else "",
+                 "hint": gettext("Pick a photo of the venue, outside or inside.")},
+    )
+
+
 # --------------------------------------------------------------------------- event videos
 
 

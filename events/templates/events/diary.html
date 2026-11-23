@@ -31,7 +31,7 @@
     {% endif %}
     {% if expanded %}<input type="hidden" name="view" value="expanded">{% endif %}
     <noscript><button class="btn btn-sm btn-primary" type="submit">{% translate "Filter" %}</button></noscript>
-    {% if f.type or f.year or f.rating or f.country or f.city or f.since or f.until %}<a class="small" href="{{ request.path }}{% if expanded %}?view=expanded{% endif %}">{% translate "Clear" %}</a>{% endif %}
+    {% if f.types or f.year or f.rating or f.country or f.city or f.since or f.until %}<a class="small" href="{{ request.path }}{% if expanded %}?view=expanded{% endif %}">{% translate "Clear" %}</a>{% endif %}
     <div class="btn-group btn-group-sm ms-auto" role="group" aria-label="{% translate 'Diary view' %}">
       <a class="btn btn-outline-secondary{% if not expanded %} active{% endif %}" href="?{{ filters_qs }}"{% if not expanded %} aria-current="page"{% endif %}>{% translate "List" %}</a>
       <a class="btn btn-outline-secondary{% if expanded %} active{% endif %}" href="?view=expanded{% if filters_qs %}&{{ filters_qs }}{% endif %}"{% if expanded %} aria-current="page"{% endif %}>{% translate "Expanded" %}</a>
@@ -89,7 +89,7 @@
       </table>
     </div>
   {% else %}
-    <p class="text-body-secondary">{% if f.type or f.year or f.country or f.city or f.since or f.until %}{% translate "No events match these filters." %}{% else %}{% translate "No events logged yet." %}{% endif %}{% if owner == user %} {% url 'events:event_list' as events_url %}{% blocktranslate %}<a href="{{ events_url }}">Find an event you went to</a> and log it.{% endblocktranslate %}{% endif %}</p>
+    <p class="text-body-secondary">{% if f.types or f.year or f.country or f.city or f.since or f.until %}{% translate "No events match these filters." %}{% else %}{% translate "No events logged yet." %}{% endif %}{% if owner == user %} {% url 'events:event_list' as events_url %}{% blocktranslate %}<a href="{{ events_url }}">Find an event you went to</a> and log it.{% endblocktranslate %}{% endif %}</p>
   {% endif %}
   {% if page.has_other_pages %}
     <nav class="mt-4 d-flex justify-content-center gap-2" aria-label="{% translate 'Pages' %}">

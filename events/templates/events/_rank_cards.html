@@ -1,0 +1,13 @@
+{% load i18n event_extras %}{% comment %}A ranking as picture cards: rows from views_social._rank_rows. ``title``, ``rows``, and ``kind`` for the
+"See all" link (with ``ranking_qs``, the type filter); ``cols`` overrides the grid's columns.{% endcomment %}
+<section class="mb-5">
+  <div class="d-flex justify-content-between align-items-end mb-2">
+    <h2 class="section-title flex-grow-1 m-0">{{ title }}{% if subtitle %} · {{ subtitle }}{% endif %}</h2>
+    {% if rows and kind %}<a class="small ms-2 text-nowrap" href="{% url 'events:user_ranking' owner.get_username kind %}{{ ranking_qs }}">{% translate "See all →" %}</a>{% endif %}
+  </div>
+  {% if rows %}
+    <div class="row {{ cols|default:'row-cols-2 row-cols-sm-3 row-cols-lg-5' }} g-3">
+      {% for r in rows %}<div class="col">{% include "events/_rank_card.html" %}</div>{% endfor %}
+    </div>
+  {% else %}<p class="small text-body-secondary">{% translate "None yet." %}</p>{% endif %}
+</section>

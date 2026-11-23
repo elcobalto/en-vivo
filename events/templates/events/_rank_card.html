@@ -1,0 +1,12 @@
+{% load i18n event_extras %}{% comment %}One ranked thing (artist, venue, city) as a picture card; ``r`` is a _rank_rows row.{% endcomment %}
+<a class="rank-card text-decoration-none d-block" href="{{ r.url }}" title="{{ r.name }}">
+  <div class="rank-pic position-relative">
+    {% if r.picture %}<img src="{{ r.picture }}" alt="" loading="lazy" referrerpolicy="no-referrer" />
+    {% else %}<div class="rank-pic-empty">{{ r.name|first|upper }}</div>{% endif %}
+    <span class="rank-num">{{ r.rank }}</span>
+  </div>
+  <div class="fw-semibold small lh-sm clamp-2 mt-2">{{ r.name }}</div>
+  <div class="small text-body-secondary">
+    {% if r.avg is not None %}<span class="stars">{{ r.avg|stars }}</span> · {% endif %}{% if r.unit == "visit" %}{% blocktranslate count counter=r.n %}{{ counter }} visit{% plural %}{{ counter }} visits{% endblocktranslate %}{% else %}{% blocktranslate count counter=r.n %}{{ counter }} show{% plural %}{{ counter }} shows{% endblocktranslate %}{% endif %}{% if r.sub %} · {{ r.sub }}{% endif %}
+  </div>
+</a>

@@ -740,7 +740,9 @@ def diary(request: HttpRequest, username: str | None = None) -> HttpResponse:
 
     owner = get_object_or_404(get_user_model(), username=username)
     all_logs = Log.objects.filter(user=owner)
-    event_type = request.GET.get("type") or ""
+    # One type from the diary's own filter, or several from the stats page (?type=music&type=festival).
+    types = [t for t in dict.fromkeys(request.GET.getlist("type")) if t in EventType.values]
+    event_type = types[0] if len(types) == 1 else ""
     year = request.GET.get("year") or ""
     rating = request.GET.get("rating") or ""
     if not (rating.isdigit() and 1 <= int(rating) <= 10):
@@ -750,8 +752,8 @@ def diary(request: HttpRequest, username: str | None = None) -> HttpResponse:
     # A date range (the stats page's month and week bars): ?from=2026-03-01&to=2026-03-31.
     since, until = _iso_date(request.GET.get("from")), _iso_date(request.GET.get("to"))
     logs = all_logs.select_related("event", "event__venue").order_by("-event__date", "-created_at")
-    if event_type in EventType.values:
-        logs = logs.filter(event__event_type=event_type)
+    if types:
+        logs = logs.filter(event__event_type__in=types)
     if year.isdigit():
         logs = logs.filter(event__date__year=int(year))
     if rating:
@@ -785,7 +787,7 @@ def diary(request: HttpRequest, username: str | None = None) -> HttpResponse:
             # Only the acts this person saw (credits like a play's author always show).
             seen = {act.artist_id for act in log.acts.all()}
             log.seen_bill = [link for link in log.event.bill if link.role in CREDIT_ROLES or link.artist_id in seen]
-    filters = {k: v for k, v in {"type": event_type, "year": year, "rating": rating, "country": country,
+    filters = {k: v for k, v in {"type": types, "year": year, "rating": rating, "country": country,
                                  "city": city, "from": since.isoformat() if since else "",
                                  "to": until.isoformat() if until else ""}.items() if v}
     countries_logged = sorted(
@@ -799,9 +801,9 @@ def diary(request: HttpRequest, username: str | None = None) -> HttpResponse:
             "tab": "diary",
             "logs": page,
             "page": page,
-            "querystring": urlencode({**filters, **({"view": "expanded"} if expanded else {})}),
-            "filters_qs": urlencode(filters),  # for the List / Expanded switch
-            "f": {"type": event_type, "year": year, "rating": rating, "country": country, "city": city,
+            "querystring": urlencode({**filters, **({"view": "expanded"} if expanded else {})}, doseq=True),
+            "filters_qs": urlencode(filters, doseq=True),  # for the List / Expanded switch
+            "f": {"type": event_type, "types": types, "year": year, "rating": rating, "country": country, "city": city,
                   "since": since, "until": until},
             "countries_logged": countries_logged,
             "ratings": [(r, stars(r)) for r in range(10, 0, -1)],
