@@ -16,8 +16,8 @@
     <h1 class="h4 mt-1">{% translate "Site stats" %}</h1>
     <p class="small text-body-secondary mb-3">{% translate "Everyone's diaries together: every show logged counts once per person who went." %}</p>
   {% endif %}
-  {# One filter for the whole page: every event or any mix of types (each button adds or removes its type), and
-     every year or one. #}
+  {% comment %}One filter for the whole page: every event or any mix of types (each button adds or removes its type), and
+     every year or one.{% endcomment %}
   <div class="d-flex flex-wrap align-items-center gap-2 mb-4">
   {% if event_types|length > 1 %}
     <div class="d-flex flex-wrap gap-2" role="group" aria-label="{% translate 'Type' %}">
