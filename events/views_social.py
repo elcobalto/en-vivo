@@ -270,6 +270,7 @@ def stats_context(request: HttpRequest, owner) -> dict:
         "ranking_qs": f"?{type_qs.rstrip('&')}" if type_qs else "",
         "ranking_base": ranking_base,  # + kind + "/": a "See all" page
         "country_base": country_base,  # + "country=GB": shows in a country
+        "type_base": country_base,  # + "type=music": shows of a type (only listed when no type is picked)
         "diary_url": years_url,  # the year bars' links (+ year=)
         "owner_logs": logs,
         "this_year": _this_year(owner, f),
