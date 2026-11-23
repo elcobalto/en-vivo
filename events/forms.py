@@ -142,10 +142,12 @@ class EventForm(BootstrapMixin, forms.ModelForm):
         name = (self.cleaned_data.get("new_venue_name") or "").strip()
         if not name:
             return None
+        from .places import standard_city
+
+        country = (self.cleaned_data.get("new_venue_country") or "").strip().upper()
         city = (self.cleaned_data.get("new_venue_city") or "").strip()
-        venue = Venue.objects.filter(name__iexact=name, city__iexact=city).first() or Venue.objects.create(
-            name=name, city=city, country=(self.cleaned_data.get("new_venue_country") or "").strip().upper()
-        )
+        venue = Venue.objects.filter(name__iexact=name, city__iexact=standard_city(country, city)).first() \
+            or Venue.objects.create(name=name, city=city, country=country)
         self.instance.venue = venue
         return venue
 

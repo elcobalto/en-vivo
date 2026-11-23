@@ -57,7 +57,11 @@ def _start_country_import(request: HttpRequest) -> HttpResponse:
     if country not in dict(countries) or not days:
         messages.error(request, gettext("Pick a country and a period."))
         return redirect("events:artist_import_new")
-    state = " ".join((request.POST.get("state") or "").split())[:120]
+    from .places import setlistfm_region
+
+    # A region En Vivo knows goes to setlist.fm by setlist.fm's name for it (Región Metropolitana: Santiago
+    # Metropolitan).
+    state = setlistfm_region(country, " ".join((request.POST.get("state") or "").split()))[:120]
     city = " ".join((request.POST.get("city") or "").split())[:120]
     since = timezone.localdate() - timedelta(days=days)
     job = ArtistImport.objects.filter(artist_mbid="", country=country, state__iexact=state, city__iexact=city,

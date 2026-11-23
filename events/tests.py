@@ -897,7 +897,7 @@ class GooglePlacesTests(BaseTestCase):
         self.assertEqual(first["id"], second["id"])
         self.assertEqual(details.call_count, 1)  # the second pick reuses our venue, no extra Google call
         venue = Venue.objects.get(pk=first["id"])
-        self.assertEqual((venue.city, venue.country.code), ("Ñuñoa", "CL"))
+        self.assertEqual((venue.city, venue.district, venue.country.code), ("Santiago", "Ñuñoa", "CL"))
 
     @mock.patch("events.google_places.place_details", return_value=ESTADIO_DETAILS)
     def test_pick_standardizes_matching_hand_typed_venue(self, _):
@@ -920,7 +920,7 @@ class GooglePlacesTests(BaseTestCase):
         self.assertRedirects(response, self.venue.get_absolute_url())
         self.venue.refresh_from_db()
         event.refresh_from_db()
-        self.assertEqual(self.venue.city, "Ñuñoa")
+        self.assertEqual((self.venue.city, self.venue.district), ("Santiago", "Ñuñoa"))
         self.assertEqual(event.title, "Music event")
 
     def test_google_errors_are_reported_not_raised(self):
@@ -2831,7 +2831,7 @@ class FestivalPhotoPickerTests(BaseTestCase):
         # The edit form offers it too, ticked while the other show has no photo of its own (or this one).
         edit = reverse("events:event_edit", args=[second.pk])
         page = self.client.get(edit)
-        self.assertContains(page, "Use this photo for Paul McCartney&#x27;s other show in santiago")
+        self.assertContains(page, "Use this photo for Paul McCartney&#x27;s other show in Santiago")
         self.assertTrue(page.context["form"].fields["photo_for_all_days"].initial)
         form = {"title": "", "event_type": "music", "date": "2019-04-02", "venue": str(other_venue.pk),
                 "image_url": "https://img.example/mc.jpg", "image_display": second.image_display, "photo_for_all_days": "on",
@@ -4157,9 +4157,10 @@ class ArtistImportTests(BaseTestCase):
         self.client.force_login(self.boss)
         Venue.objects.create(name="Movistar Arena", city="Santiago", region="Santiago Metropolitan", country="CL")
         form = self.client.get(reverse("events:artist_import_new"), {"country": "CL"})
-        self.assertEqual((form.context["states"], form.context["cities"]), (["Santiago Metropolitan"], ["Santiago"]))
+        # Venues' regions have their standard names; setlist.fm is sent its own (Santiago Metropolitan).
+        self.assertEqual((form.context["states"], form.context["cities"]), (["Región Metropolitana"], ["Santiago"]))
         self.client.post(reverse("events:artist_import_new"),
-                         {"country": "CL", "state": " Santiago  Metropolitan ", "city": "Santiago", "period": "week"})
+                         {"country": "CL", "state": " Región  Metropolitana ", "city": "Santiago", "period": "week"})
         job = ArtistImport.objects.get()
         self.assertEqual((job.state, job.city, job.artist_name), ("Santiago Metropolitan", "Santiago",
                                                                   "Santiago, Santiago Metropolitan, Chile"))
@@ -4444,7 +4445,7 @@ class StatsMapTests(BaseTestCase):
         maps = page.context["maps"]
         self.assertEqual([(c["code"], c["id"], c["n"]) for c in maps["world"]], [("CL", "152", 5), ("GB", "826", 1)])
         self.assertEqual(maps["country"]["code"], "CL")
-        self.assertEqual([(r["name"], r["n"]) for r in maps["regions"]], [("Región Metropolitana", 3), ("Valparaíso", 1)])
+        self.assertEqual([(r["name"], r["n"]) for r in maps["regions"]], [("Región Metropolitana", 4), ("Valparaíso", 1)])
         self.assertEqual([c["name"] for c in maps["cities"]], ["Santiago", "Viña del Mar"])
         self.assertEqual(maps["city"], "Santiago")
         self.assertEqual([(v["name"], v["n"]) for v in maps["venues"]], [("Estadio Nacional", 2), ("Teatro Caupolicán", 1)])
@@ -4701,7 +4702,8 @@ class UpcomingScopeTests(BaseTestCase):
         return sorted(e.title for e in self.client.get(reverse("events:home")).context["upcoming"])
 
     def test_defaults_local_in_my_city_international_in_my_country(self):
-        self.assertEqual(self._titles(), ["Intl Viña", "Local Santiago"])
+        # Puente Alto is a commune of Santiago: the same city.
+        self.assertEqual(self._titles(), ["Intl Viña", "Local Puente Alto", "Local Santiago"])
 
     def test_local_in_my_region(self):
         self.user.profile.upcoming_local = "region"
@@ -4709,7 +4711,8 @@ class UpcomingScopeTests(BaseTestCase):
         self.assertEqual(self._titles(), ["Intl Viña", "Local Puente Alto", "Local Santiago"])
 
     def test_region_without_a_region_falls_back_to_the_country(self):
-        self.user.profile.upcoming_local, self.user.profile.home_region = "region", ""
+        # (A city the place tables know brings its region along, so one they don't.)
+        self.user.profile.upcoming_local, self.user.profile.home_city, self.user.profile.home_region = "region", "Talca", ""
         self.user.profile.save()
         self.assertEqual(self._titles(), ["Intl Viña", "Local Puente Alto", "Local Santiago", "Local Viña"])
 
@@ -5013,3 +5016,58 @@ class DatabaseUsageTests(BaseTestCase):
         page = self.client.get(reverse("events:admin_tools"))
         self.assertIsNotNone(page.context["db"])
         self.assertEqual(DatabaseSize.objects.count(), 1)
+
+
+class StandardPlacesTests(BaseTestCase):
+    """Santiago's communes count as Santiago (seeded by a migration); the commune is kept as the district."""
+
+    def test_venues_in_communes_are_in_santiago(self):
+        nunoa = Venue.objects.create(name="Teatro Nescafé", city="ÑUÑOA", region="Región Metropolitana de Santiago",
+                                     country="CL")
+        self.assertEqual((nunoa.city, nunoa.district, nunoa.region), ("Santiago", "Ñuñoa", "Región Metropolitana"))
+        self.assertEqual(nunoa.location_label, "Ñuñoa, Santiago, Región Metropolitana, Chile")
+        plain = Venue.objects.create(name="X", city="providencia", country="CL")
+        self.assertEqual((plain.city, plain.district, plain.region), ("Santiago", "Providencia", "Región Metropolitana"))
+        spelled = Venue.objects.create(name="W", city="Santiago de Chile", country="CL")
+        self.assertEqual((spelled.city, spelled.district), ("Santiago", ""))  # another spelling, not a district
+        other = Venue.objects.create(name="Y", city="Valparaíso", region="Valparaíso", country="CL")
+        self.assertEqual((other.city, other.district), ("Valparaíso", ""))
+        plain.city = "Valparaíso"
+        plain.save()
+        self.assertEqual((plain.city, plain.district), ("Valparaíso", ""))  # moved: no longer in Providencia
+        elsewhere = Venue.objects.create(name="Z", city="Providencia", country="US")  # only Chile's tables apply
+        self.assertEqual(elsewhere.city, "Providencia")
+
+    def test_profiles_and_filters_use_the_standard_city(self):
+        from .places import setlistfm_region
+
+        self.user.profile.home_country, self.user.profile.home_city = "CL", "Las Condes"
+        self.user.profile.save()
+        self.user.profile.refresh_from_db()
+        self.assertEqual((self.user.profile.home_city, self.user.profile.home_region), ("Santiago", "Región Metropolitana"))
+        venue = Venue.objects.create(name="Teatro Oriente", city="Providencia", country="CL")
+        Event.objects.create(title="Show", venue=venue, date=date(2020, 1, 1))
+        for city in ("Santiago", "providencia"):
+            titles = [e.title for e in self.client.get(reverse("events:event_list"), {"city": city}).context["page"]]
+            self.assertIn("Show", titles)
+        self.assertEqual(setlistfm_region("CL", "región metropolitana"), "Santiago Metropolitan")
+        self.assertEqual(setlistfm_region("CL", "Valparaíso"), "Valparaíso")
+
+    def test_setlistfm_venue_in_a_commune_matches_ours_in_santiago(self):
+        from .setlistfm_events import match_venue
+
+        ours = Venue.objects.create(name="Teatro Caupolicán", city="Santiago", country="CL")
+        found = match_venue({"name": "Teatro Caupolicán", "city": {"name": "Ñuñoa", "country": {"code": "CL"}}},
+                            look_up=False)
+        self.assertIn(found.pk, {ours.pk, self.venue.pk})
+        self.assertEqual(Venue.objects.filter(name="Teatro Caupolicán").count(), 2)  # no new one
+
+    def test_editing_a_city_restandardizes_venues(self):
+        from .models import City
+
+        venue = Venue.objects.create(name="Arena", city="Viña", country="CL")
+        self.assertEqual(venue.city, "Viña")
+        City.objects.create(country="CL", name="Viña del Mar", aliases="Viña\nVina", districts="Reñaca")
+        venue.refresh_from_db()
+        self.assertEqual((venue.city, venue.district), ("Viña del Mar", ""))
+        self.assertEqual(Venue.objects.create(name="Beach", city="reñaca", country="CL").district, "Reñaca")

@@ -168,11 +168,16 @@ def venue_from_place(place_id: str, session: str = "") -> Venue:
 
     # A venue typed by hand earlier with the same name and city gets standardized instead of duplicated.
     # Compared in Python: SQLite's case-insensitive matching ignores non-ASCII letters like Ñ/ñ.
+    from .places import standard_city
+
+    city = standard_city(fields["country"], fields["city"]).casefold()
     manual = next(
         (
             v
             for v in Venue.objects.filter(google_place_id__isnull=True)
-            if v.name.casefold() == fields["name"].casefold() and v.city.casefold() == fields["city"].casefold()
+            # one typed without a country is read as in the place's country
+            if v.name.casefold() == fields["name"].casefold()
+            and standard_city(v.country.code or fields["country"], v.city).casefold() == city
         ),
         None,
     )

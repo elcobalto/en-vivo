@@ -62,10 +62,60 @@ class LogStatsQuerySet(models.QuerySet):
 # --------------------------------------------------------------------------- catalog
 
 
+class Region(models.Model):
+    """A state or region by its one standard name, with the other names it goes by (see ``places``)."""
+
+    country = CountryField()
+    name = models.CharField(max_length=120)
+    # How setlist.fm writes it, for its state filter in imports (when it differs).
+    setlistfm_name = models.CharField(max_length=120, blank=True, default="")
+    aliases = models.TextField(blank=True, default="", help_text=_("Other names it goes by, one per line."))
+
+    class Meta:
+        ordering = ["country", "name"]
+        constraints = [models.UniqueConstraint(fields=["country", "name"], name="uq_region_country_name")]
+
+    def __str__(self) -> str:
+        return f"{self.name} ({self.country.code})"
+
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+        from .places import restandardize
+
+        restandardize(self.country.code)
+
+
+class City(models.Model):
+    """A city by its one standard name, with the other ways it's written and the communes or districts that count
+    as the city (Ñuñoa, Providencia… for Santiago). See ``places``."""
+
+    country = CountryField()
+    name = models.CharField(max_length=120)
+    region = models.ForeignKey(Region, on_delete=models.SET_NULL, null=True, blank=True, related_name="cities")
+    aliases = models.TextField(blank=True, default="", help_text=_("Other ways it's written, one per line."))
+    districts = models.TextField(blank=True, default="", help_text=_(
+        "Communes or districts that count as this city, one per line. Venues in them keep it as their district."))
+
+    class Meta:
+        ordering = ["country", "name"]
+        verbose_name_plural = "cities"
+        constraints = [models.UniqueConstraint(fields=["country", "name"], name="uq_city_country_name")]
+
+    def __str__(self) -> str:
+        return f"{self.name} ({self.country.code})"
+
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+        from .places import restandardize
+
+        restandardize(self.country.code)
+
+
 class Venue(TimestampedModel):
     name = models.CharField(max_length=200, db_index=True)
     address = models.CharField(max_length=255, blank=True, default="")
-    city = models.CharField(max_length=120, blank=True, default="")
+    city = models.CharField(max_length=120, blank=True, default="")  # the standard name (see ``places``)
+    district = models.CharField(max_length=120, blank=True, default="")  # the commune within it, e.g. Ñuñoa
     region = models.CharField(max_length=120, blank=True, default="")
     country = CountryField(blank=True, default="")
     capacity = models.PositiveIntegerField(null=True, blank=True)
@@ -82,10 +132,22 @@ class Venue(TimestampedModel):
     def __str__(self) -> str:
         return ", ".join(bit for bit in [self.name, self.city, self.country.code] if bit)
 
+    def save(self, *args, **kwargs):
+        from .places import standardize
+
+        self.city, self.region, district = standardize(self.country.code, self.city, self.region)
+        if district:
+            self.district = district
+        elif self.district and standardize(self.country.code, self.district)[0] != self.city:
+            self.district = ""  # it moved to another city
+        if kwargs.get("update_fields") is not None:
+            kwargs["update_fields"] = {*kwargs["update_fields"], "city", "region", "district"}
+        super().save(*args, **kwargs)
+
     @property
     def location_label(self) -> str:
-        """“Ñuñoa, Región Metropolitana, Chile” — for search results and venue pages."""
-        return ", ".join(bit for bit in [self.city, self.region, self.country.name] if bit)
+        """“Ñuñoa, Santiago, Región Metropolitana, Chile” — for search results and venue pages."""
+        return ", ".join(bit for bit in [self.district, self.city, self.region, self.country.name] if bit)
 
     def get_absolute_url(self) -> str:
         return reverse("events:venue_detail", args=[self.pk])
@@ -735,6 +797,10 @@ class Profile(TimestampedModel):
         return self.name
 
     def save(self, *args, **kwargs):
+        from .places import standardize
+
+        self.home_city, self.home_region, _district = standardize(self.home_country.code or "", self.home_city,
+                                                                  self.home_region)
         if not self.language:
             from .languages import language_for_country
 

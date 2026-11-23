@@ -258,8 +258,8 @@ def event_list(request: HttpRequest) -> HttpResponse:
     events = Event.objects.select_related("venue", "production")
     if event_type in EventType.values:
         events = events.filter(event_type=event_type)
-    if city:
-        events = events.filter(venue__city__iexact=city)
+    if city:  # a city, or a district in one (Ñuñoa)
+        events = events.filter(Q(venue__city__iexact=city) | Q(venue__district__iexact=city))
     if year.isdigit():
         events = events.filter(date__year=int(year))
     today = timezone.localdate()
@@ -759,7 +759,7 @@ def diary(request: HttpRequest, username: str | None = None) -> HttpResponse:
     if country:
         logs = logs.filter(event__venue__country=country)
     if city:
-        logs = logs.filter(event__venue__city__iexact=city)
+        logs = logs.filter(Q(event__venue__city__iexact=city) | Q(event__venue__district__iexact=city))
     if since:
         logs = logs.filter(event__date__gte=since)
     if until:

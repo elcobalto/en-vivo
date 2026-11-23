@@ -80,9 +80,13 @@ def match_venue(venue_payload: dict[str, Any], look_up: bool = True) -> Venue | 
             venue.save(update_fields=["setlistfm_id", "updated_at"])
         return venue
 
-    # Compared in Python: SQLite's case-insensitive matching ignores letters like Ñ/ñ.
+    # Compared in Python: SQLite's case-insensitive matching ignores letters like Ñ/ñ. Cities by their standard
+    # names (a venue setlist.fm puts in Ñuñoa is our one in Santiago).
+    from .places import standard_city
+
+    standard = standard_city(country, city).casefold()
     for venue in Venue.objects.filter(name__icontains=name[:3]):
-        if venue.name.casefold() == name.casefold() and venue.city.casefold() == city.casefold():
+        if venue.name.casefold() == name.casefold() and venue.city.casefold() == standard:
             return remember(venue)
 
     venue = _google_venue(name, city, country_name) if look_up else None

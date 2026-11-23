@@ -20,6 +20,8 @@ from .models import (
     FavoriteEvent,
     Feedback,
     ArtistFollow,
+    City,
+    Region,
     Follow,
     Profile,
     ReviewLike,
@@ -28,8 +30,8 @@ from .models import (
 
 @admin.register(Venue)
 class VenueAdmin(admin.ModelAdmin):
-    search_fields = ["name", "city", "country"]
-    list_display = ["name", "city", "country", "capacity"]
+    search_fields = ["name", "city", "district", "country"]
+    list_display = ["name", "city", "district", "region", "country", "capacity"]
 
 
 @admin.register(Artist)
@@ -116,6 +118,24 @@ class ProfileAdmin(admin.ModelAdmin):
     search_fields = ["user__username", "display_name"]
     list_display = ["user", "display_name", "location"]
     list_select_related = ["user"]
+
+
+@admin.register(Region)
+class RegionAdmin(admin.ModelAdmin):
+    """Standard region names (see events/places.py); saving one re-standardizes the country's venues."""
+
+    list_display = ("name", "country", "setlistfm_name")
+    list_filter = ("country",)
+    search_fields = ("name", "aliases")
+
+
+@admin.register(City)
+class CityAdmin(admin.ModelAdmin):
+    """Standard city names and the districts that count as each city; saving re-standardizes venues."""
+
+    list_display = ("name", "country", "region")
+    list_filter = ("country",)
+    search_fields = ("name", "aliases")
 
 
 @admin.register(ArtistFollow)
