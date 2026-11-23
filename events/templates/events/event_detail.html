@@ -64,7 +64,7 @@
       <h2 class="section-title mt-3 mb-2">{% if event.event_type == "theater" %}{% translate "Cast" %}{% else %}{% translate "Lineup" %}{% endif %}</h2>
       {% if credits %}
         <p class="small mb-2">
-          {% for link in credits %}{% if link.role == "author" %}{% translate "Written by" %}{% else %}{% translate "Directed by" %}{% endif %}
+          {% for link in credits %}{{ link.credit_label }}
             <a href="{{ link.artist.get_absolute_url }}">{{ link.artist.name }}</a>{% if not forloop.last %} · {% endif %}{% endfor %}
         </p>
       {% endif %}

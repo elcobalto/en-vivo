@@ -29,6 +29,8 @@ from .models import (
     CREDIT_ROLES,
     PLAY_TYPES,
     ROLES_BY_TYPE,
+    allowed_roles,
+    fit_role,
     added_act_role,
     Album,
     normalize_name,
@@ -948,7 +950,7 @@ def event_form(request: HttpRequest, pk: int | None = None) -> HttpResponse:
     return render(request, "events/event_form.html", {
         "form": form, "formset": formset, "event": event,
         "other_dates_count": runs.other_dates(event).count() if event else 0,
-        "type_rules": {"roles": ROLES_BY_TYPE, "all": [v for v, _ in EventArtist.Role.choices], "play_types": PLAY_TYPES},
+        "type_rules": {"roles": ROLES_BY_TYPE, "all": list(allowed_roles("")), "play_types": PLAY_TYPES},
         # Sent once for every lineup row's artist/tour picker (rows only render their current choice).
         "artist_options": list(Artist.objects.order_by("name").values_list("pk", "name")),
         "tour_options": [
@@ -1196,11 +1198,19 @@ def setlist_albums_edit(request: HttpRequest, pk: int, artist_pk: int) -> HttpRe
 
 
 def _credit_play_authors(event: Event) -> None:
-    """A staging credits its play's authors (“Written by”) unless they're already on it."""
+    """A staging credits its play's creators (author, music, lyrics, book) unless they're already on it.
+
+    Each gets the role of their credit (one role per person: the first of author, music, lyrics, book)."""
     on_event = set(event.eventartist_set.values_list("artist_id", flat=True))
     last = event.eventartist_set.aggregate(m=models.Max("billing_order"))["m"] or 0
-    for i, author in enumerate(event.play.authors.exclude(pk__in=on_event), start=1):
-        EventArtist.objects.create(event=event, artist=author, role=EventArtist.Role.AUTHOR, billing_order=last + i)
+    play = event.play
+    for role, people in (("author", play.authors), ("music", play.music_by), ("lyrics", play.lyrics_by),
+                         ("book", play.book_by)):
+        role = fit_role(role, event.event_type)
+        for artist in people.exclude(pk__in=on_event):
+            last += 1
+            on_event.add(artist.pk)
+            EventArtist.objects.create(event=event, artist=artist, role=role, billing_order=last)
     event.refresh_auto_title()
 
 

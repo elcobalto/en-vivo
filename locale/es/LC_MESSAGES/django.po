@@ -3,7 +3,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: En Vivo\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-23 21:36+0000\n"
+"POT-Creation-Date: 2026-11-23 22:13+0000\n"
 "PO-Revision-Date: 2026-11-20 18:00-0300\n"
 "Last-Translator: En Vivo\n"
 "Language-Team: Spanish\n"
@@ -19,7 +19,7 @@ msgstr "Creado el"
 
 #: events/albums.py:40 events/templates/events/_album_select.html:5
 #: events/templates/events/act_setlist.html:45
-#: events/templates/events/artist_songs_manage.html:18 events/views.py:583
+#: events/templates/events/artist_songs_manage.html:18 events/views.py:585
 msgid "No album"
 msgstr "Sin álbum"
 
@@ -36,7 +36,7 @@ msgstr "No se pudo importar el setlist %(id)s."
 msgid "New venue name"
 msgstr "Nombre del nuevo recinto"
 
-#: events/forms.py:50 events/forms.py:308 events/models.py:839
+#: events/forms.py:50 events/forms.py:308 events/models.py:858
 #: events/templates/events/artist_import_new.html:74
 #: events/templates/events/event_form.html:119
 #: events/templates/events/event_list.html:42
@@ -45,7 +45,7 @@ msgid "City"
 msgstr "Ciudad"
 
 #: events/forms.py:53 events/forms.py:290 events/forms.py:309
-#: events/models.py:837 events/templates/events/artist_list.html:12
+#: events/models.py:856 events/templates/events/artist_list.html:12
 #: events/templates/events/diary.html:22
 #: events/templates/events/event_form.html:123
 #: events/templates/events/setlistfm_shows.html:36
@@ -58,7 +58,7 @@ msgstr "País"
 msgid "Title"
 msgstr "Título"
 
-#: events/forms.py:74 events/forms.py:394 events/models.py:699
+#: events/forms.py:74 events/forms.py:394 events/models.py:718
 #: events/templates/events/artist_detail.html:171
 #: events/templates/events/artist_songs.html:59
 #: events/templates/events/bulk_import.html:33
@@ -129,7 +129,7 @@ msgstr "Automático: %(title)s"
 msgid "Pick an existing venue or add a new one, not both."
 msgstr "Elige un recinto existente o agrega uno nuevo, no ambos."
 
-#: events/forms.py:183 events/views.py:1255
+#: events/forms.py:183 events/views.py:1265
 msgid "New artist"
 msgstr "Nuevo artista"
 
@@ -160,7 +160,7 @@ msgstr "Orden"
 msgid "Time"
 msgstr "Hora"
 
-#: events/forms.py:191 events/models.py:590
+#: events/forms.py:191 events/models.py:599
 #: events/templates/events/_lineup_editor.html:16
 #: events/templates/events/_lineup_row.html:15
 msgid "Tour"
@@ -219,7 +219,7 @@ msgstr "Bandas en las que estuvo este artista. Sus canciones tocadas como covers
 msgid "Address"
 msgstr "Dirección"
 
-#: events/forms.py:308 events/models.py:838
+#: events/forms.py:308 events/models.py:857
 msgid "Region"
 msgstr "Región"
 
@@ -232,10 +232,11 @@ msgid "Photo URL"
 msgstr "URL de la foto"
 
 #: events/forms.py:362 events/models.py:27 events/models.py:285
+#: events/models.py:585
 msgid "Music"
 msgstr "Música"
 
-#: events/forms.py:362 events/models.py:285
+#: events/forms.py:362 events/models.py:285 events/models.py:586
 msgid "Lyrics"
 msgstr "Letra"
 
@@ -313,11 +314,11 @@ msgstr "De 3 a 30 letras, números, puntos, guiones o guiones bajos. Tu perfil q
 msgid "Use only letters, numbers, dots, hyphens or underscores (3–30 characters)."
 msgstr "Usa solo letras, números, puntos, guiones o guiones bajos (de 3 a 30 caracteres)."
 
-#: events/forms.py:447 events/models.py:857
+#: events/forms.py:447 events/models.py:876
 msgid "Language"
 msgstr "Idioma"
 
-#: events/forms.py:448 events/models.py:858
+#: events/forms.py:448 events/models.py:877
 msgid "The language En Vivo is shown in for you."
 msgstr "El idioma en que ves En Vivo."
 
@@ -487,7 +488,7 @@ msgstr "Danza"
 msgid "Multicultural"
 msgstr "Multicultural"
 
-#: events/models.py:33 events/models.py:579 events/models.py:693
+#: events/models.py:33 events/models.py:588 events/models.py:712
 msgid "Other"
 msgstr "Otro"
 
@@ -597,166 +598,194 @@ msgstr "Cómo se ajusta la foto a las miniaturas con forma de afiche en tarjetas
 msgid "more"
 msgstr "más"
 
-#: events/models.py:571 events/templates/events/festival_add_artists.html:21
+#: events/models.py:577 events/templates/events/festival_add_artists.html:21
 #: events/templates/events/festival_add_artists.html:83
 msgid "Headliner"
 msgstr "Cabeza de cartel"
 
-#: events/models.py:572
+#: events/models.py:578
 msgid "Support"
 msgstr "Telonero"
 
-#: events/models.py:573
+#: events/models.py:579
 msgid "Guest"
 msgstr "Invitado"
 
-#: events/models.py:574 events/templates/events/event_detail.html:64
+#: events/models.py:580 events/templates/events/event_detail.html:64
 msgid "Cast"
 msgstr "Elenco"
 
-#: events/models.py:575
+#: events/models.py:581
 msgid "Host"
 msgstr "Animador"
 
-#: events/models.py:576
+#: events/models.py:582
 msgid "Director"
 msgstr "Director"
 
-#: events/models.py:577
+#: events/models.py:583
 msgid "Author / playwright"
 msgstr "Autor / dramaturgo"
 
-#: events/models.py:578
+#: events/models.py:584
 msgid "Choreographer"
 msgstr "Coreografía"
 
-#: events/models.py:580 events/templates/events/festival_add_artists.html:20
+#: events/models.py:587
+msgid "Book / script"
+msgstr "Libreto / guion"
+
+#: events/models.py:589 events/templates/events/festival_add_artists.html:20
 #: events/templates/events/festival_add_artists.html:82
 msgid "Performer"
 msgstr "Intérprete"
 
-#: events/models.py:586 events/templates/events/_lineup_editor.html:16
+#: events/models.py:595 events/templates/events/_lineup_editor.html:16
 #: events/templates/events/_lineup_row.html:14
 msgid "Set time"
 msgstr "Hora de su show"
 
-#: events/models.py:671
+#: events/models.py:620
+msgid "Written by"
+msgstr "Escrita por"
+
+#: events/models.py:620
+msgid "Directed by"
+msgstr "Dirigida por"
+
+#: events/models.py:620
+msgid "Choreography by"
+msgstr "Coreografía de"
+
+#: events/models.py:621
+msgid "Music by"
+msgstr "Música de"
+
+#: events/models.py:621
+msgid "Lyrics by"
+msgstr "Letra de"
+
+#: events/models.py:621
+msgid "Book by"
+msgstr "Libreto de"
+
+#: events/models.py:690
 msgid "Cover of"
 msgstr "Cover de"
 
-#: events/models.py:687
+#: events/models.py:706
 msgid "LP"
 msgstr "LP"
 
-#: events/models.py:688
+#: events/models.py:707
 msgid "EP"
 msgstr "EP"
 
-#: events/models.py:689
+#: events/models.py:708
 msgid "Single"
 msgstr "Single"
 
-#: events/models.py:690
+#: events/models.py:709
 msgid "Compilation"
 msgstr "Compilado"
 
-#: events/models.py:691
+#: events/models.py:710
 msgid "Live"
 msgstr "En vivo"
 
-#: events/models.py:692
+#: events/models.py:711
 msgid "Soundtrack"
 msgstr "Banda sonora"
 
-#: events/models.py:741
+#: events/models.py:760
 msgid "Tape"
 msgstr "Grabación"
 
-#: events/models.py:779
+#: events/models.py:798
 msgid "Ranked list"
 msgstr "Lista numerada"
 
-#: events/models.py:779
+#: events/models.py:798
 msgid "Show numbers next to each entry."
 msgstr "Muestra un número junto a cada elemento."
 
-#: events/models.py:818
+#: events/models.py:837
 msgid "Home city"
 msgstr "Ciudad de residencia"
 
-#: events/models.py:819
+#: events/models.py:838
 msgid "Home country"
 msgstr "País de residencia"
 
-#: events/models.py:820
+#: events/models.py:839
 msgid "Home region or state"
 msgstr "Región o estado"
 
-#: events/models.py:823
+#: events/models.py:842
 msgid "My city"
 msgstr "Mi ciudad"
 
-#: events/models.py:824
+#: events/models.py:843
 msgid "My region"
 msgstr "Mi región"
 
-#: events/models.py:825
+#: events/models.py:844
 msgid "My whole country"
 msgstr "Todo mi país"
 
-#: events/models.py:829
+#: events/models.py:848
 msgid "Upcoming shows by local artists"
 msgstr "Próximos shows de artistas locales"
 
-#: events/models.py:831
+#: events/models.py:850
 msgid "Upcoming shows by international artists"
 msgstr "Próximos shows de artistas internacionales"
 
-#: events/models.py:836
+#: events/models.py:855
 msgid "All"
 msgstr "Todo"
 
-#: events/models.py:844
+#: events/models.py:863
 msgid "Thumbnails"
 msgstr "Miniaturas"
 
-#: events/models.py:845
+#: events/models.py:864
 msgid "As each event is set"
 msgstr "Según cada evento"
 
-#: events/models.py:846
+#: events/models.py:865
 msgid "How photos fit the poster-shaped thumbnails when you browse."
 msgstr "Cómo se ajustan las fotos a las miniaturas con forma de afiche mientras navegas."
 
-#: events/models.py:850
+#: events/models.py:869
 msgid "Mark setlist.fm imports as attended"
 msgstr "Marcar como asistidos los shows importados de setlist.fm"
 
-#: events/models.py:851
+#: events/models.py:870
 msgid "Starts the \"I attended these shows\" box ticked when you import shows from setlist.fm. You can still untick it on each import."
 msgstr "La casilla “Fui a estos shows” aparece marcada al importar shows de setlist.fm. Igual puedes desmarcarla en cada importación."
 
-#: events/models.py:862
+#: events/models.py:881
 msgid "Home page: only artists I follow"
 msgstr "Inicio: solo artistas que sigo"
 
-#: events/models.py:863
+#: events/models.py:882
 msgid "Shows and reviews on the home page are only those with artists you follow."
 msgstr "La página de inicio muestra solo shows y reseñas con artistas que sigues."
 
-#: events/models.py:1016
+#: events/models.py:1035
 msgid "Bug"
 msgstr "Error"
 
-#: events/models.py:1017
+#: events/models.py:1036
 msgid "Idea or feedback"
 msgstr "Idea o comentario"
 
-#: events/models.py:1023
+#: events/models.py:1042
 msgid "Page"
 msgstr "Página"
 
-#: events/models.py:1041 events/templates/base.html:121
+#: events/models.py:1060 events/templates/base.html:121
 #: events/templates/events/artist_import.html:45
 #: events/templates/events/artist_import_new.html:20
 #: events/templates/events/artist_list.html:20
@@ -771,23 +800,23 @@ msgstr "Página"
 msgid "Search"
 msgstr "Buscar"
 
-#: events/models.py:1042
+#: events/models.py:1061
 msgid "Setlist"
 msgstr "Setlist"
 
-#: events/models.py:1043
+#: events/models.py:1062
 msgid "Artist search"
 msgstr "Búsqueda de artistas"
 
-#: events/models.py:1100
+#: events/models.py:1119
 msgid "Running"
 msgstr "En curso"
 
-#: events/models.py:1101
+#: events/models.py:1120
 msgid "Paused"
 msgstr "En pausa"
 
-#: events/models.py:1102
+#: events/models.py:1121
 msgid "Done"
 msgstr "Terminada"
 
@@ -1273,8 +1302,8 @@ msgid "Director: Alfredo Castro&#10;Cast: Amparo Noguera, Héctor Noguera&#10;Ch
 msgstr "Dirección: Alfredo Castro&#10;Elenco: Amparo Noguera, Héctor Noguera&#10;Coreografía: Joan Turner&#10;Alabama Shakes"
 
 #: events/templates/events/_lineup_editor.html:30
-msgid "Roles: Headliner, Support, Guest, Cast, Host, Director, Author, Choreographer, Other (the type of event decides which apply; Music, Lyrics and Book count as Author; anything else becomes Other). After a role, names are separated by commas. Lines without a role are added as Support, or as Cast in theater and dance, and can be separated by •, · , * or ; (not commas, so “Crosby, Stills &amp; Nash” stays one act). Known artists are picked, new names become new artists when you save, and names already in the lineup are skipped."
-msgstr "Roles: Cabeza de cartel, Telonero, Invitado, Elenco, Animador, Director (o Dirección), Autor, Coreografía, Otro (el tipo de evento decide cuáles aplican; Música, Letra y Libreto cuentan como Autor; cualquier otro queda como Otro). Después de un rol, los nombres se separan con comas. Las líneas sin rol se agregan como Telonero, o como Elenco en teatro y danza, y se pueden separar con •, · , * o ; (no con comas, así “Crosby, Stills &amp; Nash” sigue siendo un solo artista). Los artistas conocidos se seleccionan, los nombres nuevos se crean como artistas al guardar y los que ya están en el line-up se omiten."
+msgid "Roles: Headliner, Support, Guest, Cast, Host, Director, Author, Music, Lyrics, Book (or Script), Choreographer, Other (the type of event decides which apply: Music and Lyrics are for theater and dance, Book only for theater; anything else becomes Other). After a role, names are separated by commas. Lines without a role are added as Support, or as Cast in theater and dance, and can be separated by •, · , * or ; (not commas, so “Crosby, Stills &amp; Nash” stays one act). Known artists are picked, new names become new artists when you save, and names already in the lineup are skipped."
+msgstr "Roles: Cabeza de cartel, Telonero, Invitado, Elenco, Animador, Director (o Dirección), Autor, Música, Letra, Libreto (o Guion), Coreografía, Otro (el tipo de evento decide cuáles aplican: Música y Letra son para teatro y danza, Libreto solo para teatro; cualquier otro queda como Otro). Después de un rol, los nombres se separan con comas. Las líneas sin rol se agregan como Telonero, o como Elenco en teatro y danza, y se pueden separar con •, · , * o ; (no con comas, así “Crosby, Stills &amp; Nash” sigue siendo un solo artista). Los artistas conocidos se seleccionan, los nombres nuevos se crean como artistas al guardar y los que ya están en el line-up se omiten."
 
 #: events/templates/events/_lineup_editor.html:32
 msgid "Add to the lineup"
@@ -2040,7 +2069,7 @@ msgstr[1] "%(counter)s seguidores"
 msgid "Import from setlist.fm"
 msgstr "Importar desde setlist.fm"
 
-#: events/templates/events/artist_detail.html:43 events/views.py:1255
+#: events/templates/events/artist_detail.html:43 events/views.py:1265
 msgid "Edit artist"
 msgstr "Editar artista"
 
@@ -2965,14 +2994,6 @@ msgstr "Montaje de"
 msgid "Other dates:"
 msgstr "Otras fechas:"
 
-#: events/templates/events/event_detail.html:67
-msgid "Written by"
-msgstr "Escrita por"
-
-#: events/templates/events/event_detail.html:67
-msgid "Directed by"
-msgstr "Dirigida por"
-
 #: events/templates/events/event_detail.html:78
 #, python-format
 msgid "Setlist · %(counter)s song →"
@@ -3031,7 +3052,7 @@ msgid "YouTube video"
 msgstr "Video de YouTube"
 
 #: events/templates/events/event_detail.html:116
-#: events/templates/events/event_videos.html:44 events/views.py:1413
+#: events/templates/events/event_videos.html:44 events/views.py:1423
 msgid "Whole event"
 msgstr "Evento completo"
 
@@ -3860,7 +3881,7 @@ msgstr "Aún no sigues a ningún artista. Abre la página de un artista y pulsa 
 msgid "Upcoming in %(upcoming_place)s"
 msgstr "Próximamente en %(upcoming_place)s"
 
-#: events/templates/events/home.html:49 events/views.py:60
+#: events/templates/events/home.html:49 events/views.py:62
 msgid "Upcoming"
 msgstr "Próximos"
 
@@ -3997,7 +4018,7 @@ msgstr "Obra"
 msgid "+ New staging of this play"
 msgstr "+ Nuevo montaje de esta obra"
 
-#: events/templates/events/play_detail.html:23 events/views.py:1262
+#: events/templates/events/play_detail.html:23 events/views.py:1272
 msgid "Edit play"
 msgstr "Editar obra"
 
@@ -4079,7 +4100,7 @@ msgstr "Nada que revisar."
 msgid "Tour by"
 msgstr "Gira de"
 
-#: events/templates/events/production_detail.html:24 events/views.py:1259
+#: events/templates/events/production_detail.html:24 events/views.py:1269
 msgid "Edit production"
 msgstr "Editar producción"
 
@@ -4598,7 +4619,7 @@ msgstr "Cuadrícula"
 msgid "%(username)s's reviews"
 msgstr "Reseñas de %(username)s"
 
-#: events/templates/events/venue_detail.html:23 events/views.py:1257
+#: events/templates/events/venue_detail.html:23 events/views.py:1267
 msgid "Edit venue"
 msgstr "Editar recinto"
 
@@ -4730,270 +4751,270 @@ msgstr "Inicia sesión en En Vivo"
 msgid "Track, rate and review the shows you've seen."
 msgstr "Registra, califica y reseña los shows que has visto."
 
-#: events/views.py:54
+#: events/views.py:56
 msgid "Latest date first"
 msgstr "Fecha más reciente primero"
 
-#: events/views.py:55
+#: events/views.py:57
 msgid "Earliest date first"
 msgstr "Fecha más antigua primero"
 
-#: events/views.py:56
+#: events/views.py:58
 msgid "Most logged"
 msgstr "Más registrados"
 
-#: events/views.py:57 events/views.py:466
+#: events/views.py:59 events/views.py:468
 msgid "Highest rated"
 msgstr "Mejor calificados"
 
-#: events/views.py:58
+#: events/views.py:60
 msgid "Recently added"
 msgstr "Agregados recientemente"
 
-#: events/views.py:60
+#: events/views.py:62
 msgid "Any time"
 msgstr "Cualquier fecha"
 
-#: events/views.py:60
+#: events/views.py:62
 msgid "Past"
 msgstr "Pasados"
 
-#: events/views.py:144
+#: events/views.py:146
 #, python-format
 msgid "“%(title)s” hasn't happened yet."
 msgstr "“%(title)s” aún no ha ocurrido."
 
-#: events/views.py:147
+#: events/views.py:149
 msgid "Added to your diary. Rate it or write a review here."
 msgstr "Agregado a tu diario. Califícalo o escribe una reseña aquí."
 
-#: events/views.py:464
+#: events/views.py:466
 msgid "Most events"
 msgstr "Más eventos"
 
-#: events/views.py:465
+#: events/views.py:467
 msgid "Most popular"
 msgstr "Más populares"
 
-#: events/views.py:467
+#: events/views.py:469
 msgid "Last performed"
 msgstr "Última vez en vivo"
 
-#: events/views.py:577 events/views.py:1193
+#: events/views.py:579 events/views.py:1195
 #, python-format
 msgid "Updated the album of %(n)s song."
 msgid_plural "Updated the album of %(n)s songs."
 msgstr[0] "Se actualizó el álbum de %(n)s canción."
 msgstr[1] "Se actualizó el álbum de %(n)s canciones."
 
-#: events/views.py:608
+#: events/views.py:610
 msgid "Album removed."
 msgstr "Álbum eliminado."
 
-#: events/views.py:612
+#: events/views.py:614
 msgid "Type the year with four digits, e.g. 1994."
 msgstr "Escribe el año con cuatro dígitos, por ejemplo 1994."
 
-#: events/views.py:622
+#: events/views.py:624
 #, python-format
 msgid "“%(title)s” is now from %(year)s."
 msgstr "“%(title)s” ahora es de %(year)s."
 
-#: events/views.py:623
+#: events/views.py:625
 #, python-format
 msgid "“%(title)s” has no year now."
 msgstr "“%(title)s” ya no tiene año."
 
-#: events/views.py:627
+#: events/views.py:629
 msgid "Give the album a title."
 msgstr "Ponle un título al álbum."
 
-#: events/views.py:629
+#: events/views.py:631
 #, python-format
 msgid "“%(title)s” is already in %(artist)s's albums."
 msgstr "“%(title)s” ya está en los álbumes de %(artist)s."
 
-#: events/views.py:633
+#: events/views.py:635
 #, python-format
 msgid "Added “%(title)s”."
 msgstr "Se agregó “%(title)s”."
 
-#: events/views.py:784
+#: events/views.py:786
 #, python-format
 msgid "“%(name)s” is no longer linked to a new name."
 msgstr "“%(name)s” ya no está vinculado a un nuevo nombre."
 
-#: events/views.py:788
+#: events/views.py:790
 msgid "Pick the venue it became (one that isn't already one of its names)."
 msgstr "Elige el recinto en que se convirtió (uno que no sea ya uno de sus nombres)."
 
-#: events/views.py:792
+#: events/views.py:794
 #, python-format
 msgid "“%(old)s” is now an earlier name of “%(new)s”."
 msgstr "“%(old)s” es ahora un nombre anterior de “%(new)s”."
 
-#: events/views.py:933
+#: events/views.py:935
 #, python-format
 msgid "The change was also made to %(n)s other date."
 msgid_plural "The changes were also made to %(n)s other dates."
 msgstr[0] "El cambio también se hizo en %(n)s fecha más."
 msgstr[1] "Los cambios también se hicieron en %(n)s fechas más."
 
-#: events/views.py:942
+#: events/views.py:944
 #, python-format
 msgid "“%(title)s” already existed on that day, so this was added to it."
 msgstr "“%(title)s” ya existía ese día, así que esto se agregó ahí."
 
-#: events/views.py:945
+#: events/views.py:947
 msgid "Event saved."
 msgstr "Evento guardado."
 
-#: events/views.py:1000
+#: events/views.py:1002
 #, python-format
 msgid "Added %(n)s artist to the lineup."
 msgid_plural "Added %(n)s artists to the lineup."
 msgstr[0] "Se agregó %(n)s artista al line-up."
 msgstr[1] "Se agregaron %(n)s artistas al line-up."
 
-#: events/views.py:1002
+#: events/views.py:1004
 #, python-format
 msgid "%(n)s was already on it."
 msgid_plural "%(n)s were already on it."
 msgstr[0] "%(n)s ya estaba."
 msgstr[1] "%(n)s ya estaban."
 
-#: events/views.py:1005
+#: events/views.py:1007
 msgid "Nothing added: type at least one artist that isn't on the lineup yet."
 msgstr "No se agregó nada: escribe al menos un artista que todavía no esté en el line-up."
 
-#: events/views.py:1064
+#: events/views.py:1066
 #, python-format
 msgid "Added %(artists)s to the lineup and %(setlists)s."
 msgstr "Se agregaron al line-up %(artists)s y %(setlists)s."
 
-#: events/views.py:1065
+#: events/views.py:1067
 #, python-format
 msgid "%(n)s artist"
 msgid_plural "%(n)s artists"
 msgstr[0] "%(n)s artista"
 msgstr[1] "%(n)s artistas"
 
-#: events/views.py:1066
+#: events/views.py:1068
 #, python-format
 msgid "%(n)s setlist"
 msgid_plural "%(n)s setlists"
 msgstr[0] "%(n)s setlist"
 msgstr[1] "%(n)s setlists"
 
-#: events/views.py:1069
+#: events/views.py:1071
 #, python-format
 msgid "Setlist not added for %(note)s"
 msgstr "No se agregó el setlist de %(note)s"
 
-#: events/views.py:1075
+#: events/views.py:1077
 msgid "Unknown venue"
 msgstr "Recinto desconocido"
 
-#: events/views.py:1241 events/views.py:1311
+#: events/views.py:1251 events/views.py:1321
 #, python-format
 msgid "Deleted “%(name)s”."
 msgstr "Se eliminó “%(name)s”."
 
-#: events/views.py:1256
+#: events/views.py:1266
 #, python-format
 msgid "Artist “%(name)s” created."
 msgstr "Se creó el artista “%(name)s”."
 
-#: events/views.py:1256
+#: events/views.py:1266
 #, python-format
 msgid "Artist “%(name)s” saved."
 msgstr "Se guardó el artista “%(name)s”."
 
-#: events/views.py:1257
+#: events/views.py:1267
 msgid "New venue"
 msgstr "Nuevo recinto"
 
-#: events/views.py:1258
+#: events/views.py:1268
 #, python-format
 msgid "Venue “%(name)s” created."
 msgstr "Se creó el recinto “%(name)s”."
 
-#: events/views.py:1258
+#: events/views.py:1268
 #, python-format
 msgid "Venue “%(name)s” saved."
 msgstr "Se guardó el recinto “%(name)s”."
 
-#: events/views.py:1259
+#: events/views.py:1269
 msgid "New production"
 msgstr "Nueva producción"
 
-#: events/views.py:1260
+#: events/views.py:1270
 #, python-format
 msgid "Production “%(name)s” created."
 msgstr "Se creó la producción “%(name)s”."
 
-#: events/views.py:1261
+#: events/views.py:1271
 #, python-format
 msgid "Production “%(name)s” saved."
 msgstr "Se guardó la producción “%(name)s”."
 
-#: events/views.py:1262
+#: events/views.py:1272
 msgid "New play"
 msgstr "Nueva obra"
 
-#: events/views.py:1263
+#: events/views.py:1273
 #, python-format
 msgid "Play “%(name)s” created."
 msgstr "Se creó la obra “%(name)s”."
 
-#: events/views.py:1263
+#: events/views.py:1273
 #, python-format
 msgid "Play “%(name)s” saved."
 msgstr "Se guardó la obra “%(name)s”."
 
-#: events/views.py:1361
+#: events/views.py:1371
 #, python-format
 msgid "“%(title)s” hasn't happened yet. You can log it from %(date)s."
 msgstr "“%(title)s” todavía no ocurre. Puedes registrarlo desde el %(date)s."
 
-#: events/views.py:1374
+#: events/views.py:1384
 msgid "Saved to your diary."
 msgstr "Guardado en tu diario."
 
-#: events/views.py:1376
+#: events/views.py:1386
 #, python-format
 msgid "Could not save your log: %(errors)s"
 msgstr "No se pudo guardar tu registro: %(errors)s"
 
-#: events/views.py:1449
+#: events/views.py:1459
 msgid "Removed from your diary."
 msgstr "Se quitó de tu diario."
 
-#: events/views.py:1496
+#: events/views.py:1506
 msgid "Missing setlist id."
 msgstr "Falta el id del setlist."
 
-#: events/views.py:1505
+#: events/views.py:1515
 msgid "Something went wrong importing that setlist. Nothing was saved."
 msgstr "Algo salió mal al importar ese setlist. No se guardó nada."
 
-#: events/views.py:1509
+#: events/views.py:1519
 #, python-format
 msgid "Imported %(n)s song for %(artist)s."
 msgid_plural "Imported %(n)s songs for %(artist)s."
 msgstr[0] "Se importó %(n)s canción de %(artist)s."
 msgstr[1] "Se importaron %(n)s canciones de %(artist)s."
 
-#: events/views.py:1524
+#: events/views.py:1534
 msgid "Pick a date."
 msgstr "Elige una fecha."
 
-#: events/views.py:1528
+#: events/views.py:1538
 #, python-format
 msgid "Added %(date)s. Edit it if anything is different that day."
 msgstr "Se agregó el %(date)s. Edítalo si algo cambia ese día."
 
-#: events/views.py:1531
+#: events/views.py:1541
 msgid "The show already has that date."
 msgstr "El espectáculo ya tiene esa fecha."
 

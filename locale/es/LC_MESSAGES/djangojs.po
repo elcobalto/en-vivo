@@ -3,7 +3,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: En Vivo\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-23 21:30+0000\n"
+"POT-Creation-Date: 2026-11-23 22:14+0000\n"
 "PO-Revision-Date: 2026-11-20 18:00-0300\n"
 "Last-Translator: En Vivo\n"
 "Language-Team: Spanish\n"
@@ -21,25 +21,25 @@ msgstr "Cabezas de cartel"
 msgid "Loading your events…"
 msgstr "Cargando tus eventos…"
 
-#: events/static/events/lineup-order.js:188
+#: events/static/events/lineup-order.js:196
 msgid "Search artists…"
 msgstr "Buscar artistas…"
 
-#: events/static/events/lineup-order.js:189
+#: events/static/events/lineup-order.js:197
 msgid "Artist"
 msgstr "Artista"
 
-#: events/static/events/lineup-order.js:195
+#: events/static/events/lineup-order.js:203
 msgid "New artist: created when you save."
 msgstr "Artista nuevo: se crea al guardar."
 
-#: events/static/events/lineup-order.js:302
+#: events/static/events/lineup-order.js:333
 msgid "%(added)s added, %(skipped)s already in the lineup. Save to keep them."
 msgid_plural "%(added)s added, %(skipped)s already in the lineup. Save to keep them."
 msgstr[0] "Se agregó %(added)s; %(skipped)s ya estaban en el line-up. Guarda para conservarlos."
 msgstr[1] "Se agregaron %(added)s; %(skipped)s ya estaban en el line-up. Guarda para conservarlos."
 
-#: events/static/events/lineup-order.js:305
+#: events/static/events/lineup-order.js:336
 msgid "%(added)s added. Save to keep them."
 msgid_plural "%(added)s added. Save to keep them."
 msgstr[0] "Se agregó %(added)s. Guarda para conservarlo."

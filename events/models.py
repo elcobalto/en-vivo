@@ -517,8 +517,9 @@ class Event(TimestampedModel):
 
 
 
-# Roles that credit someone without them being an act you watch (theater authors, directors, choreographers).
-CREDIT_ROLES = ("author", "director", "choreographer")
+# Roles that credit someone without them being an act you watch (theater authors, directors, choreographers,
+# and a play's music, lyrics and book).
+CREDIT_ROLES = ("author", "director", "choreographer", "music", "lyrics", "book")
 
 # Which event types use the "Original play" and "Festival" fields.
 PLAY_TYPES = ("theater", "dance")
@@ -533,8 +534,11 @@ ROLES_BY_TYPE = {
     "festival": ("headliner", "host", "none"),
     "music": ("headliner", "support", "guest", "host", "other", "none"),
     "comedy": ("headliner", "support", "guest", "cast", "host", "director", "author", "other", "none"),
-    "theater": ("cast", "support", "guest", "host", "director", "author", "choreographer", "other", "none"),
-    "dance": ("cast", "support", "guest", "host", "director", "author", "choreographer", "other", "none"),
+    # Music, Lyrics and Book are only for plays (dance has music and lyrics, but no book).
+    "theater": ("cast", "support", "guest", "host", "director", "author", "music", "lyrics", "book", "choreographer",
+                "other", "none"),
+    "dance": ("cast", "support", "guest", "host", "director", "author", "music", "lyrics", "choreographer", "other",
+              "none"),
 }
 
 
@@ -554,6 +558,8 @@ def fit_role(role: str, event_type: str) -> str:
     allowed = allowed_roles(event_type)
     if role in allowed:
         return role
+    if role in CREDIT_ROLES:  # a credit stays a credit: Author if the type has it, else Other
+        return "author" if "author" in allowed else ("other" if "other" in allowed else "none")
     return "cast" if role == "headliner" and "cast" in allowed else "none"
 
 
@@ -576,6 +582,9 @@ class EventArtist(models.Model):
         DIRECTOR = "director", _("Director")
         AUTHOR = "author", _("Author / playwright")
         CHOREOGRAPHER = "choreographer", _("Choreographer")
+        MUSIC = "music", _("Music")
+        LYRICS = "lyrics", _("Lyrics")
+        BOOK = "book", _("Book / script")
         OTHER = "other", _("Other")
         NONE = "none", _("Performer")  # on the bill below the headliners (festival acts that aren't headliners or hosts)
 
@@ -601,6 +610,16 @@ class EventArtist(models.Model):
 
     def __str__(self) -> str:
         return f"{self.artist} @ {self.event} ({self.get_role_display()})"
+
+    def credit_label(self) -> str:
+        """How a credit reads before the name on an event: “Written by”, “Music by”…"""
+        return str(CREDIT_LABELS.get(self.role, self.get_role_display()))
+
+
+CREDIT_LABELS = {
+    "author": _("Written by"), "director": _("Directed by"), "choreographer": _("Choreography by"),
+    "music": _("Music by"), "lyrics": _("Lyrics by"), "book": _("Book by"),
+}
 
 
 # --------------------------------------------------------------------------- diary

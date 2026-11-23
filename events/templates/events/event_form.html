@@ -15,6 +15,8 @@
     function fit(role, type) {
       var allowed = rules.roles[type] || rules.all;
       if (allowed.indexOf(role) >= 0) return role;
+      if (["author", "director", "choreographer", "music", "lyrics", "book"].indexOf(role) >= 0)  // a credit stays a credit
+        return allowed.indexOf("author") >= 0 ? "author" : (allowed.indexOf("other") >= 0 ? "other" : "none");
       return role === "headliner" && allowed.indexOf("cast") >= 0 ? "cast" : "none";
     }
     function apply() {

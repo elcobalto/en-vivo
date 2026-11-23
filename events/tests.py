@@ -2451,6 +2451,36 @@ class PlayTests(BaseTestCase):
         self.assertEqual(list(Play.objects.get(title="Yerma").authors.all()), [lorca])
         self.assertEqual(Artist.objects.count(), 1)
 
+    def test_a_staging_credits_the_plays_music_lyrics_and_book_in_their_own_roles(self):
+        from events.models import Artist, Play
+        bernstein, sondheim, laurents = (Artist.objects.create(name=n) for n in ("Bernstein", "Sondheim", "Laurents"))
+        play = Play.objects.create(title="West Side Story")
+        play.music_by.add(bernstein)
+        play.lyrics_by.add(sondheim)
+        play.book_by.add(laurents)
+        self.client.force_login(self.user)
+        form_page = self.client.get(reverse("events:event_create") + f"?play={play.pk}")
+        mgmt = form_page.context["formset"].management_form
+        self.client.post(reverse("events:event_create") + f"?play={play.pk}", {
+            "title": "", "event_type": EventType.THEATER, "date": "2024-05-01", "play": play.pk,
+            "image_display": "fit", mgmt.prefix + "-TOTAL_FORMS": "0", mgmt.prefix + "-INITIAL_FORMS": "0"})
+        event = Event.objects.get(play=play)
+        self.assertEqual(dict(event.eventartist_set.values_list("artist__name", "role")),
+                         {"Bernstein": "music", "Sondheim": "lyrics", "Laurents": "book"})
+        page = self.client.get(event.get_absolute_url())
+        for text in ("Music by", "Lyrics by", "Book by"):
+            self.assertContains(page, text)
+
+    def test_music_lyrics_and_book_are_only_for_plays(self):
+        from events.models import allowed_roles, fit_role
+        self.assertTrue({"music", "lyrics", "book"} <= set(allowed_roles("theater")))
+        self.assertTrue({"music", "lyrics"} <= set(allowed_roles("dance")))
+        self.assertNotIn("book", allowed_roles("dance"))
+        for event_type in ("music", "comedy", "festival", "other"):
+            self.assertFalse({"music", "lyrics", "book"} & set(allowed_roles(event_type)), event_type)
+        self.assertEqual(fit_role("book", "dance"), "author")
+        self.assertEqual(fit_role("music", "music"), "other")
+
     def test_merging_artists_moves_their_play_credits(self):
         from events.merge import merge_artists
         from events.models import Artist, Play
@@ -4337,8 +4367,9 @@ class EventTypeRulesTests(BaseTestCase):
             self.assertIn("choreographer", allowed_roles(event_type))
         self.assertNotIn("choreographer", allowed_roles("comedy"))
         self.assertIn("headliner", allowed_roles("comedy"))
+        play_only = {"music", "lyrics", "book"}  # a play's music, lyrics and book: theater and dance only
         for event_type in ("other", "multicultural"):
-            self.assertEqual(len(allowed_roles(event_type)), len(EventArtist.Role.choices))
+            self.assertEqual(set(allowed_roles(event_type)), {v for v, _ in EventArtist.Role.choices} - play_only)
 
     def test_labels_a_type_doesnt_use_are_refused(self):
         for event_type, roles in [("festival", ["headliner", "support"]), ("music", ["headliner", "cast"]),

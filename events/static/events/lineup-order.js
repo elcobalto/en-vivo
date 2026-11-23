@@ -6,7 +6,7 @@
   if (!list) return;
   var dragging = null;
 
-  var CREDITS = ["author", "director"];
+  var CREDITS = ["author", "director", "choreographer", "music", "lyrics", "book"];
 
   function typeHasHeadliners() {
     var rules = document.getElementById("event-type-rules"), type = document.getElementById("id_event_type");
@@ -259,9 +259,11 @@
     author: "author", authors: "author", autor: "author", autora: "author", autores: "author",
     playwright: "author", dramaturgia: "author", dramaturgo: "author", dramaturga: "author", "written by": "author",
     "escrita por": "author", texto: "author",
-    // The original production's credits (music, lyrics, book) are credits too, not acts on stage.
-    music: "author", "music by": "author", musica: "author", composer: "author", compositor: "author",
-    lyrics: "author", letra: "author", letras: "author", book: "author", libreto: "author",
+    // The original production's credits: their own roles in plays (dance has music and lyrics, no book).
+    music: "music", "music by": "music", musica: "music", composer: "music", compositor: "music", compositora: "music",
+    "musica original": "music", lyrics: "lyrics", "lyrics by": "lyrics", letra: "lyrics", letras: "lyrics",
+    letrista: "lyrics", book: "book", "book by": "book", libreto: "book", libretista: "book", guion: "book",
+    script: "book", screenplay: "book",
     choreographer: "choreographer", choreography: "choreographer", coreografia: "choreographer",
     coreografo: "choreographer", coreografa: "choreographer",
     other: "other", otro: "other", otros: "other", crew: "other", equipo: "other"
@@ -275,9 +277,15 @@
     }
     return role || "other";
   }
-  function usable(select, role) {
+  function usable(select, role) {  // the role menu has it and the event's type uses it
     var o = select && select.querySelector('option[value="' + role + '"]');
-    return o && !o.disabled ? role : null;
+    if (!o || o.disabled) return null;
+    var rules = document.getElementById("event-type-rules"), type = document.getElementById("id_event_type");
+    if (rules && type) {
+      rules = JSON.parse(rules.textContent);
+      if ((rules.roles[type.value] || rules.all).indexOf(role) < 0) return null;
+    }
+    return role;
   }
   function defaultRole() {
     var type = document.getElementById("id_event_type");
@@ -314,7 +322,9 @@
       var role = row.querySelector('select[name$="-role"]');
       if (role) {
         var wanted = entry.word ? roleFor(entry.word, role) : fallback;
-        role.value = usable(role, wanted) || usable(role, "other") || usable(role, fallback) || role.value;
+        // A credit this type doesn't have (Book in dance, Music at a concert) falls back to Author, then Other.
+        var credit = CREDITS.indexOf(wanted) >= 0 ? usable(role, "author") : null;
+        role.value = usable(role, wanted) || credit || usable(role, "other") || usable(role, fallback) || role.value;
       }
       added++;
     });
