@@ -5034,6 +5034,39 @@ class ArtistFollowTests(BaseTestCase):
     def _follow(self, artist):
         return self.client.post(reverse("events:artist_follow_toggle", args=[artist.pk]))
 
+    def _edit_profile(self, **data):
+        return self.client.post(reverse("events:profile_edit"), {"username": "ana", **data}, follow=True)
+
+    def test_logging_a_show_follows_its_artists_when_chosen(self):
+        log_url = reverse("events:log_save", args=[self.event.pk])
+        self.client.post(log_url, {"rating": "8"})
+        self.assertFalse(self.user.artist_follows.exists())  # off by default
+        self._edit_profile(follow_logged_artists="on")
+        self.assertTrue(get_user_model().objects.get(pk=self.user.pk).profile.follow_logged_artists)
+        self.assertFalse(self.user.artist_follows.exists())  # the bulk option wasn't ticked
+        past = Event.objects.create(title="Other before", venue=self.venue, date=date(2000, 1, 1))
+        EventArtist.objects.create(event=past, artist=self.other)
+        self.client.post(reverse("events:log_save", args=[past.pk]), {"rating": "6"})
+        self.assertEqual(set(self.user.artist_follows.values_list("artist__name", flat=True)), {"Other Band"})
+
+    def test_unticked_act_is_not_followed(self):
+        self._edit_profile(follow_logged_artists="on")
+        EventArtist.objects.create(event=self.event, artist=self.other)
+        self.client.post(reverse("events:log_save", args=[self.event.pk]),
+                         {"rating": "8", "acts_submitted": "1", f"act_seen_{self.green_day.pk}": "on"})
+        self.assertEqual(list(self.user.artist_follows.values_list("artist__name", flat=True)), ["Green Day"])
+
+    def test_profile_offers_to_follow_every_logged_artist(self):
+        self.client.post(reverse("events:log_save", args=[self.event.pk]), {"rating": "8"})
+        page = self.client.get(reverse("events:profile_edit"))
+        self.assertContains(page, "Also follow the 1 artist you&#x27;ve already logged")
+        page = self._edit_profile(follow_logged_now="on")  # needs the main option too
+        self.assertFalse(self.user.artist_follows.exists())
+        page = self._edit_profile(follow_logged_artists="on", follow_logged_now="on")
+        self.assertContains(page, "You now follow 1 more artist.")
+        self.assertEqual(list(self.user.artist_follows.values_list("artist__name", flat=True)), ["Green Day"])
+        self.assertNotIn("follow_logged_now", self.client.get(reverse("events:profile_edit")).context["form"].fields)
+
     def test_follow_and_unfollow_from_artist_page(self):
         self.assertContains(self.client.get(self.green_day.get_absolute_url()), "Follow")
         self.assertRedirects(self._follow(self.green_day), self.green_day.get_absolute_url())
