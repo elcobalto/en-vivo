@@ -5326,3 +5326,31 @@ class VenueRenameTests(BaseTestCase):
         self.client.force_login(bob)
         self.assertEqual(self._rename(self.arena, self.movistar, "").status_code, 403)
         self.assertNotContains(self.client.get(self.arena.get_absolute_url()), "It changed its name")
+
+
+class StatsYearFilterTests(BaseTestCase):
+    def test_the_same_stats_for_one_year(self):
+        old = Artist.objects.create(name="Old Band")
+        new = Artist.objects.create(name="New Band")
+        for artist, day in [(old, date(2019, 5, 1)), (new, date(2023, 3, 1)), (new, date(2023, 9, 1))]:
+            event = Event.objects.create(title=f"{artist.name} {day.year}", venue=self.venue, date=day)
+            EventArtist.objects.create(event=event, artist=artist)
+            Log.objects.create(user=self.user, event=event)
+        url = reverse("events:user_stats", args=["ana"])
+        every = self.client.get(url)
+        self.assertEqual([y for y, _ in every.context["years"]], [2023, 2019])
+        page = self.client.get(url, {"year": "2019"})
+        self.assertEqual(page.context["year"], 2019)
+        self.assertEqual([r["name"] for r in page.context["top_artists"]], ["Old Band"])
+        self.assertEqual(page.context["owner_logs"].count(), 1)
+        self.assertEqual(page.context["this_year"]["year"], 2019)  # the month/week chart of that year
+        self.assertEqual(page.context["history_logs"].count(), 3)  # "Events by year" still shows every year
+        self.assertEqual([c.n for c in page.context["top_types"]], [1])
+        # The year carries over to "See all", the type buttons and the diary links.
+        self.assertContains(page, f'{reverse("events:user_ranking", args=["ana", "artists"])}?year=2019')
+        self.assertEqual(page.context["event_types"][0][3], "type=music&year=2019&")
+        self.assertContains(page, '?year=2019&amp;city=Santiago')
+        ranking = self.client.get(reverse("events:user_ranking", args=["ana", "artists"]), {"year": "2023"})
+        self.assertEqual([r["name"] for r in ranking.context["rows"]], ["New Band"])
+        self.assertEqual(ranking.context["title"], "Most seen artists · 2023")
+        self.assertIsNone(self.client.get(url, {"year": "nope"}).context["year"])

@@ -88,6 +88,20 @@ def _stats_types(request: HttpRequest) -> list[str]:
     return [t for t in dict.fromkeys(request.GET.getlist("type")) if t in EventType.values]
 
 
+def _stats_filter(request: HttpRequest):
+    """The stats pages' filter: the event types (?type=, several allowed) and the year (?year=)."""
+    from .stats import Filter
+
+    raw = request.GET.get("year") or ""
+    year = int(raw) if raw.isdigit() and 1900 <= int(raw) <= 2100 else None
+    return Filter(tuple(_stats_types(request)), year)
+
+
+def _filter_qs(f) -> str:
+    """"type=music&year=2024&" (or ""): a stats filter, to put in front of other query parameters."""
+    return _types_qs(list(f.types)) + (f"year={f.year}&" if f.year else "")
+
+
 def _types_qs(types: list[str]) -> str:
     """"type=music&type=festival&" (or ""), to put in front of other query parameters."""
     return "".join(f"type={t}&" for t in types)
@@ -119,7 +133,7 @@ def profile(request: HttpRequest, username: str) -> HttpResponse:
     )
 
 
-def _this_year(owner, types: list[str]) -> dict:
+def _this_year(owner, f) -> dict:
     """The current year's shows by month and by week (7-day blocks from 1 January), for the stats page.
 
     {"year", "total", "periods": [("months", bars), ("weeks", bars)]}; each bar is {"label", "short", "count",
@@ -129,10 +143,10 @@ def _this_year(owner, types: list[str]) -> dict:
     from django.utils.formats import date_format
 
     today = timezone.localdate()
-    year = today.year
+    year = f.year or today.year  # the year picked, or this one
     logs = Log.objects.filter(event__date__year=year, **({"user": owner} if owner is not None else {}))
-    if types:
-        logs = logs.filter(event__event_type__in=types)
+    if f.types:
+        logs = logs.filter(event__event_type__in=f.types)
     dates = list(logs.values_list("event__date", flat=True))
     months = [0] * 12
     weeks = [0] * 53  # day 365 (or 366) of the year starts a 53rd block
@@ -142,7 +156,7 @@ def _this_year(owner, types: list[str]) -> dict:
 
     # A bar with shows opens the person's diary for that month or week (the site's stats have no such page).
     diary = reverse("events:user_diary", args=[owner.get_username()]) if owner is not None else ""
-    type_qs = _types_qs(types)
+    type_qs = _types_qs(list(f.types))
 
     def bars(counts, starts, label, short, end):
         peak = max(counts) or 1
@@ -175,13 +189,13 @@ def _this_year(owner, types: list[str]) -> dict:
     }
 
 
-def _rank_rows(kind: str, items, owner, types: list[str], first: int = 1) -> list[dict]:
+def _rank_rows(kind: str, items, owner, f, first: int = 1) -> list[dict]:
     """Rows for a ranking's cards or list: {"rank", "url", "name", "n", "unit", "picture", "sub", "avg"}.
     Venues and cities need their ``picture`` set first (``stats.venue_images`` / ``city_images``) to show one."""
     # A person's: their shows (seen_by, their diary); the site's: the events list.
     seen_by = f"?seen_by={quote(owner.get_username())}" if owner is not None else ""
-    shows_in = (reverse("events:user_diary", args=[owner.get_username()]) + f"?{_types_qs(types)}" if owner is not None
-                else reverse("events:event_list") + "?")
+    shows_in = (reverse("events:user_diary", args=[owner.get_username()]) + f"?{_filter_qs(f)}" if owner is not None
+                else reverse("events:event_list") + (f"?year={f.year}&" if f.year else "?"))
     rows = []
     for rank, item in enumerate(items, start=first):
         if kind == "cities":
@@ -197,61 +211,84 @@ def _rank_rows(kind: str, items, owner, types: list[str], first: int = 1) -> lis
     return rows
 
 
+def _years(logs, qs: str) -> list[tuple[int, str]]:
+    """[(year, its query string)] for the years these diary entries have shows in, newest first."""
+    from django.db.models.functions import ExtractYear
+
+    years = (logs.exclude(event__date=None).annotate(y=ExtractYear("event__date"))
+             .values_list("y", flat=True).distinct().order_by("-y"))
+    return [(y, f"{qs}year={y}") for y in years]
+
+
+def _filtered_title(title: str, f) -> str:
+    """"Most seen artists · Music, Festival · 2024"."""
+    labels = dict(EventType.choices)
+    bits = [title, *([", ".join(str(labels[t]) for t in f.types)] if f.types else []), *([str(f.year)] if f.year else [])]
+    return " · ".join(bits)
+
+
 def stats_context(request: HttpRequest, owner) -> dict:
     """What a person (or with ``owner=None``, everyone) saw most, rated highest and heard — for every event or
     the types picked (?type=, several allowed)."""
     from . import stats
 
-    types = _stats_types(request)
-    logs = stats.logs_of(owner, types)
-    types_logged = set(stats.logs_of(owner, []).values_list("event__event_type", flat=True).distinct())
-    type_qs = _types_qs(types)
+    f = _stats_filter(request)
+    types, year = list(f.types), f.year
+    logs = stats.logs_of(owner, f)
+    types_logged = set(stats.logs_of(owner, stats.Filter()).values_list("event__event_type", flat=True).distinct())
+    type_qs = _filter_qs(f)
+    years_qs = _types_qs(types)  # the year bars and the year picker: every year, of these types
     home = (get_profile(owner).home_country or None) if owner is not None else None
-    seen = stats.seen_artists(owner, types)
-    venues = list(stats.seen_venues(owner, types)[:5])
+    seen = stats.seen_artists(owner, f)
+    venues = list(stats.seen_venues(owner, f)[:5])
     stats.venue_images(venues)
-    cities = list(stats.seen_cities(owner, types)[:5])
+    cities = list(stats.seen_cities(owner, f)[:5])
     stats.city_images(owner, cities)
     if owner is not None:
         diary = reverse("events:user_diary", args=[owner.get_username()])
-        years_url = diary + (f"?{type_qs.rstrip('&')}" if types else "")
+        years_url = diary + (f"?{years_qs.rstrip('&')}" if types else "")
         country_base = f"{diary}?{type_qs}"
         ranking_base = reverse("events:user_ranking", args=[owner.get_username(), "x"])[:-2]
     else:  # the events list takes one type
         events = reverse("events:event_list")
         years_url = events + (f"?type={types[0]}" if len(types) == 1 else "")
-        country_base = events + (f"?type={types[0]}&" if len(types) == 1 else "?")
+        country_base = events + "?" + (f"type={types[0]}&" if len(types) == 1 else "") + (f"year={year}&" if year else "")
         ranking_base = reverse("events:site_ranking", args=["x"])[:-2]
     context = {
         "owner": owner,
         "types": types,
-        # The filter: every event, or any of the types logged; each button adds or removes its type.
-        "event_types": [(value, label, value in types, _types_qs([t for t in types if t != value] if value in types
-                                                                   else [*types, value]))
+        "year": year,
+        # The filter: every event, or any of the types logged; each button adds or removes its type (the year stays).
+        "event_types": [(value, label, value in types, _filter_qs(stats.Filter(
+                            tuple(t for t in types if t != value) if value in types else (*types, value), year)))
                         for value, label in EventType.choices if value in types_logged],
+        # …and every year, or one of the years with shows (the types stay).
+        "years": _years(stats.logs_of(owner, stats.Filter(f.types)), years_qs),
+        "all_years_qs": years_qs.rstrip("&"),
+        "history_logs": stats.logs_of(owner, stats.Filter(f.types)),
         "type_qs": type_qs,
-        "ranking_qs": f"?{type_qs.rstrip('&')}" if types else "",
+        "ranking_qs": f"?{type_qs.rstrip('&')}" if type_qs else "",
         "ranking_base": ranking_base,  # + kind + "/": a "See all" page
         "country_base": country_base,  # + "country=GB": shows in a country
         "diary_url": years_url,  # the year bars' links (+ year=)
         "owner_logs": logs,
-        "this_year": _this_year(owner, types),
-        "world": stats.world(owner, types),
+        "this_year": _this_year(owner, f),
+        "world": stats.world(owner, f),
         "home_country": home,
         # Only acts actually seen count.
-        "top_artists": [] if home else _rank_rows("artists", seen[:5], owner, types),
-        "local_artists": _rank_rows("artists", seen.filter(country=home.code)[:5], owner, types) if home else [],
+        "top_artists": [] if home else _rank_rows("artists", seen[:5], owner, f),
+        "local_artists": _rank_rows("artists", seen.filter(country=home.code)[:5], owner, f) if home else [],
         "foreign_artists": _rank_rows("artists", seen.exclude(country=home.code).exclude(country="")[:5], owner,
-                                      types) if home else [],
-        "rated_artists": _rank_rows("rated-artists", stats.rated_artists(owner, types)[:5], owner, types),
+                                      f) if home else [],
+        "rated_artists": _rank_rows("rated-artists", stats.rated_artists(owner, f)[:5], owner, f),
         "min_ratings": stats.MIN_ARTIST_RATINGS,
-        "top_venues": _rank_rows("venues", venues, owner, types),
-        "top_cities": _rank_rows("cities", cities, owner, types),
+        "top_venues": _rank_rows("venues", venues, owner, f),
+        "top_cities": _rank_rows("cities", cities, owner, f),
     }
-    if stats.has_setlists(owner, types):
-        context.update(top_songs=stats.top_songs(owner, types), song_years=stats.song_years(owner, types))
+    if stats.has_setlists(owner, f):
+        context.update(top_songs=stats.top_songs(owner, f), song_years=stats.song_years(owner, f))
     if not types:  # across every event: which kinds of shows and where the artists come from
-        event_types, countries_ = stats.event_types(owner), stats.artist_countries(owner)
+        event_types, countries_ = stats.event_types(owner, f), stats.artist_countries(owner, f)
         context.update(
             top_types=event_types[:5], top_countries=countries_[:5],
             rated_types=stats.highest_rated(event_types), rated_countries=stats.highest_rated(countries_),
@@ -279,12 +316,13 @@ def ranking_context(request: HttpRequest, owner, kind: str) -> dict:
 
     if kind not in stats.RANKING_TITLES:
         raise Http404
-    types = _stats_types(request)  # the stats page's type filter carries over
+    f = _stats_filter(request)  # the stats page's filter carries over
+    types = list(f.types)
     view = "grid" if request.GET.get("view") == "grid" else "list"
     home = get_profile(owner).home_country if owner is not None else None
     title = str(stats.RANKING_TITLES[kind])
     if kind in ("artists", "local-artists", "foreign-artists"):
-        qs = stats.seen_artists(owner, types)
+        qs = stats.seen_artists(owner, f)
         if kind != "artists":
             if not home:
                 raise Http404
@@ -292,11 +330,11 @@ def ranking_context(request: HttpRequest, owner, kind: str) -> dict:
             if kind == "local-artists":
                 title = f"{title} · {home.name}"
     elif kind == "rated-artists":
-        qs = stats.rated_artists(owner, types)
+        qs = stats.rated_artists(owner, f)
     elif kind == "venues":
-        qs = stats.seen_venues(owner, types)
+        qs = stats.seen_venues(owner, f)
     else:
-        qs = stats.seen_cities(owner, types)
+        qs = stats.seen_cities(owner, f)
     page = Paginator(qs, RANKING_PAGE[view]).get_page(request.GET.get("page"))
     items = list(page.object_list)
     offset = page.start_index() - 1 if items else 0
@@ -304,14 +342,13 @@ def ranking_context(request: HttpRequest, owner, kind: str) -> dict:
         stats.venue_images(items)
     if kind == "cities" and view == "grid":
         stats.city_images(owner, items)
-    labels = dict(EventType.choices)
-    types_qs = _types_qs(types)
+    types_qs = _filter_qs(f)
     stats_url = reverse("events:user_stats", args=[owner.get_username()]) if owner is not None \
         else reverse("events:site_stats")
-    return {"owner": owner, "rows": _rank_rows(kind, items, owner, types, first=offset + 1), "page": page,
+    return {"owner": owner, "rows": _rank_rows(kind, items, owner, f, first=offset + 1), "page": page,
             "view": view, "kind": kind, "types_qs": types_qs,
-            "stats_url": stats_url + (f"?{types_qs.rstrip('&')}" if types else ""),
-            "title": f"{title} · {', '.join(str(labels[t]) for t in types)}" if types else title}
+            "stats_url": stats_url + (f"?{types_qs.rstrip('&')}" if types_qs else ""),
+            "title": _filtered_title(title, f)}
 
 
 SONG_MINIMUMS = [2, 3, 5, 10]  # "Heard at least … times" on the songs list (2 by default)
@@ -324,20 +361,18 @@ def songs_context(request: HttpRequest, owner) -> dict:
 
     from . import stats
 
-    types = _stats_types(request)
+    f = _stats_filter(request)
     raw = request.GET.get("min") or ""
     min_times = int(raw) if raw.isdigit() and int(raw) in SONG_MINIMUMS else SONG_MINIMUMS[0]
-    page = Paginator(stats.heard_songs(owner, types, min_times), 50).get_page(request.GET.get("page"))
+    page = Paginator(stats.heard_songs(owner, f, min_times), 50).get_page(request.GET.get("page"))
     page.object_list = list(page.object_list)
     stats.link_originals(page.object_list)
-    types_qs = _types_qs(types)
+    types_qs = _filter_qs(f)
     stats_url = reverse("events:user_stats", args=[owner.get_username()]) if owner is not None \
         else reverse("events:site_stats")
-    labels = dict(EventType.choices)
-    title = gettext("Most heard songs")
-    return {"owner": owner, "page": page, "types": types, "min_times": min_times, "min_choices": SONG_MINIMUMS,
-            "stats_url": stats_url + (f"?{types_qs.rstrip('&')}" if types else ""),
-            "title": f"{title} · {', '.join(str(labels[t]) for t in types)}" if types else title}
+    return {"owner": owner, "page": page, "types": list(f.types), "year": f.year, "min_times": min_times,
+            "min_choices": SONG_MINIMUMS, "stats_url": stats_url + (f"?{types_qs.rstrip('&')}" if types_qs else ""),
+            "title": _filtered_title(gettext("Most heard songs"), f)}
 
 
 def user_songs(request: HttpRequest, username: str) -> HttpResponse:

@@ -12,6 +12,7 @@
   {# How many times a song must have been heard to be listed. #}
   <form method="get" class="d-flex align-items-center gap-2 mb-2 small">
     {% for t in types %}<input type="hidden" name="type" value="{{ t }}" />{% endfor %}
+    {% if year %}<input type="hidden" name="year" value="{{ year }}" />{% endif %}
     <label for="min-times">{% translate "Heard at least" %}</label>
     <select class="form-select form-select-sm w-auto" id="min-times" name="min" onchange="this.form.submit()">
       {% for n in min_choices %}<option value="{{ n }}"{% if n == min_times %} selected{% endif %}>{% blocktranslate count counter=n %}{{ counter }} time{% plural %}{{ counter }} times{% endblocktranslate %}</option>{% endfor %}

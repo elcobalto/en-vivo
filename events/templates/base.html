@@ -99,7 +99,8 @@
       {% translate "En Vivo is in beta, so things may break or change." %}
       {% if request.resolver_match.url_name != "feedback" %}<a href="{% url 'events:feedback' %}?next={{ request.get_full_path|urlencode }}">{% translate "Report a bug or send feedback" %}</a>{% endif %}
     </div>
-    <nav class="navbar navbar-expand-lg navbar-dark">
+    {# Collapses below 1200px: between 992 and 1200 the links, search box and buttons don't fit on one line, even less with the longer Spanish labels. #}
+    <nav class="navbar navbar-expand-xl navbar-dark">
       <div class="container">
         <a class="navbar-brand" href="{% url 'events:home' %}">EN <span>VIVO</span></a>
         <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#nav" aria-controls="nav" aria-expanded="false" aria-label="{% translate 'Menu' %}">
@@ -116,17 +117,17 @@
               <li class="nav-item"><a class="nav-link" href="{% url 'events:diary' %}">{% translate "Diary" %}</a></li>
             {% endif %}
           </ul>
-          <form class="d-flex me-lg-2 my-2 my-lg-0" method="get" action="{% url 'events:search' %}">
+          <form class="d-flex me-xl-2 my-2 my-xl-0" method="get" action="{% url 'events:search' %}">
             <input class="form-control form-control-sm" type="search" name="q" placeholder="{% translate 'Search events, artists, venues' %}" aria-label="{% translate 'Search' %}" />
           </form>
           {# Phones: admin and create buttons on one row, your account on the next; one row on wide screens. #}
-          <div class="d-flex flex-column flex-lg-row align-items-start align-items-lg-center gap-2 text-nowrap">
+          <div class="d-flex flex-column flex-xl-row align-items-start align-items-xl-center gap-2 text-nowrap">
             {% if user.is_authenticated %}
               <div class="d-flex gap-2">
                 {% if user|is_admin %}{% open_feedback_count as open_feedback %}<a class="btn btn-sm btn-outline-info" href="{% url 'events:admin_tools' %}" title="{% translate 'Feedback from beta users and setlist.fm API usage' %}">{% translate "Admin" %}{% if open_feedback %} <span class="badge text-bg-info">{{ open_feedback }}</span>{% endif %}</a>{% endif %}
                 <div class="dropdown">
                   <button class="btn btn-sm btn-success dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">{% translate "+ Event" %}</button>
-                  <ul class="dropdown-menu dropdown-menu-lg-end">
+                  <ul class="dropdown-menu dropdown-menu-xl-end">
                     <li><a class="dropdown-item" href="{% url 'events:event_create' %}">{% translate "New event" %}</a></li>
                     <li><a class="dropdown-item" href="{% url 'events:setlistfm_shows' %}" title="{% translate 'Create events from setlist.fm' %}">{% translate "From setlist.fm" %}</a></li>
                   </ul>

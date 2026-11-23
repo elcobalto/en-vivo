@@ -1,6 +1,7 @@
 """A person's stats: what they've seen most, rated highest, and heard — for one or more event types, or all.
 
-Every function takes the person and the event types to count (an empty list: every event). With no person
+Every function takes the person and a ``Filter``: the event types to count (none: every event) and the year (none:
+every year). With no person
 (``owner=None``) they count everyone's diaries: the site's stats, for admins. Ratings of an act
 fall back to the rating of the event it was part of, so an artist seen in a rated show without a rating of their
 own still counts with the show's.
@@ -22,29 +23,44 @@ MIN_EVENTS_TO_RATE = 5
 MIN_ARTIST_RATINGS = 5
 
 
+@dataclass(frozen=True)
+class Filter:
+    """Which shows count: these event types (none: all) in this year (None: every year)."""
+
+    types: tuple = ()
+    year: int | None = None
+
+    def on(self, event: str) -> Q:
+        """The condition on the event at ``event`` (a lookup path: "event", "log__event", "events"…)."""
+        q = Q()
+        if self.types:
+            q &= Q(**{f"{event}__event_type__in": self.types})
+        if self.year:
+            q &= Q(**{f"{event}__date__year": self.year})
+        return q
+
+
 def _by(owner, path: str) -> Q:
     """``path`` is the person (``owner``), or anyone when there's no owner."""
     return Q(**{path: owner}) if owner is not None else Q()
 
 
-def logs_of(owner, types: list[str]):
-    logs = Log.objects.filter(_by(owner, "user"))
-    return logs.filter(event__event_type__in=types) if types else logs
+def logs_of(owner, f: Filter):
+    return Log.objects.filter(_by(owner, "user"), f.on("event"))
 
 
-def acts_of(owner, types: list[str]):
+def acts_of(owner, f: Filter):
     """The acts the person saw, each with its rating (or the show's, when the act has none) as ``r``."""
     acts = ActLog.objects.filter(_by(owner, "log__user"))
-    if types:
-        acts = acts.filter(log__event__event_type__in=types)
+    acts = acts.filter(f.on("log__event"))
     return acts.annotate(r=Coalesce("rating", "log__rating"))
 
 
 # --------------------------------------------------------------------------- most seen
 
 
-def seen_artists(owner, types: list[str]):
-    seen = Q(act_logs__isnull=False) & _by(owner, "act_logs__log__user") & (Q(act_logs__log__event__event_type__in=types) if types else Q())
+def seen_artists(owner, f: Filter):
+    seen = Q(act_logs__isnull=False) & _by(owner, "act_logs__log__user") & f.on("act_logs__log__event")
     return (
         Artist.objects.filter(seen)
         .annotate(n=Count("act_logs", filter=seen, distinct=True),
@@ -53,11 +69,10 @@ def seen_artists(owner, types: list[str]):
     )
 
 
-def seen_venues(owner, types: list[str]) -> list:
+def seen_venues(owner, f: Filter) -> list:
     """Venues by shows attended, most first. A renamed place counts once, under the name it goes by now (shows
     under its earlier names included)."""
-    seen = Q(events__logs__isnull=False) & _by(owner, "events__logs__user") & (
-        Q(events__event_type__in=types) if types else Q())
+    seen = Q(events__logs__isnull=False) & _by(owner, "events__logs__user") & f.on("events")
     venues = (
         Venue.objects.filter(seen).select_related("renamed_to")
         .annotate(n=Count("events__logs", filter=seen, distinct=True), last_seen=Max("events__date", filter=seen))
@@ -77,9 +92,9 @@ def seen_venues(owner, types: list[str]) -> list:
                                                   v.name.casefold()))
 
 
-def seen_cities(owner, types: list[str]):
+def seen_cities(owner, f: Filter):
     """[{"event__venue__city", "n", "last_seen"}], most shows first."""
-    logs = logs_of(owner, types).exclude(event__venue=None).exclude(event__venue__city="")
+    logs = logs_of(owner, f).exclude(event__venue=None).exclude(event__venue__city="")
     return (
         logs.values("event__venue__city").annotate(n=Count("id"), last_seen=Max("event__date"))
         .order_by("-n", F("last_seen").desc(nulls_last=True), "event__venue__city")
@@ -89,11 +104,11 @@ def seen_cities(owner, types: list[str]):
 # --------------------------------------------------------------------------- highest rated
 
 
-def rated_artists(owner, types: list[str]):
+def rated_artists(owner, f: Filter):
     """Artists by the person's average rating of them (act ratings, or the show's when the act has none), among
     those rated at least MIN_ARTIST_RATINGS times."""
     rows = list(
-        acts_of(owner, types).exclude(r=None).values("artist")
+        acts_of(owner, f).exclude(r=None).values("artist")
         .annotate(avg=Avg("r"), n=Count("id"), last_seen=Max("log__event__date"))
         .filter(n__gte=MIN_ARTIST_RATINGS)
         .order_by("-avg", "-n", F("last_seen").desc(nulls_last=True))
@@ -135,19 +150,19 @@ class Category:
     url: str = ""
 
 
-def event_types(owner) -> list[Category]:
+def event_types(owner, f: Filter = Filter()) -> list[Category]:
     """Every event type the person went to, most attended first (average: the shows' own ratings)."""
     labels = dict(EventType.choices)
-    rows = (logs_of(owner, []).values("event__event_type")
+    rows = (logs_of(owner, f).values("event__event_type")
             .annotate(n=Count("id"), avg=Avg("rating")).order_by("-n", "event__event_type"))
     return [Category(r["event__event_type"], str(labels.get(r["event__event_type"], r["event__event_type"])),
                      r["n"], r["avg"]) for r in rows]
 
 
-def artist_countries(owner) -> list[Category]:
+def artist_countries(owner, f: Filter = Filter()) -> list[Category]:
     """Where the artists the person saw are from, most shows first (a show counts once per country)."""
     names = dict(countries)
-    rows = (acts_of(owner, []).exclude(artist__country="").values("artist__country")
+    rows = (acts_of(owner, f).exclude(artist__country="").values("artist__country")
             .annotate(n=Count("log", distinct=True), avg=Avg("r")).order_by("-n", "artist__country"))
     return [Category(r["artist__country"], str(names.get(r["artist__country"], r["artist__country"])), r["n"],
                      r["avg"]) for r in rows]
@@ -162,23 +177,22 @@ def highest_rated(categories: list[Category], limit: int = 5) -> list[Category]:
 # --------------------------------------------------------------------------- songs
 
 
-def heard(owner, types: list[str]):
+def heard(owner, f: Filter):
     """The songs the person heard live: setlist entries (no tapes) of the acts they saw, at the shows they went to."""
     entries = SetlistSong.objects.filter(
         _by(owner, "setlist__event__logs__user"), is_tape=False,
         setlist__event__logs__acts__artist=F("setlist__artist"))
-    if types:
-        entries = entries.filter(setlist__event__event_type__in=types)
+    entries = entries.filter(f.on("setlist__event"))
     return entries.distinct()
 
 
-def heard_songs(owner, types: list[str], min_times: int = 1) -> list[dict]:
+def heard_songs(owner, f: Filter, min_times: int = 1) -> list[dict]:
     """The songs heard live, as the original songs: a cover counts for the song it covers, so Yesterday played by
     Paul McCartney and by Oasis is The Beatles' Yesterday, heard twice. Most heard first:
     [{"title", "original" (who it's by), "n", "performers" (who played it, besides the original artist)}]."""
     from .models import normalize_name
 
-    ids = heard(owner, types).values("pk")
+    ids = heard(owner, f).values("pk")
     per_song = (SetlistSong.objects.filter(pk__in=ids).values("song")
                 .annotate(n=Count("id"), title=F("song__title"), artist=F("song__artist__name"),
                           cover_of=F("song__cover_of_name")))
@@ -206,16 +220,16 @@ def link_originals(songs: list[dict]) -> None:
         s["original_url"] = artist.get_absolute_url() if artist else ""
 
 
-def top_songs(owner, types: list[str], limit: int = 10) -> list[dict]:
+def top_songs(owner, f: Filter, limit: int = 10) -> list[dict]:
     """The most heard songs (as original songs; see ``heard_songs``)."""
-    songs = heard_songs(owner, types)[:limit]
+    songs = heard_songs(owner, f)[:limit]
     link_originals(songs)
     return songs
 
 
-def song_years(owner, types: list[str]) -> dict:
+def song_years(owner, f: Filter) -> dict:
     """The songs heard by the year they came out (their album's): {"bars": [{"year", "n", "height"}], "unknown"}."""
-    ids = heard(owner, types).values("pk")
+    ids = heard(owner, f).values("pk")
     entries = SetlistSong.objects.filter(pk__in=ids)
     counts = dict(entries.exclude(song__album_year=None).values_list("song__album_year")
                   .annotate(n=Count("id")).values_list("song__album_year", "n"))
@@ -229,17 +243,17 @@ def song_years(owner, types: list[str]) -> dict:
     return {"bars": bars, "unknown": unknown}
 
 
-def has_setlists(owner, types: list[str]) -> bool:
-    return heard(owner, types).exists()
+def has_setlists(owner, f: Filter) -> bool:
+    return heard(owner, f).exists()
 
 
 # --------------------------------------------------------------------------- world map
 
 
-def world(owner, types: list[str]) -> list[dict]:
+def world(owner, f: Filter) -> list[dict]:
     """[{"code", "id" (ISO numeric, as the world map's shapes), "name", "n"}]: the countries of the shows the person
     went to, most first."""
-    rows = (logs_of(owner, types).exclude(event__venue=None).exclude(event__venue__country="")
+    rows = (logs_of(owner, f).exclude(event__venue=None).exclude(event__venue__country="")
             .values("event__venue__country").annotate(n=Count("id")).order_by("-n", "event__venue__country"))
     return [{"code": r["event__venue__country"], "id": countries.numeric(r["event__venue__country"], padded=True),
              "name": countries.name(r["event__venue__country"]), "n": r["n"]} for r in rows]

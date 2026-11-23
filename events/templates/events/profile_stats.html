@@ -16,15 +16,29 @@
     <h1 class="h4 mt-1">{% translate "Site stats" %}</h1>
     <p class="small text-body-secondary mb-3">{% translate "Everyone's diaries together: every show logged counts once per person who went." %}</p>
   {% endif %}
+  {# One filter for the whole page: every event or any mix of types (each button adds or removes its type), and
+     every year or one. #}
+  <div class="d-flex flex-wrap align-items-center gap-2 mb-4">
   {% if event_types|length > 1 %}
-    {# One filter for the whole page: every event, or any mix of types (each button adds or removes its type). #}
-    <div class="d-flex flex-wrap gap-2 mb-4" role="group" aria-label="{% translate 'Type' %}">
-      <a class="btn btn-sm {% if not types %}btn-light{% else %}btn-outline-secondary{% endif %}" href="{{ request.path }}"{% if not types %} aria-current="page"{% endif %}>{% translate "All events" %}</a>
+    <div class="d-flex flex-wrap gap-2" role="group" aria-label="{% translate 'Type' %}">
+      <a class="btn btn-sm {% if not types %}btn-light{% else %}btn-outline-secondary{% endif %}" href="{{ request.path }}{% if year %}?year={{ year }}{% endif %}"{% if not types %} aria-current="page"{% endif %}>{% translate "All events" %}</a>
       {% for value, label, on, toggled_qs in event_types %}
         <a class="btn btn-sm {% if on %}btn-light{% else %}btn-outline-secondary{% endif %}" href="{{ request.path }}{% if toggled_qs %}?{{ toggled_qs|slice:':-1' }}{% endif %}" aria-pressed="{{ on|yesno:'true,false' }}">{% if on %}✓ {% endif %}{{ label }}</a>
       {% endfor %}
     </div>
   {% endif %}
+  {% if years|length > 1 or year %}
+    <form method="get" class="d-flex align-items-center gap-2 ms-md-auto">
+      {% for t in types %}<input type="hidden" name="type" value="{{ t }}" />{% endfor %}
+      <label class="small text-body-secondary" for="stats-year">{% translate "Year" %}</label>
+      <select class="form-select form-select-sm w-auto{% if year %} border-light{% endif %}" id="stats-year" name="year" onchange="this.form.submit()">
+        <option value="">{% translate "All years" %}</option>
+        {% for y, y_qs in years %}<option value="{{ y }}"{% if y == year %} selected{% endif %}>{{ y }}</option>{% endfor %}
+      </select>
+      <noscript><button class="btn btn-sm btn-outline-secondary" type="submit">{% translate "Apply" %}</button></noscript>
+    </form>
+  {% endif %}
+  </div>
 
   {% if owner_logs %}
     {% if home_country %}
@@ -116,7 +130,7 @@
   {# The whole width of the page, and taller than the small charts elsewhere. #}
   <style>.year-wide .rating-bars { height: 120px; gap: 4px; }</style>
   <div class="year-wide mb-4">
-    {% year_histogram owner_logs _("Events by year") diary_url %}
+    {% year_histogram history_logs _("Events by year") diary_url %}
   </div>
 
   {% if this_year.total %}
