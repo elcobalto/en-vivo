@@ -782,6 +782,15 @@ class Profile(TimestampedModel):
                                       choices=UpcomingScope.choices, default=UpcomingScope.CITY)
     upcoming_international = models.CharField(_("Upcoming shows by international artists"), max_length=10,
                                               choices=UpcomingScope.choices, default=UpcomingScope.COUNTRY)
+    # The home page's area switch for upcoming and recent shows: everywhere, or the person's country, region or
+    # city. Empty: the two rules above (local and international artists).
+    class HomeArea(models.TextChoices):
+        ALL = "all", _("All")
+        COUNTRY = "country", _("Country")
+        REGION = "region", _("Region")
+        CITY = "city", _("City")
+
+    home_area = models.CharField(max_length=10, blank=True, default="", choices=HomeArea.choices)
     # Overrides each event's own thumbnail setting for this person, when set.
     thumbnail_display = models.CharField(
         _("Thumbnails"), max_length=10, blank=True, default="",

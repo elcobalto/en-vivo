@@ -41,6 +41,7 @@ from .models import (
     Artist,
     ArtistFollow,
     Play,
+    Profile,
     Production,
     Setlist,
     SetlistSong,
@@ -128,6 +129,7 @@ def home(request: HttpRequest) -> HttpResponse:
             "friends_activity": _friends_activity(request),
             "followed_only": followed_only,
             "followed_artists": followed if followed_only else [],
+            **_area_switch(request),
         },
     )
 
@@ -162,12 +164,36 @@ def first_show(request: HttpRequest) -> HttpResponse:
     })
 
 
+def _area_switch(request: HttpRequest) -> dict:
+    """The area buttons the person can use (Region and City need them in the profile) and the one picked."""
+    profile = getattr(request.user, "profile", None) if request.user.is_authenticated else None
+    if not profile:
+        return {}
+    has = {"all": True, "country": bool(profile.home_country), "region": bool(profile.home_region.strip()),
+           "city": bool(profile.home_city.strip())}
+    return {"areas": [(value, label) for value, label in Profile.HomeArea.choices if has[value]],
+            "home_area": profile.home_area}
+
+
 def _followed_artists(request: HttpRequest) -> list | None:
     """The artists the signed-in person follows, when their home page shows only those (None otherwise)."""
     profile = getattr(request.user, "profile", None) if request.user.is_authenticated else None
     if not profile or not profile.home_followed_only:
         return None
     return list(Artist.objects.filter(follows__user=request.user).order_by("name"))
+
+
+@login_required
+@require_POST
+def home_area(request: HttpRequest) -> HttpResponse:
+    """The home page's area switch for upcoming and recent shows: all, country, region or city."""
+    from .views_social import get_profile
+
+    profile = get_profile(request.user)
+    area = request.POST.get("area") or ""
+    profile.home_area = area if area in Profile.HomeArea.values else ""
+    profile.save(update_fields=["home_area"])
+    return redirect("events:home")
 
 
 @login_required
@@ -200,6 +226,17 @@ def _near(request: HttpRequest, shows) -> tuple:
     profile = getattr(request.user, "profile", None) if request.user.is_authenticated else None
     country = profile.home_country.code if profile and profile.home_country else ""
     city = profile.home_city.strip() if profile else ""
+    chosen = profile.home_area if profile else ""
+    if chosen == "all":
+        return shows, "", ""
+    if chosen == "city" and city:
+        where = Q(venue__city__iexact=city) & (Q(venue__country=country) if country else Q())
+        return shows.filter(where), city, city
+    if chosen == "region" and country and profile.home_region.strip():
+        region = profile.home_region.strip()
+        return shows.filter(venue__region__iexact=region, venue__country=country), region, ""
+    if chosen == "country" and country:
+        return shows.filter(venue__country=country), dict(countries).get(country, country), ""
     if not country:
         if city:
             return shows.filter(venue__city__iexact=city), city, city

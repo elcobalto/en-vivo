@@ -314,6 +314,36 @@ def ranking_context(request: HttpRequest, owner, kind: str) -> dict:
             "title": f"{title} · {', '.join(str(labels[t]) for t in types)}" if types else title}
 
 
+SONG_MINIMUMS = [2, 3, 5, 10]  # "Heard at least … times" on the songs list (2 by default)
+
+
+def songs_context(request: HttpRequest, owner) -> dict:
+    """Every song heard live (a person's, or with ``owner=None`` everyone's), as original songs, heard at least
+    ?min= times, a page at a time."""
+    from django.core.paginator import Paginator
+
+    from . import stats
+
+    types = _stats_types(request)
+    raw = request.GET.get("min") or ""
+    min_times = int(raw) if raw.isdigit() and int(raw) in SONG_MINIMUMS else SONG_MINIMUMS[0]
+    page = Paginator(stats.heard_songs(owner, types, min_times), 50).get_page(request.GET.get("page"))
+    page.object_list = list(page.object_list)
+    stats.link_originals(page.object_list)
+    types_qs = _types_qs(types)
+    stats_url = reverse("events:user_stats", args=[owner.get_username()]) if owner is not None \
+        else reverse("events:site_stats")
+    labels = dict(EventType.choices)
+    title = gettext("Most heard songs")
+    return {"owner": owner, "page": page, "types": types, "min_times": min_times, "min_choices": SONG_MINIMUMS,
+            "stats_url": stats_url + (f"?{types_qs.rstrip('&')}" if types else ""),
+            "title": f"{title} · {', '.join(str(labels[t]) for t in types)}" if types else title}
+
+
+def user_songs(request: HttpRequest, username: str) -> HttpResponse:
+    return render(request, "events/songs_ranking.html", {**songs_context(request, _owner(username)), "tab": "stats"})
+
+
 def user_ranking(request: HttpRequest, username: str, kind: str) -> HttpResponse:
     return render(request, "events/user_ranking.html",
                   {**ranking_context(request, _owner(username), kind), "tab": "stats"})

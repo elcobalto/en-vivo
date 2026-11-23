@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block title %}{% translate "Most heard songs" %}{% if owner %} · {{ owner.get_username }}{% endif %} · en vivo{% endblock %}
+
+{% block content %}
+  {% if owner %}{% include "events/_profile_nav.html" %}{% else %}<a class="small text-body-secondary" href="{% url 'events:admin_tools' %}">← {% translate "Admin" %}</a>{% endif %}
+  <div class="d-flex flex-wrap justify-content-between align-items-end gap-2 mb-2" style="max-width:44rem">
+    <h2 class="section-title flex-grow-1 m-0">{{ title }}</h2>
+    <a class="small" href="{{ stats_url }}">{% translate "← Stats" %}</a>
+  </div>
+  {# How many times a song must have been heard to be listed. #}
+  <form method="get" class="d-flex align-items-center gap-2 mb-2 small">
+    {% for t in types %}<input type="hidden" name="type" value="{{ t }}" />{% endfor %}
+    <label for="min-times">{% translate "Heard at least" %}</label>
+    <select class="form-select form-select-sm w-auto" id="min-times" name="min" onchange="this.form.submit()">
+      {% for n in min_choices %}<option value="{{ n }}"{% if n == min_times %} selected{% endif %}>{% blocktranslate count counter=n %}{{ counter }} time{% plural %}{{ counter }} times{% endblocktranslate %}</option>{% endfor %}
+    </select>
+    <noscript><button class="btn btn-sm btn-outline-secondary" type="submit">{% translate "Apply" %}</button></noscript>
+    <span class="text-body-secondary">{% blocktranslate count counter=page.paginator.count %}{{ counter }} song{% plural %}{{ counter }} songs{% endblocktranslate %}</span>
+  </form>
+  <p class="small text-body-secondary" style="max-width:44rem">{% translate "Covers count for the original song: a song heard from its artist and from another band counts twice." %}</p>
+  <ol class="mb-0 ps-0 list-unstyled" style="max-width:44rem">
+    {% for s in page.object_list %}{% include "events/_song_row.html" with rank=page.start_index|add:forloop.counter0 %}
+    {% empty %}<li class="small text-body-secondary">{% translate "None yet." %}</li>{% endfor %}
+  </ol>
+  {% include "events/_pager.html" with pager=page %}
+{% endblock %}

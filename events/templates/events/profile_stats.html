@@ -89,16 +89,12 @@
       {# Only when these shows have setlists: the songs heard live. #}
       <div class="row g-4 mb-5">
         <div class="col-12 col-lg-6">
-          <h2 class="section-title mb-2">{% translate "Most heard songs" %}</h2>
-          <ol class="mb-0 ps-4">
-            {% for s in top_songs %}
-              <li class="py-1 border-bottom border-secondary-subtle">
-                <div class="d-flex justify-content-between gap-2">
-                  <span><span class="fw-semibold">{{ s.title }}</span> <span class="small text-body-secondary">· {% if s.cover_of %}{% blocktranslate with original=s.cover_of artist=s.artist %}{{ original }} (covered by {{ artist }}){% endblocktranslate %}{% else %}{{ s.artist }}{% endif %}</span></span>
-                  <span class="text-body-secondary small text-nowrap">{% blocktranslate count counter=s.n %}{{ counter }} time{% plural %}{{ counter }} times{% endblocktranslate %}</span>
-                </div>
-              </li>
-            {% endfor %}
+          <div class="d-flex justify-content-between align-items-end mb-2">
+            <h2 class="section-title flex-grow-1 m-0">{% translate "Most heard songs" %}</h2>
+            <a class="small ms-2 text-nowrap" href="{{ ranking_base }}songs/{{ ranking_qs }}">{% translate "See all →" %}</a>
+          </div>
+          <ol class="mb-0 ps-0 list-unstyled">
+            {% for s in top_songs %}{% include "events/_song_row.html" with rank=forloop.counter %}{% endfor %}
           </ol>
         </div>
         <div class="col-12 col-lg-6">

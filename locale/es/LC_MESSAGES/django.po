@@ -3,7 +3,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: En Vivo\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-23 17:24+0000\n"
+"POT-Creation-Date: 2026-11-23 17:30+0000\n"
 "PO-Revision-Date: 2026-11-20 18:00-0300\n"
 "Last-Translator: En Vivo\n"
 "Language-Team: Spanish\n"
@@ -19,7 +19,7 @@ msgstr "Creado el"
 
 #: events/albums.py:40 events/templates/events/_album_select.html:5
 #: events/templates/events/act_setlist.html:45
-#: events/templates/events/artist_songs_manage.html:18 events/views.py:546
+#: events/templates/events/artist_songs_manage.html:18 events/views.py:583
 msgid "No album"
 msgstr "Sin álbum"
 
@@ -36,7 +36,7 @@ msgstr "No se pudo importar el setlist %(id)s."
 msgid "New venue name"
 msgstr "Nombre del nuevo recinto"
 
-#: events/forms.py:50 events/forms.py:308
+#: events/forms.py:50 events/forms.py:308 events/models.py:791
 #: events/templates/events/artist_import_new.html:74
 #: events/templates/events/event_form.html:119
 #: events/templates/events/event_list.html:42
@@ -45,7 +45,7 @@ msgid "City"
 msgstr "Ciudad"
 
 #: events/forms.py:53 events/forms.py:290 events/forms.py:309
-#: events/templates/events/artist_list.html:12
+#: events/models.py:789 events/templates/events/artist_list.html:12
 #: events/templates/events/diary.html:22
 #: events/templates/events/event_form.html:123
 #: events/templates/events/setlistfm_shows.html:36
@@ -129,7 +129,7 @@ msgstr "Automático: %(title)s"
 msgid "Pick an existing venue or add a new one, not both."
 msgstr "Elige un recinto existente o agrega uno nuevo, no ambos."
 
-#: events/forms.py:183 events/views.py:1191
+#: events/forms.py:183 events/views.py:1228
 msgid "New artist"
 msgstr "Nuevo artista"
 
@@ -219,7 +219,7 @@ msgstr "Bandas en las que estuvo este artista. Sus canciones tocadas como covers
 msgid "Address"
 msgstr "Dirección"
 
-#: events/forms.py:308
+#: events/forms.py:308 events/models.py:790
 msgid "Region"
 msgstr "Región"
 
@@ -285,11 +285,11 @@ msgstr "De 3 a 30 letras, números, puntos, guiones o guiones bajos. Tu perfil q
 msgid "Use only letters, numbers, dots, hyphens or underscores (3–30 characters)."
 msgstr "Usa solo letras, números, puntos, guiones o guiones bajos (de 3 a 30 caracteres)."
 
-#: events/forms.py:380 events/models.py:800
+#: events/forms.py:380 events/models.py:809
 msgid "Language"
 msgstr "Idioma"
 
-#: events/forms.py:381 events/models.py:801
+#: events/forms.py:381 events/models.py:810
 msgid "The language En Vivo is shown in for you."
 msgstr "El idioma en que ves En Vivo."
 
@@ -680,47 +680,51 @@ msgstr "Próximos shows de artistas locales"
 msgid "Upcoming shows by international artists"
 msgstr "Próximos shows de artistas internacionales"
 
-#: events/models.py:787
+#: events/models.py:788
+msgid "All"
+msgstr "Todo"
+
+#: events/models.py:796
 msgid "Thumbnails"
 msgstr "Miniaturas"
 
-#: events/models.py:788
+#: events/models.py:797
 msgid "As each event is set"
 msgstr "Según cada evento"
 
-#: events/models.py:789
+#: events/models.py:798
 msgid "How photos fit the poster-shaped thumbnails when you browse."
 msgstr "Cómo se ajustan las fotos a las miniaturas con forma de afiche mientras navegas."
 
-#: events/models.py:793
+#: events/models.py:802
 msgid "Mark setlist.fm imports as attended"
 msgstr "Marcar como asistidos los shows importados de setlist.fm"
 
-#: events/models.py:794
+#: events/models.py:803
 msgid "Starts the \"I attended these shows\" box ticked when you import shows from setlist.fm. You can still untick it on each import."
 msgstr "La casilla “Fui a estos shows” aparece marcada al importar shows de setlist.fm. Igual puedes desmarcarla en cada importación."
 
-#: events/models.py:805
+#: events/models.py:814
 msgid "Home page: only artists I follow"
 msgstr "Inicio: solo artistas que sigo"
 
-#: events/models.py:806
+#: events/models.py:815
 msgid "Shows and reviews on the home page are only those with artists you follow."
 msgstr "La página de inicio muestra solo shows y reseñas con artistas que sigues."
 
-#: events/models.py:959
+#: events/models.py:968
 msgid "Bug"
 msgstr "Error"
 
-#: events/models.py:960
+#: events/models.py:969
 msgid "Idea or feedback"
 msgstr "Idea o comentario"
 
-#: events/models.py:966
+#: events/models.py:975
 msgid "Page"
 msgstr "Página"
 
-#: events/models.py:984 events/templates/base.html:120
+#: events/models.py:993 events/templates/base.html:120
 #: events/templates/events/artist_import.html:45
 #: events/templates/events/artist_import_new.html:20
 #: events/templates/events/artist_list.html:20
@@ -735,23 +739,23 @@ msgstr "Página"
 msgid "Search"
 msgstr "Buscar"
 
-#: events/models.py:985
+#: events/models.py:994
 msgid "Setlist"
 msgstr "Setlist"
 
-#: events/models.py:986
+#: events/models.py:995
 msgid "Artist search"
 msgstr "Búsqueda de artistas"
 
-#: events/models.py:1043
+#: events/models.py:1052
 msgid "Running"
 msgstr "En curso"
 
-#: events/models.py:1044
+#: events/models.py:1053
 msgid "Paused"
 msgstr "En pausa"
 
-#: events/models.py:1045
+#: events/models.py:1054
 msgid "Done"
 msgstr "Terminada"
 
@@ -832,27 +836,27 @@ msgstr "Seguimientos"
 msgid "Want to go"
 msgstr "Quiero ir"
 
-#: events/stats.py:236 events/templates/events/profile_stats.html:34
+#: events/stats.py:267 events/templates/events/profile_stats.html:34
 msgid "Most seen artists"
 msgstr "Artistas más vistos"
 
-#: events/stats.py:237 events/templates/events/profile_stats.html:31
+#: events/stats.py:268 events/templates/events/profile_stats.html:31
 msgid "Most seen local artists"
 msgstr "Artistas locales más vistos"
 
-#: events/stats.py:238 events/templates/events/profile_stats.html:32
+#: events/stats.py:269 events/templates/events/profile_stats.html:32
 msgid "Most seen foreign artists"
 msgstr "Artistas extranjeros más vistos"
 
-#: events/stats.py:239 events/templates/events/profile_stats.html:38
+#: events/stats.py:270 events/templates/events/profile_stats.html:38
 msgid "Highest rated artists"
 msgstr "Artistas mejor calificados"
 
-#: events/stats.py:240 events/templates/events/profile_stats.html:39
+#: events/stats.py:271 events/templates/events/profile_stats.html:39
 msgid "Most visited venues"
 msgstr "Recintos más visitados"
 
-#: events/stats.py:241 events/templates/events/profile_stats.html:40
+#: events/stats.py:272 events/templates/events/profile_stats.html:40
 msgid "Most visited cities"
 msgstr "Ciudades más visitadas"
 
@@ -917,6 +921,7 @@ msgstr "Comentarios de la beta, estadísticas y uso de la API de setlist.fm"
 #: events/templates/events/possible_festivals.html:7
 #: events/templates/events/profile_stats.html:15
 #: events/templates/events/setlistfm_usage.html:7
+#: events/templates/events/songs_ranking.html:7
 #: events/templates/events/user_ranking.html:7
 msgid "Admin"
 msgstr "Admin"
@@ -1021,6 +1026,7 @@ msgstr "Ocultar álbumes vacíos"
 
 #: events/templates/events/_album_chart.html:44
 #: events/templates/events/event_list.html:63
+#: events/templates/events/songs_ranking.html:19
 msgid "Apply"
 msgstr "Aplicar"
 
@@ -1041,8 +1047,9 @@ msgstr[1] "%(counter)s veces tocadas de %(songs)s canciones"
 
 #: events/templates/events/_album_chart.html:50
 #: events/templates/events/artist_detail.html:123
-#: events/templates/events/profile_stats.html:109
+#: events/templates/events/profile_stats.html:105
 #: events/templates/events/setlistfm_shows.html:76
+#: events/templates/events/songs_ranking.html:20
 #, python-format
 msgid "%(counter)s song"
 msgid_plural "%(counter)s songs"
@@ -1266,7 +1273,7 @@ msgstr "Quitar esta fila"
 
 #: events/templates/events/_list_card.html:14
 #: events/templates/events/event_detail.html:283
-#: events/templates/events/home.html:88
+#: events/templates/events/home.html:99
 #: events/templates/events/play_list.html:20
 msgid "by"
 msgstr "de"
@@ -1275,8 +1282,8 @@ msgstr "de"
 #: events/templates/events/_person_row.html:6
 #: events/templates/events/_year_histogram.html:9
 #: events/templates/events/artist_list.html:38
-#: events/templates/events/home.html:88
-#: events/templates/events/profile_stats.html:143
+#: events/templates/events/home.html:99
+#: events/templates/events/profile_stats.html:139
 #: events/templates/events/search.html:26
 #: events/templates/events/search.html:40
 #, python-format
@@ -1400,11 +1407,13 @@ msgstr[0] "%(counter)s show"
 msgstr[1] "%(counter)s shows"
 
 #: events/templates/events/_rank_cards.html:7
+#: events/templates/events/profile_stats.html:94
 msgid "See all →"
 msgstr "Ver todo →"
 
 #: events/templates/events/_rank_cards.html:13
 #: events/templates/events/profile_stats.html:62
+#: events/templates/events/songs_ranking.html:25
 #: events/templates/events/user_ranking.html:21
 msgid "None yet."
 msgstr "Nada todavía."
@@ -1428,7 +1437,7 @@ msgstr "Calificaciones"
 
 #: events/templates/events/_rating_histogram.html:10
 #: events/templates/events/_year_histogram.html:10
-#: events/templates/events/profile_stats.html:144
+#: events/templates/events/profile_stats.html:140
 msgid "show in diary"
 msgstr "ver en el diario"
 
@@ -1463,6 +1472,19 @@ msgid "%(counter)s reply"
 msgid_plural "%(counter)s replies"
 msgstr[0] "%(counter)s respuesta"
 msgstr[1] "%(counter)s respuestas"
+
+#: events/templates/events/_song_row.html:6
+#, python-format
+msgid "Played by %(names)s"
+msgstr "Tocada por %(names)s"
+
+#: events/templates/events/_song_row.html:7
+#: events/templates/events/songs_ranking.html:17
+#, python-format
+msgid "%(counter)s time"
+msgid_plural "%(counter)s times"
+msgstr[0] "%(counter)s vez"
+msgstr[1] "%(counter)s veces"
 
 #: events/templates/events/_venue_search.html:16
 msgid "Search a venue, e.g. Estadio Nacional"
@@ -1981,7 +2003,7 @@ msgstr[1] "%(counter)s seguidores"
 msgid "Import from setlist.fm"
 msgstr "Importar desde setlist.fm"
 
-#: events/templates/events/artist_detail.html:43 events/views.py:1191
+#: events/templates/events/artist_detail.html:43 events/views.py:1228
 msgid "Edit artist"
 msgstr "Editar artista"
 
@@ -2224,7 +2246,7 @@ msgstr "Ver los %(n)s shows →"
 
 #: events/templates/events/artist_detail.html:204
 #: events/templates/events/artist_shows.html:32
-#: events/templates/events/home.html:70
+#: events/templates/events/home.html:81
 #: events/templates/events/venue_detail.html:49
 msgid "No events yet."
 msgstr "Todavía no hay eventos."
@@ -2969,7 +2991,7 @@ msgid "YouTube video"
 msgstr "Video de YouTube"
 
 #: events/templates/events/event_detail.html:116
-#: events/templates/events/event_videos.html:44 events/views.py:1349
+#: events/templates/events/event_videos.html:44 events/views.py:1386
 msgid "Whole event"
 msgstr "Evento completo"
 
@@ -3779,75 +3801,79 @@ msgstr "Qué muestra la página de inicio"
 msgid "Everything"
 msgstr "Todo"
 
-#: events/templates/events/home.html:25
+#: events/templates/events/home.html:27
+msgid "Where the shows are"
+msgstr "Dónde son los shows"
+
+#: events/templates/events/home.html:36
 msgid "Following:"
 msgstr "Siguiendo:"
 
-#: events/templates/events/home.html:28
+#: events/templates/events/home.html:39
 #, python-format
 msgid "You don't follow any artists yet. Open an artist's page and press Follow, or <a href=\"%(artists_url)s\">browse artists</a>."
 msgstr "Aún no sigues a ningún artista. Abre la página de un artista y pulsa Seguir, o <a href=\"%(artists_url)s\">explora artistas</a>."
 
-#: events/templates/events/home.html:35
+#: events/templates/events/home.html:46
 #, python-format
 msgid "Upcoming in %(upcoming_place)s"
 msgstr "Próximamente en %(upcoming_place)s"
 
-#: events/templates/events/home.html:35 events/views.py:59
+#: events/templates/events/home.html:46 events/views.py:60
 msgid "Upcoming"
 msgstr "Próximos"
 
-#: events/templates/events/home.html:36
+#: events/templates/events/home.html:47
 msgid "All upcoming →"
 msgstr "Todos los próximos →"
 
-#: events/templates/events/home.html:45
+#: events/templates/events/home.html:56
 #, python-format
 msgid "Recently in %(recent_place)s"
 msgstr "Hace poco en %(recent_place)s"
 
-#: events/templates/events/home.html:45
+#: events/templates/events/home.html:56
 msgid "Recently happened"
 msgstr "Recién pasados"
 
-#: events/templates/events/home.html:46
+#: events/templates/events/home.html:57
 msgid "All events →"
 msgstr "Todos los eventos →"
 
-#: events/templates/events/home.html:54
+#: events/templates/events/home.html:65
 msgid "Latest reviews"
 msgstr "Últimas reseñas"
 
-#: events/templates/events/home.html:61
+#: events/templates/events/home.html:72
 msgid "Just added"
 msgstr "Recién agregados"
 
-#: events/templates/events/home.html:62
+#: events/templates/events/home.html:73
 msgid "Last added →"
 msgstr "Últimos agregados →"
 
-#: events/templates/events/home.html:68
+#: events/templates/events/home.html:79
 msgid "No shows yet by the artists you follow."
 msgstr "Aún no hay shows de los artistas que sigues."
 
-#: events/templates/events/home.html:70
+#: events/templates/events/home.html:81
 #, python-format
 msgid "<a href=\"%(create_url)s\">Add the first one</a>."
 msgstr "<a href=\"%(create_url)s\">Agrega el primero</a>."
 
-#: events/templates/events/home.html:75
+#: events/templates/events/home.html:86
 msgid "From people you follow"
 msgstr "De las personas que sigues"
 
-#: events/templates/events/home.html:76
+#: events/templates/events/home.html:87
 msgid "All activity →"
 msgstr "Toda la actividad →"
 
-#: events/templates/events/home.html:83
+#: events/templates/events/home.html:94
 msgid "New lists"
 msgstr "Listas nuevas"
 
-#: events/templates/events/home.html:84
+#: events/templates/events/home.html:95
 msgid "All lists →"
 msgstr "Todas las listas →"
 
@@ -3930,7 +3956,7 @@ msgstr "Obra"
 msgid "+ New staging of this play"
 msgstr "+ Nuevo montaje de esta obra"
 
-#: events/templates/events/play_detail.html:18 events/views.py:1198
+#: events/templates/events/play_detail.html:18 events/views.py:1235
 msgid "Edit play"
 msgstr "Editar obra"
 
@@ -4012,7 +4038,7 @@ msgstr "Nada que revisar."
 msgid "Tour by"
 msgstr "Gira de"
 
-#: events/templates/events/production_detail.html:24 events/views.py:1195
+#: events/templates/events/production_detail.html:24 events/views.py:1232
 msgid "Edit production"
 msgstr "Editar producción"
 
@@ -4076,7 +4102,7 @@ msgid "Diary →"
 msgstr "Diario →"
 
 #: events/templates/events/profile.html:34
-#: events/templates/events/profile_stats.html:171
+#: events/templates/events/profile_stats.html:167
 msgid "Nothing logged yet."
 msgstr "Todavía no hay nada registrado."
 
@@ -4157,76 +4183,65 @@ msgstr "Países mejor calificados"
 msgid "A country shows here once you've seen its artists at %(min_events)s or more rated shows."
 msgstr "Un país aparece aquí cuando hayas visto a sus artistas en %(min_events)s o más shows calificados."
 
-#: events/templates/events/profile_stats.html:92
+#: events/templates/events/profile_stats.html:93
+#: events/templates/events/songs_ranking.html:4 events/views_social.py:337
 msgid "Most heard songs"
 msgstr "Canciones más escuchadas"
 
-#: events/templates/events/profile_stats.html:97
-#, python-format
-msgid "%(original)s (covered by %(artist)s)"
-msgstr "%(original)s (versión de %(artist)s)"
-
-#: events/templates/events/profile_stats.html:98
-#, python-format
-msgid "%(counter)s time"
-msgid_plural "%(counter)s times"
-msgstr[0] "%(counter)s vez"
-msgstr[1] "%(counter)s veces"
-
-#: events/templates/events/profile_stats.html:105
+#: events/templates/events/profile_stats.html:101
 msgid "Songs heard by year released"
 msgstr "Canciones escuchadas por año de lanzamiento"
 
-#: events/templates/events/profile_stats.html:114
+#: events/templates/events/profile_stats.html:110
 #, python-format
 msgid "%(counter)s song heard has no album year yet."
 msgid_plural "%(counter)s songs heard have no album year yet."
 msgstr[0] "%(counter)s canción escuchada aún no tiene año de álbum."
 msgstr[1] "%(counter)s canciones escuchadas aún no tienen año de álbum."
 
-#: events/templates/events/profile_stats.html:123
+#: events/templates/events/profile_stats.html:119
 #: events/templatetags/event_extras.py:124
 msgid "Events by year"
 msgstr "Eventos por año"
 
-#: events/templates/events/profile_stats.html:130
+#: events/templates/events/profile_stats.html:126
 #, python-format
 msgid "Events in %(year)s"
 msgstr "Eventos en %(year)s"
 
-#: events/templates/events/profile_stats.html:132
+#: events/templates/events/profile_stats.html:128
 msgid "Group by"
 msgstr "Agrupar por"
 
-#: events/templates/events/profile_stats.html:133
+#: events/templates/events/profile_stats.html:129
 msgid "Month"
 msgstr "Mes"
 
-#: events/templates/events/profile_stats.html:134
+#: events/templates/events/profile_stats.html:130
 msgid "Week"
 msgstr "Semana"
 
-#: events/templates/events/profile_stats.html:162
+#: events/templates/events/profile_stats.html:158
 msgid "Countries"
 msgstr "Países"
 
-#: events/templates/events/profile_stats.html:163
+#: events/templates/events/profile_stats.html:159
 #, python-format
 msgid "%(counter)s country"
 msgid_plural "%(counter)s countries"
 msgstr[0] "%(counter)s país"
 msgstr[1] "%(counter)s países"
 
-#: events/templates/events/profile_stats.html:165
+#: events/templates/events/profile_stats.html:161
 msgid "World map of the countries with shows attended"
 msgstr "Mapa mundial de los países con shows a los que fuiste"
 
-#: events/templates/events/profile_stats.html:197
+#: events/templates/events/profile_stats.html:193
 #, python-format
 msgid "%%(n)s show"
 msgstr "%%(n)s show"
 
-#: events/templates/events/profile_stats.html:197
+#: events/templates/events/profile_stats.html:193
 #, python-format
 msgid "%%(n)s shows"
 msgstr "%%(n)s shows"
@@ -4507,6 +4522,19 @@ msgstr "masiva"
 msgid "no answer"
 msgstr "sin respuesta"
 
+#: events/templates/events/songs_ranking.html:10
+#: events/templates/events/user_ranking.html:16
+msgid "← Stats"
+msgstr "← Estadísticas"
+
+#: events/templates/events/songs_ranking.html:15
+msgid "Heard at least"
+msgstr "Escuchada al menos"
+
+#: events/templates/events/songs_ranking.html:22
+msgid "Covers count for the original song: a song heard from its artist and from another band counts twice."
+msgstr "Las versiones cuentan para la canción original: una canción escuchada de su artista y de otra banda cuenta dos veces."
+
 #: events/templates/events/user_lists.html:4
 #, python-format
 msgid "%(username)s's lists"
@@ -4524,16 +4552,12 @@ msgstr "Vista"
 msgid "Grid"
 msgstr "Cuadrícula"
 
-#: events/templates/events/user_ranking.html:16
-msgid "← Stats"
-msgstr "← Estadísticas"
-
 #: events/templates/events/user_reviews.html:4
 #, python-format
 msgid "%(username)s's reviews"
 msgstr "Reseñas de %(username)s"
 
-#: events/templates/events/venue_detail.html:23 events/views.py:1193
+#: events/templates/events/venue_detail.html:23 events/views.py:1230
 msgid "Edit venue"
 msgstr "Editar recinto"
 
@@ -4626,297 +4650,297 @@ msgstr "Inicia sesión en En Vivo"
 msgid "Track, rate and review the shows you've seen."
 msgstr "Registra, califica y reseña los shows que has visto."
 
-#: events/views.py:53
+#: events/views.py:54
 msgid "Latest date first"
 msgstr "Fecha más reciente primero"
 
-#: events/views.py:54
+#: events/views.py:55
 msgid "Earliest date first"
 msgstr "Fecha más antigua primero"
 
-#: events/views.py:55
+#: events/views.py:56
 msgid "Most logged"
 msgstr "Más registrados"
 
-#: events/views.py:56 events/views.py:429
+#: events/views.py:57 events/views.py:466
 msgid "Highest rated"
 msgstr "Mejor calificados"
 
-#: events/views.py:57
+#: events/views.py:58
 msgid "Recently added"
 msgstr "Agregados recientemente"
 
-#: events/views.py:59
+#: events/views.py:60
 msgid "Any time"
 msgstr "Cualquier fecha"
 
-#: events/views.py:59
+#: events/views.py:60
 msgid "Past"
 msgstr "Pasados"
 
-#: events/views.py:142
+#: events/views.py:144
 #, python-format
 msgid "“%(title)s” hasn't happened yet."
 msgstr "“%(title)s” aún no ha ocurrido."
 
-#: events/views.py:145
+#: events/views.py:147
 msgid "Added to your diary. Rate it or write a review here."
 msgstr "Agregado a tu diario. Califícalo o escribe una reseña aquí."
 
-#: events/views.py:427
+#: events/views.py:464
 msgid "Most events"
 msgstr "Más eventos"
 
-#: events/views.py:428
+#: events/views.py:465
 msgid "Most popular"
 msgstr "Más populares"
 
-#: events/views.py:430
+#: events/views.py:467
 msgid "Last performed"
 msgstr "Última vez en vivo"
 
-#: events/views.py:540 events/views.py:1130
+#: events/views.py:577 events/views.py:1167
 #, python-format
 msgid "Updated the album of %(n)s song."
 msgid_plural "Updated the album of %(n)s songs."
 msgstr[0] "Se actualizó el álbum de %(n)s canción."
 msgstr[1] "Se actualizó el álbum de %(n)s canciones."
 
-#: events/views.py:571
+#: events/views.py:608
 msgid "Album removed."
 msgstr "Álbum eliminado."
 
-#: events/views.py:575
+#: events/views.py:612
 msgid "Type the year with four digits, e.g. 1994."
 msgstr "Escribe el año con cuatro dígitos, por ejemplo 1994."
 
-#: events/views.py:585
+#: events/views.py:622
 #, python-format
 msgid "“%(title)s” is now from %(year)s."
 msgstr "“%(title)s” ahora es de %(year)s."
 
-#: events/views.py:586
+#: events/views.py:623
 #, python-format
 msgid "“%(title)s” has no year now."
 msgstr "“%(title)s” ya no tiene año."
 
-#: events/views.py:590
+#: events/views.py:627
 msgid "Give the album a title."
 msgstr "Ponle un título al álbum."
 
-#: events/views.py:592
+#: events/views.py:629
 #, python-format
 msgid "“%(title)s” is already in %(artist)s's albums."
 msgstr "“%(title)s” ya está en los álbumes de %(artist)s."
 
-#: events/views.py:596
+#: events/views.py:633
 #, python-format
 msgid "Added “%(title)s”."
 msgstr "Se agregó “%(title)s”."
 
-#: events/views.py:870
+#: events/views.py:907
 #, python-format
 msgid "The change was also made to %(n)s other date."
 msgid_plural "The changes were also made to %(n)s other dates."
 msgstr[0] "El cambio también se hizo en %(n)s fecha más."
 msgstr[1] "Los cambios también se hicieron en %(n)s fechas más."
 
-#: events/views.py:879
+#: events/views.py:916
 #, python-format
 msgid "“%(title)s” already existed on that day, so this was added to it."
 msgstr "“%(title)s” ya existía ese día, así que esto se agregó ahí."
 
-#: events/views.py:882
+#: events/views.py:919
 msgid "Event saved."
 msgstr "Evento guardado."
 
-#: events/views.py:937
+#: events/views.py:974
 #, python-format
 msgid "Added %(n)s artist to the lineup."
 msgid_plural "Added %(n)s artists to the lineup."
 msgstr[0] "Se agregó %(n)s artista al line-up."
 msgstr[1] "Se agregaron %(n)s artistas al line-up."
 
-#: events/views.py:939
+#: events/views.py:976
 #, python-format
 msgid "%(n)s was already on it."
 msgid_plural "%(n)s were already on it."
 msgstr[0] "%(n)s ya estaba."
 msgstr[1] "%(n)s ya estaban."
 
-#: events/views.py:942
+#: events/views.py:979
 msgid "Nothing added: type at least one artist that isn't on the lineup yet."
 msgstr "No se agregó nada: escribe al menos un artista que todavía no esté en el line-up."
 
-#: events/views.py:1001
+#: events/views.py:1038
 #, python-format
 msgid "Added %(artists)s to the lineup and %(setlists)s."
 msgstr "Se agregaron al line-up %(artists)s y %(setlists)s."
 
-#: events/views.py:1002
+#: events/views.py:1039
 #, python-format
 msgid "%(n)s artist"
 msgid_plural "%(n)s artists"
 msgstr[0] "%(n)s artista"
 msgstr[1] "%(n)s artistas"
 
-#: events/views.py:1003
+#: events/views.py:1040
 #, python-format
 msgid "%(n)s setlist"
 msgid_plural "%(n)s setlists"
 msgstr[0] "%(n)s setlist"
 msgstr[1] "%(n)s setlists"
 
-#: events/views.py:1006
+#: events/views.py:1043
 #, python-format
 msgid "Setlist not added for %(note)s"
 msgstr "No se agregó el setlist de %(note)s"
 
-#: events/views.py:1012
+#: events/views.py:1049
 msgid "Unknown venue"
 msgstr "Recinto desconocido"
 
-#: events/views.py:1177 events/views.py:1247
+#: events/views.py:1214 events/views.py:1284
 #, python-format
 msgid "Deleted “%(name)s”."
 msgstr "Se eliminó “%(name)s”."
 
-#: events/views.py:1192
+#: events/views.py:1229
 #, python-format
 msgid "Artist “%(name)s” created."
 msgstr "Se creó el artista “%(name)s”."
 
-#: events/views.py:1192
+#: events/views.py:1229
 #, python-format
 msgid "Artist “%(name)s” saved."
 msgstr "Se guardó el artista “%(name)s”."
 
-#: events/views.py:1193
+#: events/views.py:1230
 msgid "New venue"
 msgstr "Nuevo recinto"
 
-#: events/views.py:1194
+#: events/views.py:1231
 #, python-format
 msgid "Venue “%(name)s” created."
 msgstr "Se creó el recinto “%(name)s”."
 
-#: events/views.py:1194
+#: events/views.py:1231
 #, python-format
 msgid "Venue “%(name)s” saved."
 msgstr "Se guardó el recinto “%(name)s”."
 
-#: events/views.py:1195
+#: events/views.py:1232
 msgid "New production"
 msgstr "Nueva producción"
 
-#: events/views.py:1196
+#: events/views.py:1233
 #, python-format
 msgid "Production “%(name)s” created."
 msgstr "Se creó la producción “%(name)s”."
 
-#: events/views.py:1197
+#: events/views.py:1234
 #, python-format
 msgid "Production “%(name)s” saved."
 msgstr "Se guardó la producción “%(name)s”."
 
-#: events/views.py:1198
+#: events/views.py:1235
 msgid "New play"
 msgstr "Nueva obra"
 
-#: events/views.py:1199
+#: events/views.py:1236
 #, python-format
 msgid "Play “%(name)s” created."
 msgstr "Se creó la obra “%(name)s”."
 
-#: events/views.py:1199
+#: events/views.py:1236
 #, python-format
 msgid "Play “%(name)s” saved."
 msgstr "Se guardó la obra “%(name)s”."
 
-#: events/views.py:1297
+#: events/views.py:1334
 #, python-format
 msgid "“%(title)s” hasn't happened yet. You can log it from %(date)s."
 msgstr "“%(title)s” todavía no ocurre. Puedes registrarlo desde el %(date)s."
 
-#: events/views.py:1310
+#: events/views.py:1347
 msgid "Saved to your diary."
 msgstr "Guardado en tu diario."
 
-#: events/views.py:1312
+#: events/views.py:1349
 #, python-format
 msgid "Could not save your log: %(errors)s"
 msgstr "No se pudo guardar tu registro: %(errors)s"
 
-#: events/views.py:1385
+#: events/views.py:1422
 msgid "Removed from your diary."
 msgstr "Se quitó de tu diario."
 
-#: events/views.py:1432
+#: events/views.py:1469
 msgid "Missing setlist id."
 msgstr "Falta el id del setlist."
 
-#: events/views.py:1441
+#: events/views.py:1478
 msgid "Something went wrong importing that setlist. Nothing was saved."
 msgstr "Algo salió mal al importar ese setlist. No se guardó nada."
 
-#: events/views.py:1445
+#: events/views.py:1482
 #, python-format
 msgid "Imported %(n)s song for %(artist)s."
 msgid_plural "Imported %(n)s songs for %(artist)s."
 msgstr[0] "Se importó %(n)s canción de %(artist)s."
 msgstr[1] "Se importaron %(n)s canciones de %(artist)s."
 
-#: events/views.py:1460
+#: events/views.py:1497
 msgid "Pick a date."
 msgstr "Elige una fecha."
 
-#: events/views.py:1464
+#: events/views.py:1501
 #, python-format
 msgid "Added %(date)s. Edit it if anything is different that day."
 msgstr "Se agregó el %(date)s. Edítalo si algo cambia ese día."
 
-#: events/views.py:1467
+#: events/views.py:1504
 msgid "The show already has that date."
 msgstr "El espectáculo ya tiene esa fecha."
 
-#: events/views_admin.py:76
+#: events/views_admin.py:85
 msgid "Pick a country and a period."
 msgstr "Elige un país y un período."
 
-#: events/views_admin.py:89 events/views_admin.py:122
+#: events/views_admin.py:98 events/views_admin.py:131
 #, python-format
 msgid "There's already an unfinished import for %(name)s."
 msgstr "Ya hay una importación sin terminar de %(name)s."
 
-#: events/views_admin.py:116 events/views_admin.py:228
+#: events/views_admin.py:125 events/views_admin.py:237
 msgid "Pick an artist first."
 msgstr "Primero elige un artista."
 
-#: events/views_admin.py:150
+#: events/views_admin.py:159
 msgid "Last day"
 msgstr "El último día"
 
-#: events/views_admin.py:150
+#: events/views_admin.py:159
 msgid "Last week"
 msgstr "La última semana"
 
-#: events/views_admin.py:150
+#: events/views_admin.py:159
 msgid "Last month"
 msgstr "El último mes"
 
-#: events/views_admin.py:151
+#: events/views_admin.py:160
 msgid "Last year"
 msgstr "El último año"
 
-#: events/views_admin.py:151
+#: events/views_admin.py:160
 msgid "Last 2 years"
 msgstr "Los últimos 2 años"
 
-#: events/views_admin.py:196 events/views_merge.py:215
+#: events/views_admin.py:205 events/views_merge.py:215
 msgid "Give the festival a name."
 msgstr "Ponle un nombre al festival."
 
-#: events/views_admin.py:199
+#: events/views_admin.py:208
 #, python-format
 msgid "“%(event)s” is now a festival day of %(name)s."
 msgstr "“%(event)s” ahora es un día del festival %(name)s."
@@ -5061,19 +5085,19 @@ msgstr "Se fusionó el duplicado “%(removed)s” con este evento."
 msgid "Week %(n)s (from %(date)s)"
 msgstr "Semana %(n)s (desde el %(date)s)"
 
-#: events/views_social.py:343
+#: events/views_social.py:373
 msgid "Profile saved."
 msgstr "Perfil guardado."
 
-#: events/views_social.py:367
+#: events/views_social.py:397
 msgid "Favourites saved."
 msgstr "Favoritos guardados."
 
-#: events/views_social.py:401
+#: events/views_social.py:431
 msgid "You can't follow yourself."
 msgstr "No puedes seguirte a ti mismo."
 
-#: events/views_social.py:478
+#: events/views_social.py:508
 msgid "Your reply can't be empty."
 msgstr "Tu respuesta no puede estar vacía."
 
@@ -5191,6 +5215,10 @@ msgstr "La foto pesa más de 8 MB."
 #: events/views_venues.py:442
 msgid "That link isn't an image."
 msgstr "Ese enlace no es una imagen."
+
+#, python-format
+#~ msgid "%(original)s (covered by %(artist)s)"
+#~ msgstr "%(original)s (versión de %(artist)s)"
 
 #~ msgid "No venues yet."
 #~ msgstr "Todavía no hay recintos."

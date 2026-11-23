@@ -5087,9 +5087,11 @@ class StatsReworkTests(BaseTestCase):
 
     def test_songs_heard_with_their_original_artists(self):
         page = self.client.get(self.url, {"type": "music"})
-        self.assertEqual([(s["title"], s["n"], s["cover_of"]) for s in page.context["top_songs"]],
-                         [("Basket Case", 2, ""), ("Rockin' in the Free World", 1, "Neil Young")])
-        self.assertContains(page, "Neil Young (covered by Green Day)")
+        self.assertEqual([(s["title"], s["n"], s["original"], s["performers"]) for s in page.context["top_songs"]],
+                         [("Basket Case", 2, "Green Day", []),
+                          ("Rockin' in the Free World", 1, "Neil Young", ["Green Day"])])
+        self.assertContains(page, "Played by Green Day")
+        self.assertContains(page, reverse("events:user_songs", args=["ana"]) + "?type=music")
         self.assertEqual([(b["year"], b["n"]) for b in page.context["song_years"]["bars"]], [(1994, 2)])
         self.assertEqual(page.context["song_years"]["unknown"], 1)
         comedy = self.client.get(self.url, {"type": "comedy"})
@@ -5194,6 +5196,7 @@ class SiteStatsTests(BaseTestCase):
         ranking = self.client.get(reverse("events:site_ranking", args=["venues"]), {"view": "grid"})
         self.assertEqual([r["name"] for r in ranking.context["rows"]], ["Teatro Caupolicán"])
         self.assertEqual(self.client.get(reverse("events:site_ranking", args=["local-artists"])).status_code, 404)
+        self.assertEqual(self.client.get(reverse("events:site_songs")).status_code, 200)
         self.assertContains(self.client.get(reverse("events:admin_tools")), url)
         listed = self.client.get(reverse("events:event_list"), {"country": "cl"})
         self.assertEqual([e.title for e in listed.context["page"]], ["Green Day in Chile"])
@@ -5207,3 +5210,72 @@ class SiteStatsTests(BaseTestCase):
         page = self.client.get(reverse("events:user_stats", args=["ana"]))
         self.assertEqual(page.context["rated_artists"], [])
         self.assertContains(page, "once they have 5 or more ratings")
+
+
+class HomeAreaSwitchTests(BaseTestCase):
+    def setUp(self):
+        super().setUp()
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        soon = timezone.localdate() + timedelta(days=5)
+        vina = Venue.objects.create(name="Quinta Vergara", city="Viña del Mar", region="Valparaíso", country="CL")
+        lima = Venue.objects.create(name="Arena Lima", city="Lima", country="PE")
+        self.venue.region = "Región Metropolitana"
+        self.venue.save()
+        for title, venue in [("Santiago soon", self.venue), ("Viña soon", vina), ("Lima soon", lima)]:
+            Event.objects.create(title=title, venue=venue, date=soon)
+        p = self.user.profile
+        p.home_country, p.home_city, p.home_region = "CL", "Santiago", "Región Metropolitana"
+        p.save()
+        self.client.force_login(self.user)
+
+    def _upcoming(self):
+        return sorted(e.title for e in self.client.get(reverse("events:home")).context["upcoming"])
+
+    def test_switch_between_all_country_region_and_city(self):
+        page = self.client.get(reverse("events:home"))
+        self.assertEqual([v for v, _ in page.context["areas"]], ["all", "country", "region", "city"])
+        self.assertEqual(page.context["home_area"], "")  # the profile's rules until one is picked
+        for area, expected in [("all", ["Lima soon", "Santiago soon", "Viña soon"]),
+                               ("country", ["Santiago soon", "Viña soon"]),
+                               ("region", ["Santiago soon"]), ("city", ["Santiago soon"])]:
+            self.client.post(reverse("events:home_area"), {"area": area})
+            self.assertEqual(self._upcoming(), expected, area)
+        self.client.post(reverse("events:home_area"), {"area": "nonsense"})
+        self.user.profile.refresh_from_db()
+        self.assertEqual(self.user.profile.home_area, "")
+
+    def test_only_the_areas_the_profile_has(self):
+        p = self.user.profile
+        p.home_city = p.home_region = ""
+        p.save()
+        self.assertEqual([v for v, _ in self.client.get(reverse("events:home")).context["areas"]], ["all", "country"])
+
+
+class HeardSongsTests(BaseTestCase):
+    def test_covers_count_for_the_original_song_and_the_list_pages(self):
+        from .models import Song, SetlistSong
+
+        beatles = Artist.objects.create(name="The Beatles")
+        macca = Artist.objects.create(name="Paul McCartney")
+        oasis = Artist.objects.create(name="Oasis")
+        for i, (artist, title, cover_of) in enumerate([(macca, "Yesterday", "The Beatles"), (oasis, "yesterday", "the beatles"),
+                                                       (oasis, "Wonderwall", ""), (beatles, "Help!", "")]):
+            event = Event.objects.create(title=f"Show {i}", venue=self.venue, date=date(2020, 1, i + 1))
+            EventArtist.objects.create(event=event, artist=artist)
+            Log.objects.create(user=self.user, event=event)  # acts are added with the log
+            song, _ = Song.objects.get_or_create(artist=artist, title=title, defaults={"cover_of_name": cover_of})
+            SetlistSong.objects.create(setlist=Setlist.objects.create(event=event, artist=artist), song=song, position=1)
+        stats = self.client.get(reverse("events:user_stats", args=["ana"]))
+        top = stats.context["top_songs"]
+        self.assertEqual([(s["title"], s["original"], s["n"]) for s in top][0], ("Yesterday", "The Beatles", 2))
+        self.assertEqual(top[0]["performers"], ["Paul McCartney", "Oasis"])
+        self.assertEqual(top[0]["original_url"], beatles.get_absolute_url())
+        url = reverse("events:user_songs", args=["ana"])
+        listed = self.client.get(url)  # heard at least twice by default
+        self.assertEqual([s["title"] for s in listed.context["page"].object_list], ["Yesterday"])
+        every = self.client.get(url, {"min": "3"})
+        self.assertEqual(list(every.context["page"].object_list), [])
+        self.assertEqual(self.client.get(url, {"min": "7"}).context["min_times"], 2)  # not a choice: the default

@@ -44,6 +44,15 @@ def site_stats_page(request: HttpRequest) -> HttpResponse:
 
 
 @login_required
+def site_songs_page(request: HttpRequest) -> HttpResponse:
+    """The songs heard live on the whole site (admins only)."""
+    from .views_social import songs_context
+
+    _require_admin(request)
+    return render(request, "events/songs_ranking.html", songs_context(request, None))
+
+
+@login_required
 def site_ranking_page(request: HttpRequest, kind: str) -> HttpResponse:
     """A "See all" page of the site's stats (admins only)."""
     from .views_social import ranking_context

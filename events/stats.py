@@ -157,14 +157,45 @@ def heard(owner, types: list[str]):
     return entries.distinct()
 
 
-def top_songs(owner, types: list[str], limit: int = 10) -> list[dict]:
-    """[{"song", "title", "artist", "cover_of", "n"}]: the most heard songs, with who wrote them when covered."""
+def heard_songs(owner, types: list[str], min_times: int = 1) -> list[dict]:
+    """The songs heard live, as the original songs: a cover counts for the song it covers, so Yesterday played by
+    Paul McCartney and by Oasis is The Beatles' Yesterday, heard twice. Most heard first:
+    [{"title", "original" (who it's by), "n", "performers" (who played it, besides the original artist)}]."""
+    from .models import normalize_name
+
     ids = heard(owner, types).values("pk")
-    rows = (SetlistSong.objects.filter(pk__in=ids).values("song")
-            .annotate(n=Count("id"), title=F("song__title"), artist=F("song__artist__name"),
-                      artist_id=F("song__artist"), cover_of=F("song__cover_of_name"))
-            .order_by("-n", "title"))
-    return list(rows[:limit])
+    per_song = (SetlistSong.objects.filter(pk__in=ids).values("song")
+                .annotate(n=Count("id"), title=F("song__title"), artist=F("song__artist__name"),
+                          cover_of=F("song__cover_of_name")))
+    songs: dict[tuple, dict] = {}
+    for row in per_song:
+        original = row["cover_of"] or row["artist"]
+        key = (normalize_name(row["title"]), normalize_name(original))
+        song = songs.setdefault(key, {"title": row["title"], "original": original, "n": 0, "performers": []})
+        song["n"] += row["n"]
+        if row["cover_of"] and row["artist"] not in song["performers"]:
+            song["performers"].append(row["artist"])
+    result = [s for s in songs.values() if s["n"] >= min_times]
+    result.sort(key=lambda s: (-s["n"], s["title"].casefold(), s["original"].casefold()))
+    return result
+
+
+def link_originals(songs: list[dict]) -> None:
+    """Each song's ``original_url``: the original artist's page, when they're on En Vivo."""
+    from django.db.models.functions import Lower
+
+    names = {s["original"].casefold() for s in songs}
+    artists = {a.lname: a for a in Artist.objects.annotate(lname=Lower("name")).filter(lname__in=names)}
+    for s in songs:
+        artist = artists.get(s["original"].casefold())
+        s["original_url"] = artist.get_absolute_url() if artist else ""
+
+
+def top_songs(owner, types: list[str], limit: int = 10) -> list[dict]:
+    """The most heard songs (as original songs; see ``heard_songs``)."""
+    songs = heard_songs(owner, types)[:limit]
+    link_originals(songs)
+    return songs
 
 
 def song_years(owner, types: list[str]) -> dict:

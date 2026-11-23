@@ -20,6 +20,17 @@
         <button class="btn {% if followed_only %}btn-secondary{% else %}btn-outline-secondary{% endif %}" type="submit" name="followed_only" value="1" {% if followed_only %}aria-pressed="true"{% endif %}>{% translate "Artists I follow" %}</button>
       </div>
     </form>
+    {% if areas|length > 1 %}
+      {# Where upcoming and recent shows are from. Until one is picked, the profile's rules apply. #}
+      <form method="post" action="{% url 'events:home_area' %}" class="d-flex justify-content-center mb-4 mt-n2">
+        {% csrf_token %}
+        <div class="btn-group btn-group-sm" role="group" aria-label="{% translate 'Where the shows are' %}">
+          {% for value, label in areas %}
+            <button class="btn {% if home_area == value %}btn-secondary{% else %}btn-outline-secondary{% endif %}" type="submit" name="area" value="{{ value }}"{% if home_area == value %} aria-pressed="true"{% endif %}>{{ label }}</button>
+          {% endfor %}
+        </div>
+      </form>
+    {% endif %}
     {% if followed_only %}
       {% if followed_artists %}
         <p class="small text-body-secondary text-center mb-4">{% translate "Following:" %} {% for a in followed_artists %}<a href="{{ a.get_absolute_url }}">{{ a.name }}</a>{% if not forloop.last %}, {% endif %}{% endfor %}</p>

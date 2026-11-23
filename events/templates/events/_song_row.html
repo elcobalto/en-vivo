@@ -1,0 +1,8 @@
+{% load i18n %}{% comment %}One heard song (stats.heard_songs): the original song, who it's by, and who else was heard playing it.{% endcomment %}
+<li class="py-1 border-bottom border-secondary-subtle">
+  <div class="d-flex justify-content-between gap-2">
+    <span>{% if rank %}<span class="text-body-secondary small me-2">{{ rank }}.</span>{% endif %}<span class="fw-semibold">{{ s.title }}</span> <span class="small text-body-secondary">· {% if s.original_url %}<a href="{{ s.original_url }}">{{ s.original }}</a>{% else %}{{ s.original }}{% endif %}</span>
+      {% if s.performers %}<div class="small text-body-secondary">{% blocktranslate with names=s.performers|join:", " %}Played by {{ names }}{% endblocktranslate %}</div>{% endif %}</span>
+    <span class="text-body-secondary small text-nowrap">{% blocktranslate count counter=s.n %}{{ counter }} time{% plural %}{{ counter }} times{% endblocktranslate %}</span>
+  </div>
+</li>
