@@ -9,7 +9,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.translation import gettext
 from django.views.decorators.http import require_POST
 
-from . import artist_import as importer, festivals, setlistfm_quota, site_stats
+from . import artist_import as importer, db_usage, festivals, setlistfm_quota, site_stats
 from .models import ArtistImport, Feedback, Song
 from .setlistfm import SetlistFmError, search_artists
 from .roles import home_place
@@ -27,6 +27,7 @@ def admin_tools(request: HttpRequest) -> HttpResponse:
         "resolved_count": Feedback.objects.filter(resolved=True).count(),
         "u": setlistfm_quota.usage(),
         "s": site_stats.site_stats(),
+        "db": db_usage.usage(),
         "imports": ArtistImport.objects.select_related("started_by")[:5],
         "possible_festivals": festivals.candidates().count(),
         "songs_without_album": Song.objects.filter(album_checked_at=None).count(),

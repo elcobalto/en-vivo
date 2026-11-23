@@ -4962,3 +4962,30 @@ class SignInFirstTests(BaseTestCase):
 
     def test_last_show_needs_login(self):
         self.assertEqual(self.client.get(reverse("events:first_show")).status_code, 302)
+
+
+class DatabaseUsageTests(BaseTestCase):
+    def test_levels_and_growth(self):
+        from .db_usage import Usage, _growth
+        from .models import DatabaseSize
+
+        mb = 1024 * 1024
+        self.assertEqual(Usage("postgresql", 150 * mb, 1000 * mb).level, "success")
+        self.assertEqual(Usage("postgresql", 750 * mb, 1000 * mb).level, "warning")
+        self.assertEqual(Usage("postgresql", 900 * mb, 1000 * mb).level, "danger")
+        today = date.today()
+        DatabaseSize.objects.create(day=today - timedelta(days=10), bytes=100 * mb)
+        DatabaseSize.objects.create(day=today, bytes=200 * mb)
+        usage = Usage("postgresql", 200 * mb, 1000 * mb)
+        _growth(usage)
+        self.assertEqual(usage.per_day, 10 * mb)
+        self.assertEqual(usage.days_left, 80)
+
+    def test_admin_page_shows_database_and_records_size(self):
+        from .models import DatabaseSize
+
+        call_command("make_admin", "ana", stdout=open("/dev/null", "w"))
+        self.client.force_login(self.user)
+        page = self.client.get(reverse("events:admin_tools"))
+        self.assertIsNotNone(page.context["db"])
+        self.assertEqual(DatabaseSize.objects.count(), 1)

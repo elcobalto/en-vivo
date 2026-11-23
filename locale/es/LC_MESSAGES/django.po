@@ -3,7 +3,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: En Vivo\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-23 16:26+0000\n"
+"POT-Creation-Date: 2026-11-23 16:29+0000\n"
 "PO-Revision-Date: 2026-11-20 18:00-0300\n"
 "Last-Translator: En Vivo\n"
 "Language-Team: Spanish\n"
@@ -256,7 +256,7 @@ msgstr "Escribe una reseña…"
 msgid "♥ Liked it"
 msgstr "♥ Me gustó"
 
-#: events/forms.py:354 events/templates/events/admin_tools.html:103
+#: events/forms.py:354 events/templates/events/admin_tools.html:156
 #: events/templates/events/diary.html:75
 msgid "Review"
 msgstr "Reseña"
@@ -487,7 +487,7 @@ msgstr "Evento multicultural"
 msgid "Other event"
 msgstr "Evento"
 
-#: events/models.py:96 events/templates/events/admin_tools.html:54
+#: events/models.py:96 events/templates/events/admin_tools.html:107
 #: events/templates/events/setlistfm_usage.html:76
 #: events/templates/events/setlistfm_usage.html:88
 msgid "Person"
@@ -699,15 +699,15 @@ msgstr "Setlist"
 msgid "Artist search"
 msgstr "Búsqueda de artistas"
 
-#: events/models.py:951
+#: events/models.py:964
 msgid "Running"
 msgstr "En curso"
 
-#: events/models.py:952
+#: events/models.py:965
 msgid "Paused"
 msgstr "En pausa"
 
-#: events/models.py:953
+#: events/models.py:966
 msgid "Done"
 msgstr "Terminada"
 
@@ -817,7 +817,7 @@ msgstr "Eventos"
 msgid "Artists"
 msgstr "Artistas"
 
-#: events/templates/base.html:107 events/templates/events/admin_tools.html:13
+#: events/templates/base.html:107 events/templates/events/admin_tools.html:66
 #: events/templates/events/people.html:4 events/templates/events/people.html:7
 msgid "People"
 msgstr "Personas"
@@ -1235,7 +1235,7 @@ msgstr[0] "%(counter)s evento"
 msgstr[1] "%(counter)s eventos"
 
 #: events/templates/events/_pager.html:5
-#: events/templates/events/admin_tools.html:54
+#: events/templates/events/admin_tools.html:107
 #: events/templates/events/artist_list.html:44
 #: events/templates/events/artist_shows.html:25
 #: events/templates/events/diary.html:95
@@ -1529,179 +1529,251 @@ msgstr "Todavía no has hecho nada. ¡Registra un evento!"
 msgid "Database admin"
 msgstr "Admin de la base de datos"
 
-#: events/templates/events/admin_tools.html:16
+#: events/templates/events/admin_tools.html:13
+msgid "Database"
+msgstr "Base de datos"
+
+#: events/templates/events/admin_tools.html:17
+#, python-format
+msgid "%(p)s%% used out of %(size)s"
+msgstr "%(p)s%% usado de %(size)s"
+
+#: events/templates/events/admin_tools.html:20
+msgid "Database storage used"
+msgstr "Almacenamiento usado de la base de datos"
+
+#: events/templates/events/admin_tools.html:23
+msgid "The database is nearly full. Upgrade the plan or clear out data before it runs out: when it does, saving anything fails."
+msgstr "La base de datos está casi llena. Mejora el plan o borra datos antes de que se acabe: cuando pase, no se podrá guardar nada."
+
+#: events/templates/events/admin_tools.html:24
+msgid "The database is filling up. Plan an upgrade."
+msgstr "La base de datos se está llenando. Planifica una mejora del plan."
+
+#: events/templates/events/admin_tools.html:27
+#, python-format
+msgid "Growing about %(g)s a day over the last 30 days."
+msgstr "Crece unos %(g)s al día en los últimos 30 días."
+
+#: events/templates/events/admin_tools.html:28
+#, python-format
+msgid "At that pace it's full in about %(days)s day."
+msgid_plural "At that pace it's full in about %(days)s days."
+msgstr[0] "A ese ritmo se llena en unos %(days)s día."
+msgstr[1] "A ese ritmo se llena en unos %(days)s días."
+
+#: events/templates/events/admin_tools.html:29
+msgid "Growth shows here once there are readings from two days (one is taken each day an admin opens this page)."
+msgstr "El crecimiento aparece aquí cuando haya mediciones de dos días (se toma una cada día que un admin abre esta página)."
+
+#: events/templates/events/admin_tools.html:30
+msgid "Render's dashboard counts a little more (its write-ahead log), so it can show a higher figure."
+msgstr "El panel de Render cuenta un poco más (su registro de escritura anticipada), así que puede mostrar una cifra mayor."
+
+#: events/templates/events/admin_tools.html:33
+#, python-format
+msgid "Local %(size)s SQLite file (no plan limit)."
+msgstr "Archivo SQLite local de %(size)s (sin límite de plan)."
+
+#: events/templates/events/admin_tools.html:42
+#: events/templates/events/admin_tools.html:92
+#: events/templates/events/setlistfm_usage.html:63
+msgid "today"
+msgstr "hoy"
+
+#: events/templates/events/admin_tools.html:48
+msgid "Connections"
+msgstr "Conexiones"
+
+#: events/templates/events/admin_tools.html:49
+#, python-format
+msgid "%(n)s open of %(m)s"
+msgstr "%(n)s abiertas de %(m)s"
+
+#: events/templates/events/admin_tools.html:55
+msgid "Biggest tables"
+msgstr "Tablas más grandes"
+
+#: events/templates/events/admin_tools.html:57
+msgid "Table"
+msgstr "Tabla"
+
+#: events/templates/events/admin_tools.html:57
+msgid "Rows (approx.)"
+msgstr "Filas (aprox.)"
+
+#: events/templates/events/admin_tools.html:57
+msgid "Size"
+msgstr "Tamaño"
+
+#: events/templates/events/admin_tools.html:69
 msgid "Users"
 msgstr "Usuarios"
 
-#: events/templates/events/admin_tools.html:17
+#: events/templates/events/admin_tools.html:70
 #, python-format
 msgid "+%(w)s this week · +%(m)s in 30 days"
 msgstr "+%(w)s esta semana · +%(m)s en 30 días"
 
-#: events/templates/events/admin_tools.html:20
+#: events/templates/events/admin_tools.html:73
 msgid "Active today"
 msgstr "Activos hoy"
 
-#: events/templates/events/admin_tools.html:21
-#: events/templates/events/admin_tools.html:25
+#: events/templates/events/admin_tools.html:74
+#: events/templates/events/admin_tools.html:78
 #, python-format
 msgid "%(n)s pages opened"
 msgstr "%(n)s páginas abiertas"
 
-#: events/templates/events/admin_tools.html:24
+#: events/templates/events/admin_tools.html:77
 msgid "Active in 7 days"
 msgstr "Activos en 7 días"
 
-#: events/templates/events/admin_tools.html:28
+#: events/templates/events/admin_tools.html:81
 msgid "Active in 30 days"
 msgstr "Activos en 30 días"
 
-#: events/templates/events/admin_tools.html:32
+#: events/templates/events/admin_tools.html:85
 msgid "People active per day, last 30 days"
 msgstr "Personas activas por día, últimos 30 días"
 
-#: events/templates/events/admin_tools.html:36
+#: events/templates/events/admin_tools.html:89
 #, python-format
 msgid "%(n)s person"
 msgid_plural "%(n)s people"
 msgstr[0] "%(n)s persona"
 msgstr[1] "%(n)s personas"
 
-#: events/templates/events/admin_tools.html:36
+#: events/templates/events/admin_tools.html:89
 #, python-format
 msgid "%(v)s pages"
 msgstr "%(v)s páginas"
 
-#: events/templates/events/admin_tools.html:39
-#: events/templates/events/setlistfm_usage.html:63
-msgid "today"
-msgstr "hoy"
-
-#: events/templates/events/admin_tools.html:43
+#: events/templates/events/admin_tools.html:96
 msgid "What people add"
 msgstr "Lo que la gente agrega"
 
-#: events/templates/events/admin_tools.html:45
+#: events/templates/events/admin_tools.html:98
 msgid "7 days"
 msgstr "7 días"
 
-#: events/templates/events/admin_tools.html:45
+#: events/templates/events/admin_tools.html:98
 msgid "30 days"
 msgstr "30 días"
 
-#: events/templates/events/admin_tools.html:45
+#: events/templates/events/admin_tools.html:98
 msgid "Total"
 msgstr "Total"
 
-#: events/templates/events/admin_tools.html:52
+#: events/templates/events/admin_tools.html:105
 msgid "Most active, last 30 days"
 msgstr "Más activos, últimos 30 días"
 
-#: events/templates/events/admin_tools.html:54
+#: events/templates/events/admin_tools.html:107
 msgid "Days active"
 msgstr "Días activos"
 
-#: events/templates/events/admin_tools.html:57
+#: events/templates/events/admin_tools.html:110
 msgid "No visits counted yet."
 msgstr "Todavía no hay visitas registradas."
 
-#: events/templates/events/admin_tools.html:67
+#: events/templates/events/admin_tools.html:120
 msgid "Feedback"
 msgstr "Comentarios"
 
-#: events/templates/events/admin_tools.html:68
+#: events/templates/events/admin_tools.html:121
 msgid "Open inbox"
 msgstr "Abrir bandeja"
 
-#: events/templates/events/admin_tools.html:70
+#: events/templates/events/admin_tools.html:123
 #, python-format
 msgid "%(o)s open · %(r)s resolved"
 msgstr "%(o)s abiertos · %(r)s resueltos"
 
-#: events/templates/events/admin_tools.html:75
+#: events/templates/events/admin_tools.html:128
 #: events/templates/events/feedback_inbox.html:27
 msgid "someone"
 msgstr "alguien"
 
-#: events/templates/events/admin_tools.html:75
+#: events/templates/events/admin_tools.html:128
 #: events/templates/events/feedback_inbox.html:28
 #: events/templates/events/review_detail.html:66
 #, python-format
 msgid "%(time)s ago"
 msgstr "hace %(time)s"
 
-#: events/templates/events/admin_tools.html:77
+#: events/templates/events/admin_tools.html:130
 #: events/templates/events/feedback_inbox.html:39
 msgid "Nothing open. 🎉"
 msgstr "Nada pendiente. 🎉"
 
-#: events/templates/events/admin_tools.html:83
+#: events/templates/events/admin_tools.html:136
 msgid "setlist.fm API"
 msgstr "API de setlist.fm"
 
-#: events/templates/events/admin_tools.html:84
+#: events/templates/events/admin_tools.html:137
 msgid "Details"
 msgstr "Detalles"
 
-#: events/templates/events/admin_tools.html:86
+#: events/templates/events/admin_tools.html:139
 #: events/templates/events/setlistfm_usage.html:21
 msgid "in the last 24 hours"
 msgstr "en las últimas 24 horas"
 
-#: events/templates/events/admin_tools.html:91
+#: events/templates/events/admin_tools.html:144
 #, python-format
 msgid "%(n)s left · %(c)s saved by cache today"
 msgstr "quedan %(n)s · %(c)s ahorradas por caché hoy"
 
-#: events/templates/events/admin_tools.html:91
+#: events/templates/events/admin_tools.html:144
 #, python-format
 msgid "%(n)s rate limited"
 msgstr "%(n)s con límite de tasa"
 
-#: events/templates/events/admin_tools.html:100
+#: events/templates/events/admin_tools.html:153
 #: events/templates/events/possible_festivals.html:4
 #: events/templates/events/possible_festivals.html:8
 msgid "Possible festivals"
 msgstr "Posibles festivales"
 
-#: events/templates/events/admin_tools.html:101
+#: events/templates/events/admin_tools.html:154
 #, python-format
 msgid "%(counter)s music event with 4 or more acts to review"
 msgid_plural "%(counter)s music events with 4 or more acts to review"
 msgstr[0] "%(counter)s evento de música con 4 o más artistas por revisar"
 msgstr[1] "%(counter)s eventos de música con 4 o más artistas por revisar"
 
-#: events/templates/events/admin_tools.html:109
+#: events/templates/events/admin_tools.html:162
 #: events/templates/events/album_lookups.html:4
 #: events/templates/events/album_lookups.html:8
 msgid "Albums from MusicBrainz"
 msgstr "Álbumes desde MusicBrainz"
 
-#: events/templates/events/admin_tools.html:110
+#: events/templates/events/admin_tools.html:163
 #, python-format
 msgid "%(counter)s song not looked up yet"
 msgid_plural "%(counter)s songs not looked up yet"
 msgstr[0] "%(counter)s canción sin buscar"
 msgstr[1] "%(counter)s canciones sin buscar"
 
-#: events/templates/events/admin_tools.html:112
+#: events/templates/events/admin_tools.html:165
 #: events/templates/events/album_lookups.html:28
 msgid "Look them up"
 msgstr "Buscarlos"
 
-#: events/templates/events/admin_tools.html:117
+#: events/templates/events/admin_tools.html:170
 #: events/templates/events/artist_import.html:7
 #: events/templates/events/artist_import_new.html:82
 msgid "Imports"
 msgstr "Importaciones"
 
-#: events/templates/events/admin_tools.html:118
+#: events/templates/events/admin_tools.html:171
 #: events/templates/events/artist_import_new.html:4
 #: events/templates/events/artist_import_new.html:8
 msgid "Import setlists"
 msgstr "Importar setlists"
 
-#: events/templates/events/admin_tools.html:121
+#: events/templates/events/admin_tools.html:174
 msgid "Import every setlist of an artist (e.g. The Beatles), or every show in a country in a recent period, paced to stay inside setlist.fm's limits."
 msgstr "Importa todos los setlists de un artista (por ejemplo, The Beatles) o todos los shows de un país en un período reciente, a un ritmo que respeta los límites de setlist.fm."
 
@@ -4681,44 +4753,44 @@ msgstr "Se agregó el %(date)s. Edítalo si algo cambia ese día."
 msgid "The show already has that date."
 msgstr "El espectáculo ya tiene esa fecha."
 
-#: events/views_admin.py:56
+#: events/views_admin.py:57
 msgid "Pick a country and a period."
 msgstr "Elige un país y un período."
 
-#: events/views_admin.py:62 events/views_admin.py:94
+#: events/views_admin.py:63 events/views_admin.py:95
 #, python-format
 msgid "There's already an unfinished import for %(name)s."
 msgstr "Ya hay una importación sin terminar de %(name)s."
 
-#: events/views_admin.py:88 events/views_admin.py:195
+#: events/views_admin.py:89 events/views_admin.py:196
 msgid "Pick an artist first."
 msgstr "Primero elige un artista."
 
-#: events/views_admin.py:117
+#: events/views_admin.py:118
 msgid "Last day"
 msgstr "El último día"
 
-#: events/views_admin.py:117
+#: events/views_admin.py:118
 msgid "Last week"
 msgstr "La última semana"
 
-#: events/views_admin.py:117
+#: events/views_admin.py:118
 msgid "Last month"
 msgstr "El último mes"
 
-#: events/views_admin.py:118
+#: events/views_admin.py:119
 msgid "Last year"
 msgstr "El último año"
 
-#: events/views_admin.py:118
+#: events/views_admin.py:119
 msgid "Last 2 years"
 msgstr "Los últimos 2 años"
 
-#: events/views_admin.py:163 events/views_merge.py:215
+#: events/views_admin.py:164 events/views_merge.py:215
 msgid "Give the festival a name."
 msgstr "Ponle un nombre al festival."
 
-#: events/views_admin.py:166
+#: events/views_admin.py:167
 #, python-format
 msgid "“%(event)s” is now a festival day of %(name)s."
 msgstr "“%(event)s” ahora es un día del festival %(name)s."

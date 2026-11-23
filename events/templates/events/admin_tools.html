@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load i18n %}
+{% load i18n l10n %}
 
 {% block title %}{% translate "Admin" %} · en vivo{% endblock %}
 
@@ -8,6 +8,59 @@
     <h1 class="h4 m-0">{% translate "Admin" %}</h1>
     {% if user.is_staff %}<a class="btn btn-sm btn-outline-secondary" href="{% url 'admin:index' %}">{% translate "Database admin" %}</a>{% endif %}
   </div>
+
+  {# ------------------------------------------------------------ database #}
+  <h2 class="h5">{% translate "Database" %}</h2>
+  <div class="card mb-4"><div class="card-body">
+    {% if db.limit_bytes %}
+      <div class="d-flex flex-wrap justify-content-between align-items-baseline gap-2">
+        <div class="h5 m-0">{% blocktranslate with p=db.percent size=db.limit_bytes|filesizeformat %}{{ p }}% used out of {{ size }}{% endblocktranslate %}</div>
+        <div class="small text-body-secondary">{{ db.bytes|filesizeformat }} · PostgreSQL {{ db.version }}</div>
+      </div>
+      <div class="progress my-2" role="progressbar" aria-label="{% translate 'Database storage used' %}" aria-valuenow="{{ db.percent|unlocalize }}" aria-valuemin="0" aria-valuemax="100" style="height: 8px">
+        <div class="progress-bar bg-{{ db.level }}" style="width: {{ db.percent|unlocalize }}%"></div>
+      </div>
+      {% if db.level == "danger" %}<div class="alert alert-danger small py-2 mb-2">{% translate "The database is nearly full. Upgrade the plan or clear out data before it runs out: when it does, saving anything fails." %}</div>
+      {% elif db.level == "warning" %}<div class="alert alert-warning small py-2 mb-2">{% translate "The database is filling up. Plan an upgrade." %}</div>{% endif %}
+      <div class="small text-body-secondary">
+        {% if db.per_day is not None %}
+          {% blocktranslate with g=db.per_day|floatformat:0|filesizeformat %}Growing about {{ g }} a day over the last 30 days.{% endblocktranslate %}
+          {% if db.days_left is not None %}{% blocktranslate count days=db.days_left %}At that pace it's full in about {{ days }} day.{% plural %}At that pace it's full in about {{ days }} days.{% endblocktranslate %}{% endif %}
+        {% else %}{% translate "Growth shows here once there are readings from two days (one is taken each day an admin opens this page)." %}{% endif %}
+        {% translate "Render's dashboard counts a little more (its write-ahead log), so it can show a higher figure." %}
+      </div>
+    {% else %}
+      <div class="small text-body-secondary">{% blocktranslate with size=db.bytes|filesizeformat %}Local {{ size }} SQLite file (no plan limit).{% endblocktranslate %}</div>
+    {% endif %}
+
+    {% if db.history|length > 1 %}
+      <div class="d-flex align-items-end gap-1 mt-3" style="height: 60px">
+        {% for day, size in db.history %}
+          <div class="flex-fill bg-secondary rounded-top" style="height: {% widthratio size db.history_max 100 %}%; min-height: 2px" title="{{ day|date:'j M' }} · {{ size|filesizeformat }}"></div>
+        {% endfor %}
+      </div>
+      <div class="d-flex justify-content-between small text-body-secondary"><span>{{ db.history.0.0|date:"j M" }}</span><span>{% translate "today" %}</span></div>
+    {% endif %}
+
+    <div class="row g-3 mt-1">
+      {% if db.max_connections %}
+        <div class="col-md-4">
+          <h3 class="h6">{% translate "Connections" %}</h3>
+          <div class="small">{% blocktranslate with n=db.connections m=db.max_connections %}{{ n }} open of {{ m }}{% endblocktranslate %}</div>
+          <div class="progress mt-1" style="height: 6px"><div class="progress-bar bg-{% if db.connections_percent >= 85 %}danger{% elif db.connections_percent >= 70 %}warning{% else %}success{% endif %}" style="width: {{ db.connections_percent }}%"></div></div>
+        </div>
+      {% endif %}
+      {% if db.tables %}
+        <div class="col-md-8">
+          <h3 class="h6">{% translate "Biggest tables" %}</h3>
+          <table class="table table-sm small mb-0">
+            <thead><tr><th>{% translate "Table" %}</th><th class="text-end">{% translate "Rows (approx.)" %}</th><th class="text-end">{% translate "Size" %}</th></tr></thead>
+            {% for t in db.tables %}<tr><td><code>{{ t.name }}</code></td><td class="text-end">{{ t.rows }}</td><td class="text-end">{{ t.bytes|filesizeformat }}</td></tr>{% endfor %}
+          </table>
+        </div>
+      {% endif %}
+    </div>
+  </div></div>
 
   {# ------------------------------------------------------------ people #}
   <h2 class="h5">{% translate "People" %}</h2>

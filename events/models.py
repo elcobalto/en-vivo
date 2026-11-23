@@ -940,6 +940,19 @@ class UserDay(models.Model):
         return f"{self.user} on {self.day}: {self.views}"
 
 
+class DatabaseSize(models.Model):
+    """The database's size on a day, recorded when an admin opens the admin page (to see how fast it grows)."""
+
+    day = models.DateField(unique=True)
+    bytes = models.BigIntegerField()
+
+    class Meta:
+        ordering = ["day"]
+
+    def __str__(self) -> str:
+        return f"{self.day}: {self.bytes} bytes"
+
+
 class ArtistImport(TimestampedModel):
     """An admin's import of every setlist.fm setlist of one artist, done in short steps (see ``artist_import``).
 

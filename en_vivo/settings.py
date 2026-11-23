@@ -260,6 +260,8 @@ SETLISTFM_BYPASS_PROXY = os.environ.get("SETLISTFM_BYPASS_PROXY", "1")
 # setlist.fm allows 2 requests/second and 1440/day per API key. We stay a bit under both
 # (see events/setlistfm_quota.py and the admins' page at /setlistfm/usage/).
 SETLISTFM_MIN_INTERVAL = float(os.environ.get("SETLISTFM_MIN_INTERVAL", "0.6"))  # seconds between calls
+# The database plan's storage, for the admin page's usage bar (Render's free PostgreSQL: 1 GB).
+DATABASE_STORAGE_LIMIT_MB = int(os.environ.get("DATABASE_STORAGE_LIMIT_MB", "1024"))
 SETLISTFM_DAILY_BUDGET = int(os.environ.get("SETLISTFM_DAILY_BUDGET", "1400"))  # calls per rolling 24 h
 # Multi-setlist imports stop while fewer than this many calls are left, so everyone else keeps searching.
 SETLISTFM_BULK_RESERVE = int(os.environ.get("SETLISTFM_BULK_RESERVE", "300"))
