@@ -350,22 +350,21 @@ def artists_for(items) -> list:
     return out
 
 
-PLAY_CREDIT_FIELDS = ("music_by", "lyrics_by", "authors", "book_by")
+PLAY_CREDIT_FIELDS = ("music_by", "lyrics_by", "authors")
 
 
 class PlayForm(BootstrapMixin, forms.ModelForm):
     class Meta:
         model = Play
-        fields = ["title", "music_by", "lyrics_by", "authors", "book_by", "description", "image_url"]
+        fields = ["title", "music_by", "lyrics_by", "authors", "description", "image_url"]
         field_classes = {name: ArtistsOrNewField for name in PLAY_CREDIT_FIELDS}
         widgets = {"description": forms.Textarea(attrs={"rows": 4})}
-        labels = {"title": _("Title"), "music_by": _("Music"), "lyrics_by": _("Lyrics"), "authors": _("Author"),
-                  "book_by": _("Book"), "description": _("Description"), "image_url": _("Poster / image URL")}
+        labels = {"title": _("Title"), "music_by": _("Music"), "lyrics_by": _("Lyrics"), "authors": _("Author / book"),
+                  "description": _("Description"), "image_url": _("Poster / image URL")}
         help_texts = {
             "music_by": _("Who composed the music (musicals, operas…)."),
             "lyrics_by": _("Who wrote the song lyrics."),
-            "authors": _("Who wrote the play."),
-            "book_by": _("Who wrote the book (the spoken script of a musical)."),
+            "authors": _("Who wrote the play, or the book (the spoken script) of a musical."),
         }
 
     def __init__(self, *args, **kwargs):
@@ -375,8 +374,8 @@ class PlayForm(BootstrapMixin, forms.ModelForm):
             field.widget.attrs.update({"data-search-multi": "", "data-allow-new": "",
                                        "data-placeholder": gettext("Search people, or type a new name…")})
             # Names typed in before a failed save show again as chosen.
-            typed = [v for v in (self.data.getlist(self.add_prefix(name)) if self.is_bound else [])
-                     if str(v).startswith(NEW_ARTIST_PREFIX)]
+            sent = self.data.getlist(self.add_prefix(name)) if hasattr(self.data, "getlist") else []
+            typed = [v for v in sent if str(v).startswith(NEW_ARTIST_PREFIX)]
             if typed:
                 field.widget.choices = list(field.choices) + [(v, v[len(NEW_ARTIST_PREFIX):]) for v in typed]
 
@@ -384,6 +383,7 @@ class PlayForm(BootstrapMixin, forms.ModelForm):
         for name in PLAY_CREDIT_FIELDS:
             self.cleaned_data[name] = artists_for(self.cleaned_data.get(name) or [])
         super()._save_m2m()
+        self.instance.credit_stagings()  # stagings already added credit anyone new too
 
 
 class ProductionForm(BootstrapMixin, forms.ModelForm):
@@ -451,7 +451,7 @@ class ProfileForm(BootstrapMixin, forms.ModelForm):
         model = Profile
         fields = ["display_name", "location", "home_city", "home_region", "home_country", "upcoming_local",
                   "upcoming_international", "language", "avatar_url", "bio", "thumbnail_display", "import_as_attended",
-                  "home_followed_only"]
+                  "home_followed_only", "follow_logged_artists"]
         widgets = {"bio": forms.Textarea(attrs={"rows": 4})}
         labels = {"display_name": _("Display name"), "location": _("Location"), "avatar_url": _("Avatar image URL"),
                   "bio": _("Bio")}
@@ -464,8 +464,8 @@ class ProfileForm(BootstrapMixin, forms.ModelForm):
         }
 
     field_order = ["username", "display_name", "location", "home_city", "home_region", "home_country",
-                   "upcoming_local", "upcoming_international", "home_followed_only", "language", "avatar_url",
-                   "bio"]
+                   "upcoming_local", "upcoming_international", "home_followed_only", "follow_logged_artists",
+                   "follow_logged_now", "language", "avatar_url", "bio"]
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -481,6 +481,20 @@ class ProfileForm(BootstrapMixin, forms.ModelForm):
         if self.instance.home_country:
             regions = regions.filter(country=self.instance.home_country)
         self.region_options = sorted(set(regions.values_list("region", flat=True)), key=str.casefold)[:300]
+        # With "Follow the artists I log": also follow, once, the artists already in the diary.
+        from .models import seen_artist_ids
+
+        unfollowed = len(seen_artist_ids(self.instance.user))
+        if unfollowed:
+            self.fields["follow_logged_now"] = forms.BooleanField(
+                required=False,
+                label=ngettext("Also follow the %(n)s artist you've already logged",
+                               "Also follow the %(n)s artists you've already logged", unfollowed) % {"n": unfollowed},
+                help_text=_("Every artist you saw at the shows in your diary that you don't follow yet."),
+            )
+            self.fields["follow_logged_now"].widget.attrs.update(
+                {"class": "form-check-input", "data-shown-with": "id_follow_logged_artists"})
+            self.order_fields(self.field_order)
 
     def clean_upcoming_local(self) -> str:
         return self.cleaned_data.get("upcoming_local") or self.instance.upcoming_local
@@ -507,6 +521,10 @@ class ProfileForm(BootstrapMixin, forms.ModelForm):
         if commit and username and user.get_username() != username:
             user.username = username
             user.save(update_fields=["username"])
+        if commit and self.cleaned_data.get("follow_logged_artists") and self.cleaned_data.get("follow_logged_now"):
+            from .models import follow_seen_artists
+
+            self.followed_now = follow_seen_artists(user)
         return profile
 
 

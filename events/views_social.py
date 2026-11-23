@@ -16,7 +16,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.template.loader import render_to_string
 from django.urls import reverse
 from django.utils import timezone, translation
-from django.utils.translation import gettext, gettext_lazy
+from django.utils.translation import gettext, gettext_lazy, ngettext
 from django.views.decorators.http import require_POST
 
 from .forms import CommentForm, FavoritesForm, ProfileForm
@@ -409,6 +409,10 @@ def profile_edit(request: HttpRequest) -> HttpResponse:
         form.save()
         translation.activate(form.instance.language)  # "Profile saved." in the language just picked
         messages.success(request, gettext("Profile saved."))
+        followed = getattr(form, "followed_now", 0)
+        if followed:
+            messages.success(request, ngettext("You now follow %(n)s more artist.", "You now follow %(n)s more artists.",
+                                               followed) % {"n": followed})
         # form.instance.user carries the (possibly new) username; request.user is a stale copy.
         return redirect("events:profile", username=form.instance.user.get_username())
     return render(

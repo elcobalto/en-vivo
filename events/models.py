@@ -263,11 +263,10 @@ class Play(TimestampedModel):
     """An original play. Each staging of it is a theater event linked here (one play, many adaptations)."""
 
     title = models.CharField(max_length=240, db_index=True)
-    # The original production's credits: who wrote it, its music, its lyrics and its book (musicals).
+    # The original production's credits: who wrote it (the play, or a musical's book), its music and its lyrics.
     authors = models.ManyToManyField("Artist", blank=True, related_name="plays_written")
     music_by = models.ManyToManyField("Artist", blank=True, related_name="plays_music")
     lyrics_by = models.ManyToManyField("Artist", blank=True, related_name="plays_lyrics")
-    book_by = models.ManyToManyField("Artist", blank=True, related_name="plays_book")
     description = models.TextField(blank=True, default="")
     image_url = models.URLField(max_length=1000, blank=True, default="")
 
@@ -281,20 +280,116 @@ class Play(TimestampedModel):
         return reverse("events:play_detail", args=[self.pk])
 
     def credits(self) -> list[tuple[str, list]]:
-        """(label, artists) for each credit that has someone: Music, Lyrics, Author, Book."""
+        """(label, artists) for each credit that has someone: Music, Lyrics, Author / book."""
         rows = [(_("Music"), self.music_by.all()), (_("Lyrics"), self.lyrics_by.all()),
-                (_("Author"), self.authors.all()), (_("Book"), self.book_by.all())]
+                (_("Author / book"), self.authors.all())]
         return [(label, list(people)) for label, people in rows if people]
 
     def credited_artists(self) -> list:
         """Everyone credited on the original production, each once (authors first)."""
         seen, out = set(), []
-        for people in (self.authors.all(), self.music_by.all(), self.lyrics_by.all(), self.book_by.all()):
+        for people in (self.authors.all(), self.music_by.all(), self.lyrics_by.all()):
             for a in people:
                 if a.pk not in seen:
                     seen.add(a.pk)
                     out.append(a)
         return out
+
+    def credit_stagings(self) -> int:
+        """Credit everyone who created the play on each date it was staged. Returns how many credits were added."""
+        return sum(credit_play_creators(event) for event in self.performances.all())
+
+
+def credit_play_creators(event) -> int:
+    """Credit everyone who created the event's play (author, music, lyrics) on it, in that role, unless they're
+    already on the event. One role per person: the first of author, music, lyrics. Returns how many were added."""
+    play = event.play
+    if not play:
+        return 0
+    on_event = set(event.eventartist_set.values_list("artist_id", flat=True))
+    last = event.eventartist_set.aggregate(m=models.Max("billing_order"))["m"] or 0
+    added = 0
+    for role, people in (("author", play.authors), ("music", play.music_by), ("lyrics", play.lyrics_by)):
+        role = fit_role(role, event.event_type)
+        for artist in people.exclude(pk__in=on_event):
+            last += 1
+            on_event.add(artist.pk)
+            EventArtist.objects.create(event=event, artist=artist, role=role, billing_order=last)
+            added += 1
+    if added:
+        event.refresh_auto_title()
+    return added
+
+
+class Thumbnail(models.TextChoices):
+    """How a photo sits in the poster-shaped thumbnails (events and stagings)."""
+    FIT = "fit", _("Whole photo on a blurred background")
+    CROP = "crop", _("Crop to fill")
+    STRETCH = "stretch", _("Stretch to fill (may look distorted)")
+    AUTO = "auto", _("Auto: stretch photos close to poster shape, blur wider ones")
+
+
+class Staging(TimestampedModel):
+    """One production of a play or dance piece (a montaje): the West End or Broadway version, a season in
+    Santiago… It runs on many dates, each an ``Event``, which usually share the director and cast (each date
+    keeps its own lineup, since it can change). Its photo is used by every date that has none of its own.
+
+    Comedy shows on several dates are grouped the same way, with no play."""
+
+    play = models.ForeignKey(
+        Play, on_delete=models.SET_NULL, null=True, blank=True, related_name="stagings", verbose_name=_("Original play"),
+    )
+    # Optional, to tell stagings of the same play apart: “Broadway 1987”, “Teatro Municipal 2026”.
+    title = models.CharField(_("Name"), max_length=240, blank=True, default="",
+                             help_text=_("Optional. Leave blank to use the play's name with where and when."))
+    event_type = models.CharField(max_length=20, choices=EventType.choices, default=EventType.THEATER)
+    description = models.TextField(_("Description"), blank=True, default="")
+    image_url = models.URLField(_("Poster / image URL"), max_length=1000, blank=True, default="")
+    image_display = models.CharField(
+        _("Thumbnail"), max_length=10, choices=Thumbnail.choices, default=Thumbnail.FIT,
+        help_text=_("How the photo fits the poster-shaped thumbnails on cards and lists."),
+    )
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+",
+    )
+
+    objects = LogStatsQuerySet.as_manager()
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self) -> str:
+        return self.name
+
+    def get_absolute_url(self) -> str:
+        return reverse("events:staging_detail", args=[self.pk])
+
+    @property
+    def show_title(self) -> str:
+        """What is staged: the play's name, else the name of its dates."""
+        if self.play_id:
+            return self.play.title
+        first = self.dates.order_by("pk").values_list("title", flat=True).first()
+        return first or ""
+
+    @property
+    def where_and_when(self) -> str:
+        """“Teatro Municipal, 2026”, “Teatro Municipal, 2025–2026”: its first venue and the years of its dates."""
+        dated = self.dates.exclude(date=None)
+        first = self.dates.select_related("venue").exclude(venue=None).order_by(
+            models.F("date").asc(nulls_last=True), "pk").first()
+        years = sorted({d.year for d in dated.values_list("date", flat=True)})
+        bits = [first.venue.name] if first else []
+        if years:
+            bits.append(str(years[0]) if len(years) == 1 else f"{years[0]}–{years[-1]}")
+        return ", ".join(bits)
+
+    @property
+    def name(self) -> str:
+        """Its own name, else “Hamlet · Teatro Municipal, 2026”."""
+        if self.title:
+            return self.title
+        return " · ".join(bit for bit in (self.show_title, self.where_and_when) if bit) or gettext("Staging")
 
 
 class EventQuerySet(LogStatsQuerySet):
@@ -343,8 +438,13 @@ class Event(TimestampedModel):
     )
     # Theater only: the original play this event stages.
     play = models.ForeignKey(
-        Play, on_delete=models.SET_NULL, null=True, blank=True, related_name="stagings",
+        Play, on_delete=models.SET_NULL, null=True, blank=True, related_name="performances",
         verbose_name=_("Original play"),
+    )
+    # Theater, dance and comedy shows on several dates: the staging (montaje) this date belongs to. Its play is
+    # the event's play; dates without a photo of their own show the staging's.
+    staging = models.ForeignKey(
+        Staging, on_delete=models.SET_NULL, null=True, blank=True, related_name="dates", verbose_name=_("Staging"),
     )
     venue = models.ForeignKey(
         Venue, on_delete=models.SET_NULL, null=True, blank=True, related_name="events"
@@ -352,15 +452,9 @@ class Event(TimestampedModel):
     date = models.DateField(null=True, blank=True, db_index=True)
     # An admin looked at this music event with many acts (a possible festival) and said it isn't one.
     not_festival = models.BooleanField(default=False)
-    # Dates of the same theater, comedy or dance show share this key (see ``runs``); empty for one-offs.
-    run_key = models.CharField(max_length=32, blank=True, default="", db_index=True)
     description = models.TextField(blank=True, default="")
     image_url = models.URLField(max_length=1000, blank=True, default="")
-    class Thumbnail(models.TextChoices):
-        FIT = "fit", _("Whole photo on a blurred background")
-        CROP = "crop", _("Crop to fill")
-        STRETCH = "stretch", _("Stretch to fill (may look distorted)")
-        AUTO = "auto", _("Auto: stretch photos close to poster shape, blur wider ones")
+    Thumbnail = Thumbnail
 
     # How the photo sits in the poster-shaped thumbnails.
     image_display = models.CharField(
@@ -444,10 +538,12 @@ class Event(TimestampedModel):
 
     @property
     def display_image(self) -> str:
-        """Own photo, else festival or play photo, else the headliner's tour photo, else the photo
-        of the first person on the bill (cast, crew or lineup, in billing order) who has one."""
+        """Own photo, else its staging's, else festival or play photo, else the headliner's tour photo, else the
+        photo of the first person on the bill (cast, crew or lineup, in billing order) who has one."""
         if self.image_url:
             return self.image_url
+        if self.staging_id and self.staging.image_url:  # dates of a staging share its photo
+            return self.staging.image_url
         if self.production_id and self.production.image_url:  # festival days
             return self.production.image_url
         if self.play_id and self.play.image_url:  # theater stagings
@@ -462,6 +558,13 @@ class Event(TimestampedModel):
             .order_by("billing_order", "pk").values_list("artist__image_url", flat=True).first()
         )
         return first_with_photo or ""
+
+    @property
+    def display_mode(self) -> str:
+        """How ``display_image`` sits in thumbnails: the staging's setting when the photo comes from it."""
+        if not self.image_url and self.staging_id and self.staging.image_url:
+            return self.staging.image_display
+        return self.image_display
 
     @property
     def has_happened(self) -> bool:
@@ -518,12 +621,12 @@ class Event(TimestampedModel):
 
 
 # Roles that credit someone without them being an act you watch (theater authors, directors, choreographers,
-# and a play's music, lyrics and book).
-CREDIT_ROLES = ("author", "director", "choreographer", "music", "lyrics", "book")
+# and a play's music and lyrics; Author also covers a musical's book).
+CREDIT_ROLES = ("author", "director", "choreographer", "music", "lyrics")
 
 # Which event types use the "Original play" and "Festival" fields.
 PLAY_TYPES = ("theater", "dance")
-# Shows that run on several dates (one event per date, linked by ``Event.run_key``).
+# Shows that run on several dates (one event per date, grouped in a ``Staging``).
 RUN_TYPES = ("theater", "comedy", "dance")
 # Only these have a Headliner; in theater and dance the cast simply appears in billing order.
 HEADLINED_TYPES = ("music", "festival", "comedy")
@@ -534,9 +637,9 @@ ROLES_BY_TYPE = {
     "festival": ("headliner", "host", "none"),
     "music": ("headliner", "support", "guest", "host", "other", "none"),
     "comedy": ("headliner", "support", "guest", "cast", "host", "director", "author", "other", "none"),
-    # Music, Lyrics and Book are only for plays (dance has music and lyrics, but no book).
-    "theater": ("cast", "support", "guest", "host", "director", "author", "music", "lyrics", "book", "choreographer",
-                "other", "none"),
+    # Music and Lyrics are only for theater and dance.
+    "theater": ("cast", "support", "guest", "host", "director", "author", "music", "lyrics", "choreographer", "other",
+                "none"),
     "dance": ("cast", "support", "guest", "host", "director", "author", "music", "lyrics", "choreographer", "other",
               "none"),
 }
@@ -580,11 +683,10 @@ class EventArtist(models.Model):
         CAST = "cast", _("Cast")
         HOST = "host", _("Host")
         DIRECTOR = "director", _("Director")
-        AUTHOR = "author", _("Author / playwright")
+        AUTHOR = "author", _("Author / playwright / book")
         CHOREOGRAPHER = "choreographer", _("Choreographer")
         MUSIC = "music", _("Music")
         LYRICS = "lyrics", _("Lyrics")
-        BOOK = "book", _("Book / script")
         OTHER = "other", _("Other")
         NONE = "none", _("Performer")  # on the bill below the headliners (festival acts that aren't headliners or hosts)
 
@@ -618,7 +720,7 @@ class EventArtist(models.Model):
 
 CREDIT_LABELS = {
     "author": _("Written by"), "director": _("Directed by"), "choreographer": _("Choreography by"),
-    "music": _("Music by"), "lyrics": _("Lyrics by"), "book": _("Book by"),
+    "music": _("Music by"), "lyrics": _("Lyrics by"),
 }
 
 
@@ -827,6 +929,30 @@ class EventListItem(models.Model):
 # --------------------------------------------------------------------------- social
 
 
+def follow_logged_artists(user, logs=None) -> int:
+    """Follow the artists ``user`` saw at ``logs`` (every show in their diary when None), if their profile asks
+    for it. Returns how many artists they started following."""
+    if not Profile.objects.filter(user=user, follow_logged_artists=True).exists():
+        return 0
+    return follow_seen_artists(user, logs)
+
+
+def seen_artist_ids(user, logs=None) -> set[int]:
+    """The artists ``user`` saw at ``logs`` (every show in their diary when None) and doesn't follow yet."""
+    acts = ActLog.objects.filter(log__user=user)
+    if logs is not None:
+        acts = acts.filter(log__in=logs)
+    followed = ArtistFollow.objects.filter(user=user).values("artist_id")
+    return set(acts.exclude(artist_id__in=followed).values_list("artist_id", flat=True))
+
+
+def follow_seen_artists(user, logs=None) -> int:
+    """Follow every artist ``user`` saw at ``logs`` (every show in their diary when None)."""
+    ids = seen_artist_ids(user, logs)
+    ArtistFollow.objects.bulk_create([ArtistFollow(user=user, artist_id=i) for i in ids], ignore_conflicts=True)
+    return len(ids)
+
+
 class Profile(TimestampedModel):
     user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="profile")
     display_name = models.CharField(max_length=80, blank=True, default="")
@@ -880,6 +1006,11 @@ class Profile(TimestampedModel):
     home_followed_only = models.BooleanField(
         _("Home page: only artists I follow"), default=False,
         help_text=_("Shows and reviews on the home page are only those with artists you follow."),
+    )
+    # Adding a show to the diary follows the artists this person saw there.
+    follow_logged_artists = models.BooleanField(
+        _("Follow the artists I log"), default=False,
+        help_text=_("When you add a show to your diary, you start following the artists you saw."),
     )
 
     def __str__(self) -> str:

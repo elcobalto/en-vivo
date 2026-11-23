@@ -59,11 +59,17 @@
     <div class="my-2" style="max-width:24rem">{% rating_histogram act_logs _("Ratings of this act") True %}</div>
     {% if artist.bio %}<p class="mt-2">{{ artist.bio|linebreaksbr }}</p>{% endif %}
   </div>
-  {% if tours %}
+  {% if tours or plays %}
     {# Beside the profile (top right) instead of below it, so the header doesn't leave empty space. #}
     <div class="artist-tours flex-shrink-0">
-      <h2 class="section-title mb-2">{% translate "Tours" %}</h2>
-      <ul class="list-unstyled mb-0">{% for t in tours %}<li class="py-1"><a href="{{ t.get_absolute_url }}">{{ t.title }}</a></li>{% endfor %}</ul>
+      {% if plays %}
+        <h2 class="section-title mb-2">{% translate "Plays" context "theater plays" %}</h2>
+        <ul class="list-unstyled{% if tours %} mb-3{% else %} mb-0{% endif %}">{% for play, roles in plays %}<li class="py-1"><a href="{{ play.get_absolute_url }}">{{ play.title }}</a> <span class="small text-body-secondary">{{ roles }}</span></li>{% endfor %}</ul>
+      {% endif %}
+      {% if tours %}
+        <h2 class="section-title mb-2">{% translate "Tours" %}</h2>
+        <ul class="list-unstyled mb-0">{% for t in tours %}<li class="py-1"><a href="{{ t.get_absolute_url }}">{{ t.title }}</a></li>{% endfor %}</ul>
+      {% endif %}
     </div>
   {% endif %}
   </div>

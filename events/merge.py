@@ -183,8 +183,8 @@ def merge_artists(keep, remove):
 
     Production.objects.filter(artist=remove).update(artist=keep)
 
-    # Play credits (author, music, lyrics, book): the duplicate's plays credit `keep` instead.
-    for related in ("plays_written", "plays_music", "plays_lyrics", "plays_book"):
+    # Play credits (author, music, lyrics): the duplicate's plays credit `keep` instead.
+    for related in ("plays_written", "plays_music", "plays_lyrics"):
         plays = list(getattr(remove, related).all())
         if plays:
             getattr(keep, related).add(*plays)

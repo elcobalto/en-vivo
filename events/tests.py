@@ -2418,11 +2418,11 @@ class PlayTests(BaseTestCase):
         self.assertEqual(event.title, "La casa de Bernarda Alba")
         self.assertTrue(event.eventartist_set.filter(artist=lorca, role="author").exists())
         page = self.client.get(play.get_absolute_url())
-        self.assertContains(page, "<dt class=\"col-4 col-sm-3 col-lg-2 fw-normal\">Author</dt>", html=False)
+        self.assertContains(page, "<dt class=\"col-4 col-sm-3 col-lg-2 fw-normal\">Author / book</dt>", html=False)
         self.assertContains(page, event.get_absolute_url())
         self.assertContains(self.client.get(event.get_absolute_url()), "Staging of")
 
-    def test_a_play_has_music_lyrics_author_and_book_and_new_names_become_artists(self):
+    def test_a_play_has_music_lyrics_and_author_and_new_names_become_artists(self):
         from events.models import Artist, Play
         sondheim = Artist.objects.create(name="Stephen Sondheim")
         self.client.force_login(self.user)
@@ -2430,18 +2430,15 @@ class PlayTests(BaseTestCase):
             "title": "West Side Story",
             "music_by": ["new:Leonard Bernstein"],
             "lyrics_by": [str(sondheim.pk)],
-            "authors": ["new:Arthur Laurents", "new:jerome robbins"],
-            "book_by": ["new:arthur  laurents"],  # same person as an author: one artist
+            "authors": ["new:Arthur Laurents", "new:jerome robbins", "new:arthur  laurents"],  # typed twice: one
         })
         play = Play.objects.get(title="West Side Story")
         self.assertRedirects(resp, play.get_absolute_url(), fetch_redirect_response=False)
         self.assertEqual([a.name for a in play.music_by.all()], ["Leonard Bernstein"])
         self.assertEqual(list(play.lyrics_by.all()), [sondheim])
         self.assertEqual(sorted(a.name for a in play.authors.all()), ["Arthur Laurents", "jerome robbins"])
-        self.assertEqual(list(play.book_by.all()), list(play.authors.filter(name="Arthur Laurents")))
-        self.assertEqual(Artist.objects.filter(name__iexact="arthur laurents").count(), 1)
         page = self.client.get(play.get_absolute_url())
-        for label in ("Music", "Lyrics", "Author", "Book", "Leonard Bernstein", "Stephen Sondheim"):
+        for label in ("Music", "Lyrics", "Author / book", "Leonard Bernstein", "Stephen Sondheim"):
             self.assertContains(page, label)
 
     def test_a_typed_name_that_already_exists_is_reused(self):
@@ -2452,13 +2449,13 @@ class PlayTests(BaseTestCase):
         self.assertEqual(list(Play.objects.get(title="Yerma").authors.all()), [lorca])
         self.assertEqual(Artist.objects.count(), 1)
 
-    def test_a_staging_credits_the_plays_music_lyrics_and_book_in_their_own_roles(self):
+    def test_a_staging_credits_everyone_who_created_the_play(self):
         from events.models import Artist, Play
         bernstein, sondheim, laurents = (Artist.objects.create(name=n) for n in ("Bernstein", "Sondheim", "Laurents"))
         play = Play.objects.create(title="West Side Story")
         play.music_by.add(bernstein)
         play.lyrics_by.add(sondheim)
-        play.book_by.add(laurents)
+        play.authors.add(laurents)
         self.client.force_login(self.user)
         form_page = self.client.get(reverse("events:event_create") + f"?play={play.pk}")
         mgmt = form_page.context["formset"].management_form
@@ -2467,20 +2464,47 @@ class PlayTests(BaseTestCase):
             "image_display": "fit", mgmt.prefix + "-TOTAL_FORMS": "0", mgmt.prefix + "-INITIAL_FORMS": "0"})
         event = Event.objects.get(play=play)
         self.assertEqual(dict(event.eventartist_set.values_list("artist__name", "role")),
-                         {"Bernstein": "music", "Sondheim": "lyrics", "Laurents": "book"})
+                         {"Bernstein": "music", "Sondheim": "lyrics", "Laurents": "author"})
         page = self.client.get(event.get_absolute_url())
-        for text in ("Music by", "Lyrics by", "Book by"):
+        for text in ("Music by", "Lyrics by", "Written by"):
             self.assertContains(page, text)
 
-    def test_music_lyrics_and_book_are_only_for_plays(self):
-        from events.models import allowed_roles, fit_role
-        self.assertTrue({"music", "lyrics", "book"} <= set(allowed_roles("theater")))
+    def test_someone_added_to_a_play_is_credited_on_its_stagings(self):
+        from events.models import Artist, Play
+        play = Play.objects.create(title="Candide")
+        staging = Event.objects.create(title="Candide", event_type=EventType.THEATER, play=play, venue=self.venue)
+        bernstein = Artist.objects.create(name="Leonard Bernstein")
+        from events.forms import PlayForm
+        form = PlayForm({"title": "Candide", "music_by": [str(bernstein.pk)]}, instance=play)
+        self.assertTrue(form.is_valid(), form.errors)
+        form.save()
+        self.assertEqual(list(staging.eventartist_set.values_list("artist__name", "role")),
+                         [("Leonard Bernstein", "music")])
+        form.save()  # once only
+        self.assertEqual(staging.eventartist_set.count(), 1)
+
+    def test_music_and_lyrics_are_only_for_plays_and_book_is_author(self):
+        from events.models import EventArtist, allowed_roles, fit_role
+        self.assertTrue({"music", "lyrics"} <= set(allowed_roles("theater")))
         self.assertTrue({"music", "lyrics"} <= set(allowed_roles("dance")))
-        self.assertNotIn("book", allowed_roles("dance"))
+        self.assertNotIn("book", dict(EventArtist.Role.choices))
         for event_type in ("music", "comedy", "festival", "other"):
-            self.assertFalse({"music", "lyrics", "book"} & set(allowed_roles(event_type)), event_type)
-        self.assertEqual(fit_role("book", "dance"), "author")
+            self.assertFalse({"music", "lyrics"} & set(allowed_roles(event_type)), event_type)
+        self.assertEqual(fit_role("music", "comedy"), "author")
         self.assertEqual(fit_role("music", "music"), "other")
+
+    def test_the_artist_page_lists_the_plays_they_created(self):
+        from events.models import Artist, Play
+        sondheim = Artist.objects.create(name="Stephen Sondheim")
+        west = Play.objects.create(title="West Side Story")
+        west.lyrics_by.add(sondheim)
+        sweeney = Play.objects.create(title="Sweeney Todd")
+        sweeney.music_by.add(sondheim)
+        sweeney.lyrics_by.add(sondheim)
+        page = self.client.get(sondheim.get_absolute_url())
+        self.assertEqual([(p.title, roles) for p, roles in page.context["plays"]],
+                         [("Sweeney Todd", "Music · Lyrics"), ("West Side Story", "Lyrics")])
+        self.assertContains(page, west.get_absolute_url())
 
     def test_merging_artists_moves_their_play_credits(self):
         from events.merge import merge_artists
@@ -4368,7 +4392,7 @@ class EventTypeRulesTests(BaseTestCase):
             self.assertIn("choreographer", allowed_roles(event_type))
         self.assertNotIn("choreographer", allowed_roles("comedy"))
         self.assertIn("headliner", allowed_roles("comedy"))
-        play_only = {"music", "lyrics", "book"}  # a play's music, lyrics and book: theater and dance only
+        play_only = {"music", "lyrics"}  # a play's music and lyrics: theater and dance only
         for event_type in ("other", "multicultural"):
             self.assertEqual(set(allowed_roles(event_type)), {v for v, _ in EventArtist.Role.choices} - play_only)
 

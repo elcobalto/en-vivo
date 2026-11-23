@@ -8,7 +8,7 @@
   var list = document.getElementById("lineup-rows");
   if (!button || !list) return;
   var status = document.getElementById("poster-sort-status");
-  var CREDITS = ["author", "director", "choreographer", "music", "lyrics", "book"];
+  var CREDITS = ["author", "director", "choreographer", "music", "lyrics"];
   var SORTABLE_ROLES = ["headliner", "support"]; // other roles (cast, host, guest…) keep their role
 
   function say(text) { status.textContent = text; }

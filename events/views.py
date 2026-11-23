@@ -30,11 +30,12 @@ from .models import (
     PLAY_TYPES,
     ROLES_BY_TYPE,
     allowed_roles,
-    fit_role,
+    credit_play_creators,
     added_act_role,
     Album,
     normalize_name,
     ActLog,
+    follow_logged_artists,
     Event,
     EventList,
     EventArtist,
@@ -145,7 +146,8 @@ def first_show(request: HttpRequest) -> HttpResponse:
         if not event.has_happened:
             messages.error(request, gettext("“%(title)s” hasn't happened yet.") % {"title": event.title})
             return redirect(f"{reverse('events:first_show')}?{urlencode({'q': request.POST.get('q', '')})}")
-        Log.objects.get_or_create(user=request.user, event=event)
+        log, _created = Log.objects.get_or_create(user=request.user, event=event)
+        follow_logged_artists(request.user, [log])
         messages.success(request, gettext("Added to your diary. Rate it or write a review here."))
         return redirect(event)
     from .views_welcome import STEPS as welcome_steps
@@ -728,6 +730,7 @@ def artist_detail(request: HttpRequest, pk: int) -> HttpResponse:
             "is_following_artist": request.user.is_authenticated
             and artist.follows.filter(user=request.user).exists(),
             "tours": artist.tours.order_by("title"),
+            "plays": _artist_plays_created(artist),
             **(dict(zip(("merge_similar", "merge_rest"), artist_duplicate_candidates(artist)))
                if is_admin(request.user) else {}),
             "act_logs": act_logs,
@@ -1201,34 +1204,32 @@ def setlist_albums_edit(request: HttpRequest, pk: int, artist_pk: int) -> HttpRe
     return redirect(reverse("events:act_setlist", args=[pk, artist_pk]))
 
 
-def _credit_play_authors(event: Event) -> None:
-    """A staging credits its play's creators (author, music, lyrics, book) unless they're already on it.
+def _artist_plays_created(artist) -> list[tuple]:
+    """(play, what they did: “Author / book · Music”) for each play this artist helped create, by title."""
+    roles = {}
+    for label, related in ((gettext("Author / book"), "plays_written"), (gettext("Music"), "plays_music"),
+                           (gettext("Lyrics"), "plays_lyrics")):
+        for play in getattr(artist, related).all():
+            roles.setdefault(play, []).append(label)
+    return [(play, " · ".join(labels)) for play, labels in sorted(roles.items(), key=lambda r: r[0].title.casefold())]
 
-    Each gets the role of their credit (one role per person: the first of author, music, lyrics, book)."""
-    on_event = set(event.eventartist_set.values_list("artist_id", flat=True))
-    last = event.eventartist_set.aggregate(m=models.Max("billing_order"))["m"] or 0
-    play = event.play
-    for role, people in (("author", play.authors), ("music", play.music_by), ("lyrics", play.lyrics_by),
-                         ("book", play.book_by)):
-        role = fit_role(role, event.event_type)
-        for artist in people.exclude(pk__in=on_event):
-            last += 1
-            on_event.add(artist.pk)
-            EventArtist.objects.create(event=event, artist=artist, role=role, billing_order=last)
-    event.refresh_auto_title()
+
+def _credit_play_authors(event: Event) -> None:
+    """A staging credits everyone who created its play (author, music, lyrics) unless they're already on it."""
+    credit_play_creators(event)
 
 
 def play_list(request: HttpRequest) -> HttpResponse:
     q = request.GET.get("q", "").strip()
-    plays = Play.objects.prefetch_related("authors", "music_by", "lyrics_by", "book_by").annotate(n=Count("stagings", distinct=True))
+    plays = Play.objects.prefetch_related("authors", "music_by", "lyrics_by").annotate(n=Count("stagings", distinct=True))
     if q:
         plays = plays.filter(Q(title__icontains=q) | Q(authors__name__icontains=q) | Q(music_by__name__icontains=q)
-                             | Q(lyrics_by__name__icontains=q) | Q(book_by__name__icontains=q)).distinct()
+                             | Q(lyrics_by__name__icontains=q)).distinct()
     return render(request, "events/play_list.html", {"plays": plays.order_by("title"), "q": q})
 
 
 def play_detail(request: HttpRequest, pk: int) -> HttpResponse:
-    play = get_object_or_404(Play.objects.prefetch_related("authors", "music_by", "lyrics_by", "book_by"), pk=pk)
+    play = get_object_or_404(Play.objects.prefetch_related("authors", "music_by", "lyrics_by"), pk=pk)
     stagings = play.stagings.with_stats().select_related("venue").order_by(F("date").desc(nulls_last=True))
     return render(request, "events/play_detail.html", {"play": play, "stagings": stagings})
 
@@ -1385,6 +1386,7 @@ def log_save(request: HttpRequest, pk: int) -> HttpResponse:
         entry.save()
         if request.POST.get("acts_submitted"):
             _save_acts(entry, request.POST)
+        follow_logged_artists(request.user, [entry])
         messages.success(request, gettext("Saved to your diary."))
     else:
         messages.error(request, gettext("Could not save your log: %(errors)s") % {"errors": form.errors.as_text()})

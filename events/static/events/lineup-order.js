@@ -6,7 +6,7 @@
   if (!list) return;
   var dragging = null;
 
-  var CREDITS = ["author", "director", "choreographer", "music", "lyrics", "book"];
+  var CREDITS = ["author", "director", "choreographer", "music", "lyrics"];
 
   function typeHasHeadliners() {
     var rules = document.getElementById("event-type-rules"), type = document.getElementById("id_event_type");
@@ -259,11 +259,11 @@
     author: "author", authors: "author", autor: "author", autora: "author", autores: "author",
     playwright: "author", dramaturgia: "author", dramaturgo: "author", dramaturga: "author", "written by": "author",
     "escrita por": "author", texto: "author",
-    // The original production's credits: their own roles in plays (dance has music and lyrics, no book).
+    // The original production's credits: Music and Lyrics have their own roles; a musical's book is Author.
     music: "music", "music by": "music", musica: "music", composer: "music", compositor: "music", compositora: "music",
     "musica original": "music", lyrics: "lyrics", "lyrics by": "lyrics", letra: "lyrics", letras: "lyrics",
-    letrista: "lyrics", book: "book", "book by": "book", libreto: "book", libretista: "book", guion: "book",
-    script: "book", screenplay: "book",
+    letrista: "lyrics", book: "author", "book by": "author", libreto: "author", libretista: "author",
+    guion: "author", script: "author", screenplay: "author",
     choreographer: "choreographer", choreography: "choreographer", coreografia: "choreographer",
     coreografo: "choreographer", coreografa: "choreographer",
     other: "other", otro: "other", otros: "other", crew: "other", equipo: "other"

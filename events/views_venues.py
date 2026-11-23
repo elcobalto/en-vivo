@@ -14,7 +14,7 @@ from django.utils.translation import gettext, ngettext
 from django.views.decorators.http import require_GET, require_POST
 
 from . import google_places, image_search, setlistfm_events, setlistfm_quota
-from .models import Event, Log, Artist, Setlist, Venue, add_all_acts
+from .models import Event, Log, Artist, Setlist, Venue, add_all_acts, follow_logged_artists
 from .roles import can_edit_event, home_place, is_admin
 from .setlistfm import SetlistFmError, _as_list, parse_event_date, search_setlists
 from .views_social import get_profile
@@ -139,6 +139,7 @@ def setlistfm_shows(request: HttpRequest) -> HttpResponse:
                     attended += added
                     if not added:
                         add_all_acts(log)  # an act this import added to an event you'd logged
+                    follow_logged_artists(request.user, [log])
                 if result.event not in imported_events:
                     imported_events.append(result.event)
                 if result.setlist_already_imported:

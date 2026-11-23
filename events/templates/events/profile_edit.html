@@ -11,7 +11,7 @@
         {% csrf_token %}
         {% for field in form %}
           {% if field.widget_type == "checkbox" %}
-          <div class="mb-3 form-check">
+          <div class="mb-3 form-check{% if field.name == 'follow_logged_now' %} ms-4{% endif %}">
             {{ field }} <label class="form-check-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
             {% if field.help_text %}<div class="form-text">{{ field.help_text }}</div>{% endif %}
           </div>
@@ -55,4 +55,15 @@
   </div>
 </div>
 <script src="{% static 'events/favorites-form.js' %}"></script>
+<script>
+  // A box that only matters with another one ticked ("Also follow the artists you've already logged").
+  document.querySelectorAll("[data-shown-with]").forEach((box) => {
+    const main = document.getElementById(box.dataset.shownWith);
+    const row = box.closest(".form-check");
+    if (!main || !row) return;
+    const sync = () => { row.hidden = !main.checked; if (!main.checked) box.checked = false; };
+    main.addEventListener("change", sync);
+    sync();
+  });
+</script>
 {% endblock %}

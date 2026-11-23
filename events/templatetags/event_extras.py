@@ -148,7 +148,7 @@ def poster_mode(context, event) -> str:
         profile = getattr(user, "profile", None)  # missing profile raises an AttributeError subclass
         if profile is not None and profile.thumbnail_display:
             return profile.thumbnail_display
-    return event.image_display
+    return getattr(event, "display_mode", event.image_display)
 
 
 @register.simple_tag
