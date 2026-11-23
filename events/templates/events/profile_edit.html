@@ -6,12 +6,7 @@
 {% block content %}
   <div class="row justify-content-center">
     <div class="col-12 col-md-9 col-lg-7">
-      {% if welcome %}
-        <div class="alert alert-success">
-          <strong>{% translate "Welcome to En Vivo!" %}</strong> {% translate "Choose your username. You can change it, and everything else here, any time." %}
-        </div>
-      {% endif %}
-      <h1 class="h4 mb-3">{% if welcome %}{% translate "Set up your profile" %}{% else %}{% translate "Edit profile" %}{% endif %}</h1>
+      <h1 class="h4 mb-3">{% translate "Edit profile" %}</h1>
       <form method="post" class="card"><div class="card-body">
         {% csrf_token %}
         {% for field in form %}

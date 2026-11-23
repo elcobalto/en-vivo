@@ -402,19 +402,19 @@ def _favorites(user):
 @login_required
 def profile_edit(request: HttpRequest) -> HttpResponse:
     """Profile details. Favourites are edited in a modal that loads its (heavy) form only when opened."""
+    if request.GET.get("welcome") == "1":  # old sign-up link: the step-by-step sign-up replaced it
+        return redirect("events:welcome")
     form = ProfileForm(request.POST or None, instance=get_profile(request.user))
     if request.method == "POST" and form.is_valid():
         form.save()
         translation.activate(form.instance.language)  # "Profile saved." in the language just picked
         messages.success(request, gettext("Profile saved."))
-        if request.GET.get("welcome") == "1":  # signing up: next, the last show they went to
-            return redirect("events:first_show")
         # form.instance.user carries the (possibly new) username; request.user is a stale copy.
         return redirect("events:profile", username=form.instance.user.get_username())
     return render(
         request,
         "events/profile_edit.html",
-        {"form": form, "favorites": _favorites(request.user), "welcome": request.GET.get("welcome") == "1"},
+        {"form": form, "favorites": _favorites(request.user)},
     )
 
 

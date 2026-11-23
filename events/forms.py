@@ -503,8 +503,9 @@ class ProfileForm(BootstrapMixin, forms.ModelForm):
     def save(self, commit: bool = True):
         profile = super().save(commit=commit)
         user = self.instance.user
-        if commit and user.get_username() != self.cleaned_data["username"]:
-            user.username = self.cleaned_data["username"]
+        username = self.cleaned_data.get("username")  # a sign-up step without it leaves the username alone
+        if commit and username and user.get_username() != username:
+            user.username = username
             user.save(update_fields=["username"])
         return profile
 

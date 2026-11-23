@@ -6,7 +6,7 @@
 {% block content %}
   <div class="row justify-content-center">
     <div class="col-12 col-md-10 col-lg-8">
-      <div class="small text-body-secondary text-uppercase mb-1">{% translate "Welcome to En Vivo" %}</div>
+      {% include "events/_welcome_progress.html" with number=welcome_total total=welcome_total percent=100 %}
       <h1 class="h4 mb-2">{% translate "What's the last show you went to?" %}</h1>
       <p class="text-body-secondary">{% translate "Search for it by artist, show or venue and add it to your diary." %}</p>
 
@@ -69,7 +69,10 @@
         </div>
       {% endif %}
 
-      <a class="small" href="{% url 'events:home' %}">{% translate "Skip for now →" %}</a>
+      <div class="d-flex flex-wrap align-items-center gap-3">
+        <a class="btn btn-outline-secondary" href="{{ welcome_back }}">{% translate "← Back" %}</a>
+        <a class="small" href="{% url 'events:home' %}">{% translate "Skip for now →" %}</a>
+      </div>
     </div>
   </div>
 {% endblock %}

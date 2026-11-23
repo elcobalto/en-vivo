@@ -148,6 +148,8 @@ def first_show(request: HttpRequest) -> HttpResponse:
         Log.objects.get_or_create(user=request.user, event=event)
         messages.success(request, gettext("Added to your diary. Rate it or write a review here."))
         return redirect(event)
+    from .views_welcome import STEPS as welcome_steps
+
     q = (request.GET.get("q") or "").strip()
     results = []
     if q:
@@ -163,6 +165,8 @@ def first_show(request: HttpRequest) -> HttpResponse:
     return render(request, "events/first_show.html", {
         "q": q, "results": results, "logged": logged,
         "other_types": [(value, label) for value, label in EventType.choices if value not in music],
+        "welcome_total": len(welcome_steps) + 1,  # the last step of signing up
+        "welcome_back": reverse("events:welcome_step", args=[welcome_steps[-1][0]]),
     })
 
 

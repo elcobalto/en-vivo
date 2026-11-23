@@ -1150,15 +1150,16 @@ class UsernameTests(BaseTestCase):
         self.user.refresh_from_db()
         self.assertEqual(self.user.username, "ana")
 
-    def test_form_shows_current_username_and_welcome(self):
-        page = self.client.get(reverse("events:profile_edit") + "?welcome=1")
-        self.assertContains(page, 'value="ana"')
-        self.assertContains(page, "Choose your username")
+    def test_form_shows_current_username(self):
+        self.assertContains(self.client.get(reverse("events:profile_edit")), 'value="ana"')
 
-    def test_new_google_users_are_sent_to_pick_a_username(self):
+    def test_new_google_users_go_to_the_step_by_step_sign_up(self):
         from django.conf import settings
 
-        self.assertEqual(settings.ACCOUNT_SIGNUP_REDIRECT_URL, "/settings/profile/?welcome=1")
+        self.assertEqual(settings.ACCOUNT_SIGNUP_REDIRECT_URL, reverse("events:welcome"))
+        # The old sign-up link still works: it opens the first step.
+        self.assertRedirects(self.client.get(reverse("events:profile_edit") + "?welcome=1"), reverse("events:welcome"),
+                             fetch_redirect_response=False)
 
 
 class FutureEventLogTests(BaseTestCase):
@@ -4995,12 +4996,39 @@ class SignInFirstTests(BaseTestCase):
         self.client.force_login(self.user)
         self.assertTemplateUsed(self.client.get(reverse("events:home")), "events/home.html")
 
-    def test_welcome_profile_leads_to_last_show(self):
+    def test_sign_up_goes_step_by_step_and_ends_with_the_last_show(self):
         self.client.force_login(self.user)
-        response = self.client.post(reverse("events:profile_edit") + "?welcome=1", {"username": "ana"})
-        self.assertRedirects(response, reverse("events:first_show"))
-        response = self.client.post(reverse("events:profile_edit"), {"username": "ana"})
-        self.assertRedirects(response, reverse("events:profile", args=["ana"]))
+        step = lambda slug: reverse("events:welcome_step", args=[slug])  # noqa: E731
+        self.assertRedirects(self.client.get(reverse("events:welcome")), step("name"))
+        page = self.client.get(step("name"))
+        self.assertContains(page, "Step 1 of 5")
+        self.assertEqual(list(page.context["form"].fields), ["username", "display_name"])
+        self.assertNotContains(page, 'name="skip"')  # the username can't be skipped
+        self.assertRedirects(self.client.post(step("name"), {"username": "ana_v", "display_name": "Ana"}),
+                             step("place"))
+        self.assertRedirects(self.client.post(step("place"), {"home_country": "CL", "home_city": "Valparaíso"}),
+                             step("home"))
+        self.assertRedirects(self.client.post(step("home"), {"skip": "1"}), step("about"))
+        self.assertRedirects(self.client.post(step("about"), {"bio": "Hola"}), reverse("events:first_show"))
+        self.assertContains(self.client.get(reverse("events:first_show")), "Step 5 of 5")
+        self.user.refresh_from_db()
+        profile = self.user.profile
+        self.assertEqual((self.user.username, profile.display_name, profile.home_country.code, profile.home_city,
+                          profile.bio), ("ana_v", "Ana", "CL", "Valparaíso", "Hola"))
+
+    def test_a_sign_up_step_only_changes_its_own_fields(self):
+        self.client.force_login(self.user)
+        profile = self.user.profile
+        profile.bio, profile.home_city = "Old bio", "Santiago"
+        profile.save()
+        self.client.post(reverse("events:welcome_step", args=["about"]), {"avatar_url": "", "bio": "New bio"})
+        profile.refresh_from_db()
+        self.user.refresh_from_db()
+        self.assertEqual((profile.bio, profile.home_city, self.user.username), ("New bio", "Santiago", "ana"))
+        page = self.client.post(reverse("events:welcome_step", args=["name"]), {"username": "a b"})
+        self.assertEqual(page.status_code, 200)  # stays on the step with the error
+        self.assertContains(page, "Use only letters")
+        self.assertEqual(self.client.get(reverse("events:welcome_step", args=["nope"])).status_code, 404)
 
     def test_last_show_search_and_log(self):
         self.client.force_login(self.user)

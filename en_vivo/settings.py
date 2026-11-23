@@ -230,7 +230,7 @@ ACCOUNT_EMAIL_VERIFICATION = "none"
 ACCOUNT_ADAPTER = "events.adapters.AccountAdapter"
 SOCIALACCOUNT_ADAPTER = "events.adapters.SocialAccountAdapter"
 # After their first Google sign-in, new users pick a username on their profile page.
-ACCOUNT_SIGNUP_REDIRECT_URL = "/settings/profile/?welcome=1"
+ACCOUNT_SIGNUP_REDIRECT_URL = "/welcome/"  # sign-up, step by step (events/views_welcome.py)
 SOCIALACCOUNT_EMAIL_AUTHENTICATION = True
 SOCIALACCOUNT_EMAIL_AUTHENTICATION_AUTO_CONNECT = True
 SOCIALACCOUNT_AUTO_SIGNUP = True

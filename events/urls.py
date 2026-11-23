@@ -1,12 +1,14 @@
 from django.urls import path
 
-from . import views, views_admin, views_bulk, views_discovery, views_feedback, views_merge, views_social, views_venues
+from . import views, views_admin, views_bulk, views_discovery, views_feedback, views_merge, views_social, views_venues, views_welcome
 
 app_name = "events"
 
 urlpatterns = [
     path("", views.home, name="home"),
+    path("welcome/", views_welcome.welcome, name="welcome"),
     path("welcome/first-show/", views.first_show, name="first_show"),
+    path("welcome/<slug:step>/", views_welcome.welcome_step, name="welcome_step"),
     path("home/area/", views.home_area, name="home_area"),
     path("home/followed-only/", views.home_followed_only, name="home_followed_only"),
     path("events/", views.event_list, name="event_list"),

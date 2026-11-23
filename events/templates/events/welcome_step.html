@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block title %}{{ title }} · en vivo{% endblock %}
+
+{% block content %}
+  <div class="row justify-content-center">
+    <div class="col-12 col-md-8 col-lg-6">
+      {% include "events/_welcome_progress.html" %}
+      <h1 class="h4 mb-2">{{ title }}</h1>
+      <p class="text-body-secondary">{{ intro }}</p>
+      <form method="post" class="card"><div class="card-body">
+        {% csrf_token %}
+        {{ form.non_field_errors }}
+        {% for field in form %}
+          {% if field.widget_type == "checkbox" %}
+            <div class="mb-3 form-check">
+              {{ field }} <label class="form-check-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+              {% if field.help_text %}<div class="form-text">{{ field.help_text }}</div>{% endif %}
+            </div>
+          {% else %}
+            <div class="mb-3">
+              <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+              {% if field.name == 'username' %}
+                <div class="input-group"><span class="input-group-text">@</span>{{ field }}</div>
+              {% else %}
+                {{ field }}
+              {% endif %}
+              {% if field.help_text %}<div class="form-text">{{ field.help_text }}</div>{% endif %}
+              {% for error in field.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
+            </div>
+          {% endif %}
+        {% endfor %}
+        {% if form.region_options and "home_region" in form.fields %}<datalist id="region-options">{% for region in form.region_options %}<option value="{{ region }}"></option>{% endfor %}</datalist>{% endif %}
+        <div class="d-flex flex-wrap align-items-center gap-2 mt-4">
+          {% if back %}<a class="btn btn-outline-secondary" href="{{ back }}">{% translate "← Back" %}</a>{% endif %}
+          <span class="flex-grow-1"></span>
+          {% if optional %}<button class="btn btn-link link-secondary" type="submit" name="skip" value="1" formnovalidate>{% translate "Skip" %}</button>{% endif %}
+          <button class="btn btn-success" type="submit">{% translate "Continue →" %}</button>
+        </div>
+      </div></form>
+    </div>
+  </div>
+{% endblock %}
