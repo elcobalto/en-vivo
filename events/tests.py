@@ -4838,3 +4838,82 @@ class ProductionPaginationTests(BaseTestCase):
         second = self.client.get(url, {"page": 2, "rpage": 2})
         self.assertEqual((len(second.context["events"]), len(second.context["reviews"].object_list)), (5, 5))
         self.assertContains(second, "?page=1&amp;rpage=2")  # the other list keeps its page
+
+
+class ArtistFollowTests(BaseTestCase):
+    def setUp(self):
+        super().setUp()
+        from django.utils import timezone
+
+        today = timezone.localdate()
+        self.green_day = Artist.objects.create(name="Green Day")
+        self.other = Artist.objects.create(name="Other Band")
+        EventArtist.objects.create(event=self.event, artist=self.green_day)  # 1992, past
+        self.gd_soon = Event.objects.create(title="Green Day soon", venue=self.venue, date=today + timedelta(days=5))
+        EventArtist.objects.create(event=self.gd_soon, artist=self.green_day)
+        self.other_soon = Event.objects.create(title="Other soon", venue=self.venue, date=today + timedelta(days=6))
+        EventArtist.objects.create(event=self.other_soon, artist=self.other)
+        self.client.force_login(self.user)
+
+    def _follow(self, artist):
+        return self.client.post(reverse("events:artist_follow_toggle", args=[artist.pk]))
+
+    def test_follow_and_unfollow_from_artist_page(self):
+        self.assertContains(self.client.get(self.green_day.get_absolute_url()), "Follow")
+        self.assertRedirects(self._follow(self.green_day), self.green_day.get_absolute_url())
+        page = self.client.get(self.green_day.get_absolute_url())
+        self.assertTrue(page.context["is_following_artist"])
+        self.assertContains(page, "1 follower")
+        self._follow(self.green_day)
+        self.assertFalse(self.user.artist_follows.exists())
+
+    def test_follow_needs_login(self):
+        self.client.logout()
+        self.assertEqual(self._follow(self.green_day).status_code, 302)
+        self.assertFalse(self.green_day.follows.exists())
+
+    def test_home_shows_only_followed_artists_when_chosen(self):
+        upcoming = lambda: {e.title for e in self.client.get(reverse("events:home")).context["upcoming"]}  # noqa: E731
+        self._follow(self.green_day)
+        self.assertEqual(upcoming(), {"Green Day soon", "Other soon"})
+        self.client.post(reverse("events:home_followed_only"), {"followed_only": "1"})
+        self.assertTrue(get_user_model().objects.get(pk=self.user.pk).profile.home_followed_only)
+        page = self.client.get(reverse("events:home"))
+        self.assertEqual({e.title for e in page.context["upcoming"]}, {"Green Day soon"})
+        self.assertEqual([e.title for e in page.context["recent"]], ["Green Day in Chile"])
+        self.assertIn("followed=1", page.context["upcoming_query"])
+        self.client.post(reverse("events:home_followed_only"), {"followed_only": "0"})
+        self.assertEqual(upcoming(), {"Green Day soon", "Other soon"})
+
+    def test_followed_only_without_follows_explains(self):
+        self.client.post(reverse("events:home_followed_only"), {"followed_only": "1"})
+        page = self.client.get(reverse("events:home"))
+        self.assertEqual(list(page.context["upcoming"]), [])
+        self.assertContains(page, "You don't follow any artists yet")
+
+    def test_events_list_followed_filter(self):
+        self._follow(self.other)
+        page = self.client.get(reverse("events:event_list"), {"when": "upcoming", "followed": "1"})
+        self.assertEqual([e.title for e in page.context["page"].object_list], ["Other soon"])
+
+    def test_merging_artists_keeps_followers(self):
+        from .merge import merge_artists
+
+        bob = get_user_model().objects.create_user("bob", password="pw-test-456")
+        self._follow(self.green_day)
+        self._follow(self.other)
+        bob.artist_follows.create(artist=self.other)
+        merge_artists(self.green_day, self.other)
+        self.assertEqual(sorted(self.green_day.follows.values_list("user__username", flat=True)), ["ana", "bob"])
+
+    def test_recently_happened_follows_home_place(self):
+        lima = Venue.objects.create(name="Arena Lima", city="Lima", country="PE")
+        Event.objects.create(title="Lima past", venue=lima, date=date(2020, 1, 1))
+        recent = lambda: {e.title for e in self.client.get(reverse("events:home")).context["recent"]}  # noqa: E731
+        self.assertIn("Lima past", recent())
+        self.user.profile.home_city = "Santiago"
+        self.user.profile.save()
+        self.assertNotIn("Lima past", recent())
+        page = self.client.get(reverse("events:home"))
+        self.assertContains(page, "Recently in Santiago")
+        self.assertIn("city=Santiago", page.context["recent_query"])

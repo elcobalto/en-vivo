@@ -39,6 +39,7 @@ from .models import (
     EventType,
     Log,
     Artist,
+    ArtistFollow,
     Play,
     Production,
     Setlist,
@@ -98,36 +99,79 @@ def _can_edit(user, event: Event) -> bool:
 def home(request: HttpRequest) -> HttpResponse:
     today = timezone.localdate()
     events = Event.objects.with_stats().select_related("venue")
+    logs = Log.objects.exclude(review="")
+    followed = _followed_artists(request)
+    followed_only = followed is not None
+    if followed_only:  # only shows with an artist this person follows (and reviews of them)
+        with_followed = Event.objects.filter(artists__in=followed).values("pk")
+        events = events.filter(pk__in=with_followed)
+        logs = logs.filter(event__in=with_followed)
+    upcoming, upcoming_place, upcoming_city = _near(request, events.filter(date__gte=today).order_by("date"))
+    recent, recent_place, recent_city = _near(request, events.filter(date__lt=today).order_by("-date"))
     return render(
         request,
         "events/home.html",
         {
-            **_upcoming_near(request, events.filter(date__gte=today).order_by("date")),
-            "recent": events.filter(date__lt=today).order_by("-date")[:6],
+            "upcoming": upcoming[:6],
+            "upcoming_place": upcoming_place,
+            "upcoming_query": _list_query("upcoming", upcoming_city, followed_only),
+            "recent": recent[:6],
+            "recent_place": recent_place,
+            "recent_query": _list_query("past", recent_city, followed_only),
             "just_added": events.order_by("-created_at")[:6],
-            "reviews": _reviews(Log.objects.exclude(review=""))[:6],
-            "lists": EventList.objects.filter(items__isnull=False).select_related("user")
+            "reviews": _reviews(logs)[:6],
+            "lists": [] if followed_only else EventList.objects.filter(items__isnull=False).select_related("user")
             .annotate(item_count=Count("items")).order_by("-updated_at")[:6],
             "event_types": EventType.choices,
             "friends_activity": _friends_activity(request),
+            "followed_only": followed_only,
+            "followed_artists": followed if followed_only else [],
         },
     )
 
 
-def _upcoming_near(request: HttpRequest, upcoming) -> dict:
-    """Upcoming events near the user, as their profile asks: shows by local artists (from their country) in their
-    city, region or country, and shows by international artists in their city, region or country. Everyone else
-    sees all of them."""
-    from django_countries import countries
+def _followed_artists(request: HttpRequest) -> list | None:
+    """The artists the signed-in person follows, when their home page shows only those (None otherwise)."""
+    profile = getattr(request.user, "profile", None) if request.user.is_authenticated else None
+    if not profile or not profile.home_followed_only:
+        return None
+    return list(Artist.objects.filter(follows__user=request.user).order_by("name"))
 
+
+@login_required
+@require_POST
+def home_followed_only(request: HttpRequest) -> HttpResponse:
+    """The home page's switch between everything and only the artists the person follows."""
+    from .views_social import get_profile
+
+    profile = get_profile(request.user)
+    profile.home_followed_only = request.POST.get("followed_only") == "1"
+    profile.save(update_fields=["home_followed_only"])
+    return redirect("events:home")
+
+
+@login_required
+@require_POST
+def artist_follow_toggle(request: HttpRequest, pk: int) -> HttpResponse:
+    artist = get_object_or_404(Artist, pk=pk)
+    deleted, _ = ArtistFollow.objects.filter(user=request.user, artist=artist).delete()
+    if not deleted:
+        ArtistFollow.objects.create(user=request.user, artist=artist)
+    return redirect(_safe_next(request, artist.get_absolute_url()))
+
+
+def _near(request: HttpRequest, shows) -> tuple:
+    """Shows near the person, as their profile asks: shows by local artists (from their country) in their city,
+    region or country, and shows by international artists in their city, region or country. Everyone else sees
+    all of them. Returns the shows, the place's name ("" for everywhere) and the city to filter the events list by
+    ("" when the list can't show the same area)."""
     profile = getattr(request.user, "profile", None) if request.user.is_authenticated else None
     country = profile.home_country.code if profile and profile.home_country else ""
     city = profile.home_city.strip() if profile else ""
     if not country:
         if city:
-            return {"upcoming": upcoming.filter(venue__city__iexact=city)[:6], "upcoming_place": city,
-                    "upcoming_query": f"when=upcoming&city={quote(city)}"}
-        return {"upcoming": upcoming[:6], "upcoming_place": "", "upcoming_query": "when=upcoming"}
+            return shows.filter(venue__city__iexact=city), city, city
+        return shows, "", ""
 
     region = profile.home_region.strip()
 
@@ -143,14 +187,18 @@ def _upcoming_near(request: HttpRequest, upcoming) -> dict:
     headliner_country = Subquery(
         EventArtist.objects.filter(event=OuterRef("pk")).exclude(role__in=CREDIT_ROLES)
         .order_by("billing_order", "pk").values("artist__country")[:1])
-    upcoming = upcoming.annotate(headliner_country=headliner_country)
+    shows = shows.annotate(headliner_country=headliner_country)
     local_area, local_place = area(profile.upcoming_local)
     intl_area, intl_place = area(profile.upcoming_international)
     is_international = ~Q(headliner_country=country) & ~Q(headliner_country="") & Q(headliner_country__isnull=False)
-    shows = upcoming.filter((~is_international & local_area) | (is_international & intl_area))
+    shows = shows.filter((~is_international & local_area) | (is_international & intl_area))
     place = local_place if local_place == intl_place else f"{local_place} · {intl_place}"
-    query = f"when=upcoming&city={quote(city)}" if local_place == intl_place == city else "when=upcoming"
-    return {"upcoming": shows[:6], "upcoming_place": place, "upcoming_query": query}
+    return shows, place, city if local_place == intl_place == city else ""
+
+
+def _list_query(when: str, city: str, followed: bool) -> str:
+    """The events list's query string for a home page section's "All …" link."""
+    return urlencode({"when": when, **({"city": city} if city else {}), **({"followed": "1"} if followed else {})})
 
 
 def _friends_activity(request: HttpRequest) -> list:
@@ -168,6 +216,7 @@ def event_list(request: HttpRequest) -> HttpResponse:
     city = (request.GET.get("city") or "").strip()
     year = request.GET.get("year") or ""
     when = request.GET.get("when") or ""
+    followed = "1" if request.GET.get("followed") == "1" and request.user.is_authenticated else ""
     # Upcoming shows read best soonest-first; everything else newest-first.
     default_sort = "oldest" if when == "upcoming" else "newest"
     sort = request.GET.get("sort") or default_sort
@@ -186,6 +235,8 @@ def event_list(request: HttpRequest) -> HttpResponse:
         events = events.filter(date__gte=today)
     elif when == "past":
         events = events.filter(date__lt=today)
+    if followed:
+        events = events.filter(pk__in=Event.objects.filter(artists__follows__user=request.user).values("pk"))
     if q:
         matching = Event.objects.filter(
             Q(title__icontains=q)
@@ -205,7 +256,8 @@ def event_list(request: HttpRequest) -> HttpResponse:
         .values_list("y", flat=True).distinct().order_by("-y")
     )
 
-    filters = {"q": q, "type": event_type, "city": city, "year": year, "when": when, "sort": sort}
+    filters = {"q": q, "type": event_type, "city": city, "year": year, "when": when, "sort": sort,
+               "followed": followed}
     page = Paginator(events, 24).get_page(request.GET.get("page"))
     return render(
         request,
@@ -591,6 +643,9 @@ def artist_detail(request: HttpRequest, pk: int) -> HttpResponse:
         {
             "artist": artist,
             **_my_shows_toggle(request, artist),
+            "follower_count": artist.follows.count(),
+            "is_following_artist": request.user.is_authenticated
+            and artist.follows.filter(user=request.user).exists(),
             "tours": artist.tours.order_by("title"),
             **(dict(zip(("merge_similar", "merge_rest"), artist_duplicate_candidates(artist)))
                if is_admin(request.user) else {}),

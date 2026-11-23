@@ -381,7 +381,8 @@ class ProfileForm(BootstrapMixin, forms.ModelForm):
     class Meta:
         model = Profile
         fields = ["display_name", "location", "home_city", "home_region", "home_country", "upcoming_local",
-                  "upcoming_international", "language", "avatar_url", "bio", "thumbnail_display", "import_as_attended"]
+                  "upcoming_international", "language", "avatar_url", "bio", "thumbnail_display", "import_as_attended",
+                  "home_followed_only"]
         widgets = {"bio": forms.Textarea(attrs={"rows": 4})}
         labels = {"display_name": _("Display name"), "location": _("Location"), "avatar_url": _("Avatar image URL"),
                   "bio": _("Bio")}
@@ -394,7 +395,7 @@ class ProfileForm(BootstrapMixin, forms.ModelForm):
         }
 
     field_order = ["username", "display_name", "location", "home_city", "home_region", "home_country",
-                   "upcoming_local", "upcoming_international", "language", "avatar_url",
+                   "upcoming_local", "upcoming_international", "home_followed_only", "language", "avatar_url",
                    "bio"]
 
     def __init__(self, *args, **kwargs):

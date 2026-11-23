@@ -725,6 +725,11 @@ class Profile(TimestampedModel):
         _("Language"), max_length=5, choices=settings.LANGUAGES, blank=True, default="",
         help_text=_("The language En Vivo is shown in for you."),
     )
+    # The home page shows only shows (and reviews of shows) with artists this person follows.
+    home_followed_only = models.BooleanField(
+        _("Home page: only artists I follow"), default=False,
+        help_text=_("Shows and reviews on the home page are only those with artists you follow."),
+    )
 
     def __str__(self) -> str:
         return self.name
@@ -794,6 +799,21 @@ class Follow(models.Model):
 
     def __str__(self) -> str:
         return f"{self.follower} → {self.following}"
+
+
+class ArtistFollow(models.Model):
+    """A person following an artist, to get that artist's shows and reviews on their home page."""
+
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="artist_follows")
+    artist = models.ForeignKey(Artist, on_delete=models.CASCADE, related_name="follows")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["user", "artist"], name="uq_artistfollow_user_artist")]
+        ordering = ["-created_at"]
+
+    def __str__(self) -> str:
+        return f"{self.user} → {self.artist}"
 
 
 class ReviewLike(models.Model):

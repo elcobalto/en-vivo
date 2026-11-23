@@ -141,7 +141,7 @@ def merge_events(keep: Event, remove: Event, *, mode: str) -> Event:
 @transaction.atomic
 def merge_artists(keep, remove):
     """Fold a duplicate artist into `keep`; everything that pointed at `remove` moves over."""
-    from .models import ActLog, Production, SetlistSong, Song
+    from .models import ActLog, ArtistFollow, Production, SetlistSong, Song
 
     if keep.pk == remove.pk:
         raise ValueError("Can't merge a artist with itself.")
@@ -182,6 +182,10 @@ def merge_artists(keep, remove):
             Setlist.objects.filter(pk=setlist.pk).update(artist=keep)
 
     Production.objects.filter(artist=remove).update(artist=keep)
+
+    # Followers: people following both stay following one.
+    ArtistFollow.objects.filter(artist=remove, user__artist_follows__artist=keep).delete()
+    ArtistFollow.objects.filter(artist=remove).update(artist=keep)
 
     for field in ("bio", "image_url"):
         if not getattr(keep, field) and getattr(remove, field):

@@ -19,6 +19,7 @@ from .models import (
     Comment,
     FavoriteEvent,
     Feedback,
+    ArtistFollow,
     Follow,
     Profile,
     ReviewLike,
@@ -115,6 +116,12 @@ class ProfileAdmin(admin.ModelAdmin):
     search_fields = ["user__username", "display_name"]
     list_display = ["user", "display_name", "location"]
     list_select_related = ["user"]
+
+
+@admin.register(ArtistFollow)
+class ArtistFollowAdmin(admin.ModelAdmin):
+    list_display = ("user", "artist", "created_at")
+    raw_id_fields = ("user", "artist")
 
 
 @admin.register(Follow)

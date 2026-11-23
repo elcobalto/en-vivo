@@ -6,6 +6,7 @@ app_name = "events"
 
 urlpatterns = [
     path("", views.home, name="home"),
+    path("home/followed-only/", views.home_followed_only, name="home_followed_only"),
     path("events/", views.event_list, name="event_list"),
     path("events/new/", views.event_form, name="event_create"),
     path("events/import/", views_bulk.bulk_import, name="bulk_import"),
@@ -47,6 +48,7 @@ urlpatterns = [
     path("artists/<int:pk>/songs/manage/", views.artist_songs_manage, name="artist_songs_manage"),
     path("artists/<int:pk>/songs/", views.artist_songs, name="artist_songs"),
     path("artists/<int:pk>/shows/", views.artist_shows, name="artist_shows"),
+    path("artists/<int:pk>/follow/", views.artist_follow_toggle, name="artist_follow_toggle"),
     path("artists/<int:pk>/edit/", views.artist_edit, name="artist_edit"),
     path("artists/<int:pk>/delete/", views.artist_delete, name="artist_delete"),
     path("artists/<int:pk>/merge/", views_merge.artist_merge_duplicate, name="artist_merge"),

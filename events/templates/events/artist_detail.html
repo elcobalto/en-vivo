@@ -27,6 +27,18 @@
         {% if members %}{% translate "Members:" %} {% for m in members %}<a href="{{ m.get_absolute_url }}">{{ m.name }}</a>{% if not forloop.last %}, {% endif %}{% endfor %}{% endif %}
       </div>
     {% endif %}
+    <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+      {% if user.is_authenticated %}
+        <form method="post" action="{% url 'events:artist_follow_toggle' artist.pk %}" class="m-0">
+          {% csrf_token %}
+          <input type="hidden" name="next" value="{{ request.get_full_path }}" />
+          <button class="btn btn-sm {% if is_following_artist %}btn-outline-light{% else %}btn-success{% endif %}" type="submit">{% if is_following_artist %}{% translate "Following ✓" %}{% else %}{% translate "Follow" %}{% endif %}</button>
+        </form>
+      {% else %}
+        <a class="btn btn-sm btn-success" href="{% url 'login' %}?next={{ request.get_full_path|urlencode }}">{% translate "Follow" %}</a>
+      {% endif %}
+      {% if follower_count %}<span class="small text-body-secondary">{% blocktranslate count counter=follower_count %}{{ counter }} follower{% plural %}{{ counter }} followers{% endblocktranslate %}</span>{% endif %}
+    </div>
     {% if user.is_authenticated %}<a class="btn btn-sm btn-outline-success mb-2" href="{% url 'events:setlistfm_shows' %}?artist={{ artist.name|urlencode }}">{% translate "Import from setlist.fm" %}</a>{% endif %}
     {% if user|is_admin %}<a class="btn btn-sm btn-outline-secondary mb-2" href="{% url 'events:artist_edit' artist.pk %}">{% translate "Edit artist" %}</a>
     <a class="btn btn-sm btn-outline-danger mb-2" href="{% url 'events:artist_delete' artist.pk %}">{% translate "Delete artist" %}</a>
