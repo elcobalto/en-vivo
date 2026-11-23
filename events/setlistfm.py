@@ -121,6 +121,7 @@ def search_setlists_page(
     year: str = "",
     venue: str = "",
     country_code: str = "",
+    state: str = "",
     tour: str = "",
 ) -> tuple[list[dict], int, int]:
     """(setlists on this page, total matches, page size). Cached for a while, like every answer."""
@@ -132,6 +133,7 @@ def search_setlists_page(
         "year": year,
         "venueName": venue,
         "countryCode": country_code.upper(),
+        "state": state,  # a state or region's name, as setlist.fm writes it
         "tourName": tour,
     }
     if on_date:

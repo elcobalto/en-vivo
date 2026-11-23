@@ -969,6 +969,9 @@ class ArtistImport(TimestampedModel):
     artist_mbid = models.CharField(max_length=40, blank=True, default="")  # empty: every artist (a country import)
     started_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name="+")
     country = CountryField(blank=True, default="")  # only shows in this country; empty: everywhere
+    # Place imports only: narrower than the country, as setlist.fm writes them (empty: the whole country).
+    state = models.CharField(max_length=120, blank=True, default="")
+    city = models.CharField(max_length=120, blank=True, default="")
     since_year = models.PositiveSmallIntegerField(null=True, blank=True)  # only shows from this year on
     since_date = models.DateField(null=True, blank=True)  # only shows from this day on (country imports)
     reached_date = models.DateField(null=True, blank=True)  # the oldest show read so far (newest come first)

@@ -3,7 +3,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: En Vivo\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-23 16:29+0000\n"
+"POT-Creation-Date: 2026-11-23 16:31+0000\n"
 "PO-Revision-Date: 2026-11-20 18:00-0300\n"
 "Last-Translator: En Vivo\n"
 "Language-Team: Spanish\n"
@@ -27,7 +27,7 @@ msgstr "Sin álbum"
 msgid "No album covers"
 msgstr "Covers sin álbum"
 
-#: events/artist_import.py:137
+#: events/artist_import.py:138
 #, python-format
 msgid "Setlist %(id)s couldn't be imported."
 msgstr "No se pudo importar el setlist %(id)s."
@@ -37,6 +37,7 @@ msgid "New venue name"
 msgstr "Nombre del nuevo recinto"
 
 #: events/forms.py:50 events/forms.py:306
+#: events/templates/events/artist_import_new.html:74
 #: events/templates/events/event_form.html:119
 #: events/templates/events/event_list.html:41
 #: events/templates/events/setlistfm_shows.html:24
@@ -725,11 +726,11 @@ msgstr "Error %(code)s de setlist.fm: %(message)s"
 msgid "Setlist.fm request failed: %(reason)s"
 msgstr "Falló la consulta a setlist.fm: %(reason)s"
 
-#: events/setlistfm.py:185
+#: events/setlistfm.py:187
 msgid "Setlist not found on setlist.fm."
 msgstr "No se encontró el setlist en setlist.fm."
 
-#: events/setlistfm.py:265
+#: events/setlistfm.py:267
 #, python-format
 msgid "This setlist is already attached to “%(event)s”."
 msgstr "Este setlist ya está asociado a “%(event)s”."
@@ -1763,7 +1764,7 @@ msgstr "Buscarlos"
 
 #: events/templates/events/admin_tools.html:170
 #: events/templates/events/artist_import.html:7
-#: events/templates/events/artist_import_new.html:82
+#: events/templates/events/artist_import_new.html:93
 msgid "Imports"
 msgstr "Importaciones"
 
@@ -2278,7 +2279,7 @@ msgid "all"
 msgstr "todos"
 
 #: events/templates/events/artist_import_new.html:46
-#: events/templates/events/artist_import_new.html:76
+#: events/templates/events/artist_import_new.html:86
 msgid "Only setlists with songs"
 msgstr "Solo setlists con canciones"
 
@@ -2295,47 +2296,63 @@ msgid "No artist with that name on setlist.fm."
 msgstr "No hay ningún artista con ese nombre en setlist.fm."
 
 #: events/templates/events/artist_import_new.html:59
-msgid "A country"
-msgstr "Un país"
+msgid "A country, region or city"
+msgstr "Un país, región o ciudad"
 
 #: events/templates/events/artist_import_new.html:64
 msgid "Every show in"
 msgstr "Todos los shows en"
 
 #: events/templates/events/artist_import_new.html:70
+msgid "State or region"
+msgstr "Región o estado"
+
+#: events/templates/events/artist_import_new.html:72
+msgid "State or region (optional)"
+msgstr "Región o estado (opcional)"
+
+#: events/templates/events/artist_import_new.html:76
+msgid "City (optional)"
+msgstr "Ciudad (opcional)"
+
+#: events/templates/events/artist_import_new.html:80
 msgid "from the"
 msgstr "de"
 
-#: events/templates/events/artist_import_new.html:78
+#: events/templates/events/artist_import_new.html:88
 #: events/templates/events/setlistfm_shows.html:83
 msgid "Import"
 msgstr "Importar"
 
-#: events/templates/events/artist_import_new.html:88
+#: events/templates/events/artist_import_new.html:90
+msgid "Leave the region and city empty for the whole country. Write them as setlist.fm does (often in English, e.g. Santiago Metropolitan); the suggestions are the ones En Vivo already has."
+msgstr "Deja la región y la ciudad vacías para todo el país. Escríbelas como lo hace setlist.fm (a menudo en inglés, p. ej. Santiago Metropolitan); las sugerencias son las que En Vivo ya tiene."
+
+#: events/templates/events/artist_import_new.html:99
 msgid "Counting…"
 msgstr "Contando…"
 
-#: events/templates/events/artist_import_new.html:88
+#: events/templates/events/artist_import_new.html:99
 #, python-format
 msgid "%%(n)s setlist"
 msgstr "%%(n)s setlist"
 
-#: events/templates/events/artist_import_new.html:88
+#: events/templates/events/artist_import_new.html:99
 #, python-format
 msgid "%%(n)s setlists"
 msgstr "%%(n)s setlists"
 
-#: events/templates/events/artist_import_new.html:89
+#: events/templates/events/artist_import_new.html:100
 #, python-format
 msgid "about %%(n)s requests (%%(left)s left today)"
 msgstr "cerca de %%(n)s consultas (quedan %%(left)s hoy)"
 
-#: events/templates/events/artist_import_new.html:89
+#: events/templates/events/artist_import_new.html:100
 #, python-format
 msgid "all years: the import stops at %%(year)s"
 msgstr "todos los años: la importación se detiene en %%(year)s"
 
-#: events/templates/events/artist_import_new.html:89
+#: events/templates/events/artist_import_new.html:100
 msgid "Couldn't count them."
 msgstr "No se pudieron contar."
 
@@ -4753,44 +4770,44 @@ msgstr "Se agregó el %(date)s. Edítalo si algo cambia ese día."
 msgid "The show already has that date."
 msgstr "El espectáculo ya tiene esa fecha."
 
-#: events/views_admin.py:57
+#: events/views_admin.py:58
 msgid "Pick a country and a period."
 msgstr "Elige un país y un período."
 
-#: events/views_admin.py:63 events/views_admin.py:95
+#: events/views_admin.py:67 events/views_admin.py:100
 #, python-format
 msgid "There's already an unfinished import for %(name)s."
 msgstr "Ya hay una importación sin terminar de %(name)s."
 
-#: events/views_admin.py:89 events/views_admin.py:196
+#: events/views_admin.py:94 events/views_admin.py:206
 msgid "Pick an artist first."
 msgstr "Primero elige un artista."
 
-#: events/views_admin.py:118
+#: events/views_admin.py:128
 msgid "Last day"
 msgstr "El último día"
 
-#: events/views_admin.py:118
+#: events/views_admin.py:128
 msgid "Last week"
 msgstr "La última semana"
 
-#: events/views_admin.py:118
+#: events/views_admin.py:128
 msgid "Last month"
 msgstr "El último mes"
 
-#: events/views_admin.py:119
+#: events/views_admin.py:129
 msgid "Last year"
 msgstr "El último año"
 
-#: events/views_admin.py:119
+#: events/views_admin.py:129
 msgid "Last 2 years"
 msgstr "Los últimos 2 años"
 
-#: events/views_admin.py:164 events/views_merge.py:215
+#: events/views_admin.py:174 events/views_merge.py:215
 msgid "Give the festival a name."
 msgstr "Ponle un nombre al festival."
 
-#: events/views_admin.py:167
+#: events/views_admin.py:177
 #, python-format
 msgid "“%(event)s” is now a festival day of %(name)s."
 msgstr "“%(event)s” ahora es un día del festival %(name)s."
@@ -5061,6 +5078,9 @@ msgstr "La foto pesa más de 8 MB."
 #: events/views_venues.py:428
 msgid "That link isn't an image."
 msgstr "Ese enlace no es una imagen."
+
+#~ msgid "A country"
+#~ msgstr "Un país"
 
 #~ msgid "No label"
 #~ msgstr "Sin etiqueta"

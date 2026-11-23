@@ -10,7 +10,7 @@ from django.utils.translation import gettext
 from django.views.decorators.http import require_POST
 
 from . import artist_import as importer, db_usage, festivals, setlistfm_quota, site_stats
-from .models import ArtistImport, Feedback, Song
+from .models import ArtistImport, Feedback, Song, Venue
 from .setlistfm import SetlistFmError, search_artists
 from .roles import home_place
 from .views_feedback import _require_admin
@@ -46,7 +46,8 @@ COUNTRY_PERIODS = {"day": 1, "week": 7, "month": 30, "year": 365, "2years": 730}
 
 
 def _start_country_import(request: HttpRequest) -> HttpResponse:
-    """Every setlist setlist.fm has in one country from the last day … two years (newest first, any artist)."""
+    """Every setlist setlist.fm has in one country — or one state/region or city in it — from the last day … two
+    years (newest first, any artist)."""
     from datetime import timedelta
 
     from django.utils import timezone
@@ -56,14 +57,18 @@ def _start_country_import(request: HttpRequest) -> HttpResponse:
     if country not in dict(countries) or not days:
         messages.error(request, gettext("Pick a country and a period."))
         return redirect("events:artist_import_new")
+    state = " ".join((request.POST.get("state") or "").split())[:120]
+    city = " ".join((request.POST.get("city") or "").split())[:120]
     since = timezone.localdate() - timedelta(days=days)
-    job = ArtistImport.objects.filter(artist_mbid="", country=country, since_date=since) \
+    job = ArtistImport.objects.filter(artist_mbid="", country=country, state__iexact=state, city__iexact=city,
+                                      since_date=since) \
         .exclude(status=ArtistImport.Status.DONE).first()
     if job:
         messages.info(request, gettext("There's already an unfinished import for %(name)s.") % {"name": job.artist_name})
     else:
         job = ArtistImport.objects.create(
-            artist_name=countries.name(country), artist_mbid="", country=country, since_date=since,
+            artist_name=", ".join(p for p in (city, state, str(countries.name(country))) if p),
+            artist_mbid="", country=country, state=state, city=city, since_date=since,
             started_by=request.user, look_up_venues=True,
             only_with_songs=request.POST.get("only_with_songs") == "1",
         )
@@ -108,12 +113,17 @@ def artist_import_new(request: HttpRequest) -> HttpResponse:
             candidates = search_artists(query)[:10]
         except SetlistFmError as e:
             error = str(e)
+    # Shows in the admin's home country by default (setlist.fm's own country filter); they can untick it.
+    country = (request.GET.get("country") or home_place(request.user)[1] or "").upper()[:2]
+    venues = Venue.objects.filter(country=country) if country else Venue.objects.none()
     return render(request, "events/artist_import_new.html", {
         "query": query, "candidates": candidates, "error": error,
         "imports": ArtistImport.objects.select_related("started_by")[:20],
         "remaining": setlistfm_quota.remaining(),
-        # Shows in the admin's home country by default (setlist.fm's own country filter); they can untick it.
-        "country": (request.GET.get("country") or home_place(request.user)[1] or "").upper()[:2],
+        "country": country,
+        # Suggestions for a region or city import: the ones the country's venues have.
+        "states": sorted(set(venues.exclude(region="").values_list("region", flat=True)), key=str.casefold)[:300],
+        "cities": sorted(set(venues.exclude(city="").values_list("city", flat=True)), key=str.casefold)[:500],
         "countries": list(countries),
         "periods": [("day", gettext("Last day")), ("week", gettext("Last week")), ("month", gettext("Last month")),
                     ("year", gettext("Last year")), ("2years", gettext("Last 2 years"))],

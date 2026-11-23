@@ -3965,6 +3965,7 @@ class ArtistImportTests(BaseTestCase):
         self.fail_page = None
         self.pages_read = []
         self.countries_asked = []
+        self.places_asked = []
         self.artists_asked = []
         venues = [{"id": f"v{i}", "name": f"Venue {i}", "city": {"name": "Liverpool", "country": {"code": "GB"}}}
                   for i in range(45)]
@@ -3979,6 +3980,7 @@ class ArtistImportTests(BaseTestCase):
                 return _FakeResponse({"artist": [{"mbid": "b10bbbfc", "name": "The Beatles", "disambiguation": ""}]})
             page = int(query["p"][0])
             self.countries_asked.append(query.get("countryCode", [""])[0])
+            self.places_asked.append((query.get("state", [""])[0], query.get("cityName", [""])[0]))
             self.artists_asked.append(query.get("artistMbid", [""])[0])
             if page == self.fail_page:
                 from urllib.error import URLError
@@ -4147,6 +4149,28 @@ class ArtistImportTests(BaseTestCase):
         self.assertEqual((self.countries_asked[0], self.artists_asked[0]), ("CL", ""))  # every artist
         page = self.client.get(reverse("events:artist_import", args=[job.pk]))
         self.assertContains(page, "Every show in Chile since")
+
+    def test_region_and_city_import(self):
+        from . import artist_import
+        from .models import ArtistImport
+
+        self.client.force_login(self.boss)
+        Venue.objects.create(name="Movistar Arena", city="Santiago", region="Santiago Metropolitan", country="CL")
+        form = self.client.get(reverse("events:artist_import_new"), {"country": "CL"})
+        self.assertEqual((form.context["states"], form.context["cities"]), (["Santiago Metropolitan"], ["Santiago"]))
+        self.client.post(reverse("events:artist_import_new"),
+                         {"country": "CL", "state": " Santiago  Metropolitan ", "city": "Santiago", "period": "week"})
+        job = ArtistImport.objects.get()
+        self.assertEqual((job.state, job.city, job.artist_name), ("Santiago Metropolitan", "Santiago",
+                                                                  "Santiago, Santiago Metropolitan, Chile"))
+        # The same place and period again continues that import; the whole country is another one.
+        self.client.post(reverse("events:artist_import_new"),
+                         {"country": "CL", "state": "santiago metropolitan", "city": "santiago", "period": "week"})
+        self.client.post(reverse("events:artist_import_new"), {"country": "CL", "period": "week"})
+        self.assertEqual(sorted(ArtistImport.objects.values_list("artist_name", flat=True)),
+                         ["Chile", "Santiago, Santiago Metropolitan, Chile"])
+        artist_import.run_step(job, seconds=0.01)
+        self.assertEqual((self.countries_asked[0], self.places_asked[0]), ("CL", ("Santiago Metropolitan", "Santiago")))
 
     def test_country_import_progress_is_by_date(self):
         from datetime import timedelta
