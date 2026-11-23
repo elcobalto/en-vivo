@@ -148,6 +148,18 @@
     </div>
   {% endif %}
 
+  {% if world %}
+    {# Drawn in the browser (country borders from world-atlas); a country opens the diary there. #}
+    <div class="mb-5">
+      <div class="d-flex flex-wrap justify-content-between align-items-baseline gap-2 mb-1">
+        <h2 class="section-title m-0">{% translate "Countries" %}</h2>
+        <span class="small text-body-secondary">{% blocktranslate count counter=world|length %}{{ counter }} country{% plural %}{{ counter }} countries{% endblocktranslate %}</span>
+      </div>
+      <div id="map-world" class="stats-map-world" role="img" aria-label="{% translate 'World map of the countries with shows attended' %}"></div>
+      <div class="small text-body-secondary mt-1">{% for c in world %}<a href="{% url 'events:user_diary' owner.get_username %}?{{ type_qs }}country={{ c.code }}">{{ c.name }}</a> <span class="text-body">{{ c.n }}</span>{% if not forloop.last %} · {% endif %}{% endfor %}</div>
+    </div>
+  {% endif %}
+
   {% if not owner_logs %}
     <p class="text-body-secondary">{% translate "Nothing logged yet." %}</p>
   {% endif %}
@@ -167,4 +179,61 @@
     });
   });
 </script>
+{% if world %}
+  <style>
+    .stats-map-world { border-radius: .4rem; border: 1px solid var(--ev-line); background: var(--ev-surface); overflow: hidden; aspect-ratio: 2 / 1; }
+    .stats-map-world path { stroke: var(--ev-bg); stroke-width: .5; }
+    .stats-map-world path.seen { cursor: pointer; transition: fill-opacity .15s; }
+    .stats-map-world a:hover path.seen, .stats-map-world a:focus path.seen { fill-opacity: 1; stroke: #fff; }
+  </style>
+  {{ world|json_script:"world-data" }}
+  {% translate "%(n)s show" as one_show %}{% translate "%(n)s shows" as many_shows %}
+  <script src="https://cdn.jsdelivr.net/npm/d3-array@3.2.4/dist/d3-array.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/d3-geo@3.1.1/dist/d3-geo.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/topojson-client@3.1.0/dist/topojson-client.min.js"></script>
+  <script>
+    (function () {
+      var world = JSON.parse(document.getElementById("world-data").textContent),
+          accent = getComputedStyle(document.documentElement).getPropertyValue("--ev-accent").trim() || "#ff8000",
+          diaryUrl = "{% url 'events:user_diary' owner.get_username %}?{{ type_qs }}";
+      function shows(n) { return (n === 1 ? "{{ one_show|escapejs }}" : "{{ many_shows|escapejs }}").replace("%(n)s", n); }
+      var seen = {}, max = 1;
+      world.forEach(function (c) { seen[c.id] = c; max = Math.max(max, c.n); });
+
+      fetch("https://cdn.jsdelivr.net/npm/world-atlas@2.0.2/countries-110m.json").then(function (r) { return r.json(); }).then(function (atlas) {
+        var land = topojson.feature(atlas, atlas.objects.countries);
+        land.features = land.features.filter(function (f) { return f.id !== "010"; });  // no Antarctica
+        var box = document.getElementById("map-world"), width = box.clientWidth || 800, height = width / 2,
+            projection = d3.geoNaturalEarth1().fitSize([width, height], land), path = d3.geoPath(projection),
+            ns = "http://www.w3.org/2000/svg", svg = document.createElementNS(ns, "svg");
+        svg.setAttribute("viewBox", "0 0 " + width + " " + height);
+        svg.setAttribute("width", "100%");
+        land.features.forEach(function (f) {
+          var p = document.createElementNS(ns, "path"), c = seen[f.id];
+          p.setAttribute("d", path(f));
+          if (c) {
+            // Brighter for more shows (square root, so one show is still clearly visible).
+            p.setAttribute("fill", accent);
+            p.setAttribute("fill-opacity", (0.45 + 0.55 * Math.sqrt(c.n / max)).toFixed(2));
+            p.setAttribute("class", "seen");
+            var t = document.createElementNS(ns, "title");
+            t.textContent = c.name + ": " + shows(c.n);
+            p.appendChild(t);
+            var link = document.createElementNS(ns, "a");
+            link.setAttribute("href", diaryUrl + "country=" + c.code);
+            link.setAttribute("aria-label", c.name + ": " + shows(c.n));
+            link.appendChild(p);
+            svg.appendChild(link);
+          } else {
+            p.setAttribute("fill", "#2a2a2a");
+            svg.appendChild(p);
+          }
+        });
+        box.appendChild(svg);
+      }).catch(function (error) {
+        console.error("World map:", error);  // the list under the map still shows every country
+      });
+    })();
+  </script>
+{% endif %}
 {% endblock %}

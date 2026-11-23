@@ -4520,6 +4520,14 @@ class DiaryCountryFilterTests(BaseTestCase):
         page = self.client.get(diary, {"country": "gb"})
         self.assertEqual([log.event.title for log in page.context["logs"]], ["London show"])
         self.assertContains(page, '<option value="GB" selected>')
+        stats = self.client.get(reverse("events:user_stats", args=["ana"]))
+        self.assertContains(stats, f'href="{diary}?country=GB"')  # the list under the world map
+        self.assertContains(stats, 'id="map-world"')
+        self.assertEqual([(c["code"], c["id"], c["n"]) for c in stats.context["world"]],
+                         [("CL", "152", 1), ("GB", "826", 1)])
+        comedy = self.client.get(reverse("events:user_stats", args=["ana"]), {"type": "comedy"})
+        self.assertEqual(comedy.context["world"], [])
+        self.assertNotContains(comedy, 'id="map-world"')
 
 
 class DiaryCityFilterTests(BaseTestCase):

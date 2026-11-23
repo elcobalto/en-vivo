@@ -3,7 +3,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: En Vivo\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-23 16:50+0000\n"
+"POT-Creation-Date: 2026-11-23 17:14+0000\n"
 "PO-Revision-Date: 2026-11-20 18:00-0300\n"
 "Last-Translator: En Vivo\n"
 "Language-Team: Spanish\n"
@@ -806,27 +806,27 @@ msgstr "Seguimientos"
 msgid "Want to go"
 msgstr "Quiero ir"
 
-#: events/stats.py:213 events/templates/events/profile_stats.html:28
+#: events/stats.py:225 events/templates/events/profile_stats.html:28
 msgid "Most seen artists"
 msgstr "Artistas más vistos"
 
-#: events/stats.py:214 events/templates/events/profile_stats.html:25
+#: events/stats.py:226 events/templates/events/profile_stats.html:25
 msgid "Most seen local artists"
 msgstr "Artistas locales más vistos"
 
-#: events/stats.py:215 events/templates/events/profile_stats.html:26
+#: events/stats.py:227 events/templates/events/profile_stats.html:26
 msgid "Most seen foreign artists"
 msgstr "Artistas extranjeros más vistos"
 
-#: events/stats.py:216 events/templates/events/profile_stats.html:31
+#: events/stats.py:228 events/templates/events/profile_stats.html:31
 msgid "Highest rated artists"
 msgstr "Artistas mejor calificados"
 
-#: events/stats.py:217 events/templates/events/profile_stats.html:32
+#: events/stats.py:229 events/templates/events/profile_stats.html:32
 msgid "Most visited venues"
 msgstr "Recintos más visitados"
 
-#: events/stats.py:218 events/templates/events/profile_stats.html:33
+#: events/stats.py:230 events/templates/events/profile_stats.html:33
 msgid "Most visited cities"
 msgstr "Ciudades más visitadas"
 
@@ -4029,7 +4029,7 @@ msgid "Diary →"
 msgstr "Diario →"
 
 #: events/templates/events/profile.html:34
-#: events/templates/events/profile_stats.html:152
+#: events/templates/events/profile_stats.html:164
 msgid "Nothing logged yet."
 msgstr "Todavía no hay nada registrado."
 
@@ -4149,6 +4149,31 @@ msgstr "Mes"
 #: events/templates/events/profile_stats.html:127
 msgid "Week"
 msgstr "Semana"
+
+#: events/templates/events/profile_stats.html:155
+msgid "Countries"
+msgstr "Países"
+
+#: events/templates/events/profile_stats.html:156
+#, python-format
+msgid "%(counter)s country"
+msgid_plural "%(counter)s countries"
+msgstr[0] "%(counter)s país"
+msgstr[1] "%(counter)s países"
+
+#: events/templates/events/profile_stats.html:158
+msgid "World map of the countries with shows attended"
+msgstr "Mapa mundial de los países con shows a los que fuiste"
+
+#: events/templates/events/profile_stats.html:190
+#, python-format
+msgid "%%(n)s show"
+msgstr "%%(n)s show"
+
+#: events/templates/events/profile_stats.html:190
+#, python-format
+msgid "%%(n)s shows"
+msgstr "%%(n)s shows"
 
 #: events/templates/events/review_detail.html:4
 #, python-format
@@ -4980,19 +5005,19 @@ msgstr "Se fusionó el duplicado “%(removed)s” con este evento."
 msgid "Week %(n)s (from %(date)s)"
 msgstr "Semana %(n)s (desde el %(date)s)"
 
-#: events/views_social.py:320
+#: events/views_social.py:321
 msgid "Profile saved."
 msgstr "Perfil guardado."
 
-#: events/views_social.py:344
+#: events/views_social.py:345
 msgid "Favourites saved."
 msgstr "Favoritos guardados."
 
-#: events/views_social.py:378
+#: events/views_social.py:379
 msgid "You can't follow yourself."
 msgstr "No puedes seguirte a ti mismo."
 
-#: events/views_social.py:455
+#: events/views_social.py:456
 msgid "Your reply can't be empty."
 msgstr "Tu respuesta no puede estar vacía."
 
@@ -5120,18 +5145,6 @@ msgstr "Ese enlace no es una imagen."
 #~ msgid "Maps"
 #~ msgstr "Mapas"
 
-#~ msgid "Countries"
-#~ msgstr "Países"
-
-#, python-format
-#~ msgid "%(counter)s country"
-#~ msgid_plural "%(counter)s countries"
-#~ msgstr[0] "%(counter)s país"
-#~ msgstr[1] "%(counter)s países"
-
-#~ msgid "World map of the countries with shows attended"
-#~ msgstr "Mapa mundial de los países con shows a los que fuiste"
-
 #, python-format
 #~ msgid "Map of %(country)s with the cities of shows attended"
 #~ msgstr "Mapa de %(country)s con las ciudades de los shows a los que fuiste"
@@ -5148,14 +5161,6 @@ msgstr "Ese enlace no es una imagen."
 #~ msgid_plural "%(counter)s venues have no location yet, so they aren't on the map."
 #~ msgstr[0] "%(counter)s recinto aún no tiene ubicación, así que no aparece en el mapa."
 #~ msgstr[1] "%(counter)s recintos aún no tienen ubicación, así que no aparecen en el mapa."
-
-#, python-format
-#~ msgid "%%(n)s show"
-#~ msgstr "%%(n)s show"
-
-#, python-format
-#~ msgid "%%(n)s shows"
-#~ msgstr "%%(n)s shows"
 
 #~ msgid "← Profile"
 #~ msgstr "← Perfil"

@@ -177,6 +177,18 @@ def has_setlists(owner, types: list[str]) -> bool:
     return heard(owner, types).exists()
 
 
+# --------------------------------------------------------------------------- world map
+
+
+def world(owner, types: list[str]) -> list[dict]:
+    """[{"code", "id" (ISO numeric, as the world map's shapes), "name", "n"}]: the countries of the shows the person
+    went to, most first."""
+    rows = (logs_of(owner, types).exclude(event__venue=None).exclude(event__venue__country="")
+            .values("event__venue__country").annotate(n=Count("id")).order_by("-n", "event__venue__country"))
+    return [{"code": r["event__venue__country"], "id": countries.numeric(r["event__venue__country"], padded=True),
+             "name": countries.name(r["event__venue__country"]), "n": r["n"]} for r in rows]
+
+
 # --------------------------------------------------------------------------- pictures
 
 

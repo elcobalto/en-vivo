@@ -225,6 +225,7 @@ def user_stats(request: HttpRequest, username: str) -> HttpResponse:
         "diary_url": reverse("events:user_diary", args=[owner.get_username()]) + (f"?{type_qs.rstrip('&')}" if types else ""),
         "owner_logs": logs,
         "this_year": _this_year(owner, types),
+        "world": stats.world(owner, types),
         "home_country": home,
         # Only acts the person actually saw count.
         "top_artists": [] if home else _rank_rows("artists", seen[:5], owner, types),
