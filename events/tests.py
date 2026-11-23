@@ -20,7 +20,7 @@ from events import musicbrainz as _musicbrainz  # noqa: E402
 REAL_ARTIST_COUNTRY = _musicbrainz.artist_country
 mock.patch("events.musicbrainz.artist_country", return_value="").start()
 
-from .models import Album, Event, EventArtist, EventType, Log, Artist, Production, Setlist, Venue
+from .models import Album, Event, EventArtist, EventType, Log, Artist, Production, Setlist, Staging, Venue
 from .setlistfm import SetlistFmError, import_setlist
 from .templatetags.event_extras import avg_stars, stars
 
@@ -2419,8 +2419,9 @@ class PlayTests(BaseTestCase):
         self.assertTrue(event.eventartist_set.filter(artist=lorca, role="author").exists())
         page = self.client.get(play.get_absolute_url())
         self.assertContains(page, "<dt class=\"col-4 col-sm-3 col-lg-2 fw-normal\">Author / book</dt>", html=False)
-        self.assertContains(page, event.get_absolute_url())
-        self.assertContains(self.client.get(event.get_absolute_url()), "Staging of")
+        self.assertTrue(event.staging_id)  # a staging of the play, holding its dates
+        self.assertContains(page, event.staging.get_absolute_url())
+        self.assertContains(self.client.get(event.get_absolute_url()), "staging of")
 
     def test_a_play_has_music_lyrics_and_author_and_new_names_become_artists(self):
         from events.models import Artist, Play
@@ -4464,7 +4465,7 @@ class ShowDatesTests(BaseTestCase):
         self.assertEqual((second.title, second.venue, second.description, second.event_type),
                          ("Hamlet", self.venue, "Act I", "theater"))
         self.assertEqual(list(second.eventartist_set.values_list("artist__name", "role")), [("Actor", "cast")])
-        self.assertTrue(second.run_key and second.run_key == Event.objects.get(pk=self.show.pk).run_key)
+        self.assertTrue(second.staging_id and second.staging_id == Event.objects.get(pk=self.show.pk).staging_id)
         self.assertContains(self.client.get(self.show.get_absolute_url()), "2 May 2024")  # "Other dates"
         self.client.post(reverse("events:event_add_date", args=[self.show.pk]), {"date": "2024-05-02"})
         self.assertEqual(Event.objects.filter(date=date(2024, 5, 2)).count(), 1)  # not twice
@@ -4492,6 +4493,89 @@ class ShowDatesTests(BaseTestCase):
             self.assertEqual(Event.objects.get(pk=pk).venue, other_venue)
         self.assertEqual(Event.objects.get(pk=second.pk).description, "Act I")  # unchanged fields stay
         self.assertEqual(Event.objects.get(pk=second.pk).date, date(2024, 5, 2))  # dates never copied
+
+
+class StagingTests(BaseTestCase):
+    """A play has many stagings (montajes), each staged on many dates that share its photo."""
+
+    def setUp(self):
+        super().setUp()
+        from .models import Play
+
+        self.client.force_login(self.user)
+        self.play = Play.objects.create(title="Les Misérables")
+        self.staging = Staging.objects.create(play=self.play, title="Santiago 2026", event_type="theater",
+                                              image_url="https://img.example/miz.jpg", created_by=self.user)
+        self.first = Event.objects.create(event_type="theater", play=self.play, staging=self.staging,
+                                          venue=self.venue, date=date(2026, 5, 1), created_by=self.user)
+        EventArtist.objects.create(event=self.first, artist=Artist.objects.create(name="Valjean"), role="cast")
+
+    def test_dates_show_the_staging_photo_unless_they_have_their_own(self):
+        self.assertEqual(self.first.display_image, "https://img.example/miz.jpg")
+        self.first.image_url = "https://img.example/opening-night.jpg"
+        self.assertEqual(self.first.display_image, "https://img.example/opening-night.jpg")
+
+    def test_a_new_date_joins_the_staging_and_takes_its_photo(self):
+        response = self.client.post(reverse("events:staging_add_date", args=[self.staging.pk]), {"date": "2026-05-02"})
+        second = Event.objects.get(date=date(2026, 5, 2))
+        self.assertRedirects(response, second.get_absolute_url())
+        self.assertEqual((second.staging, second.play, second.image_url), (self.staging, self.play, ""))
+        self.assertEqual(second.display_image, "https://img.example/miz.jpg")
+        self.assertEqual(list(second.eventartist_set.values_list("artist__name", flat=True)), ["Valjean"])
+
+    def test_a_play_with_many_stagings(self):
+        Staging.objects.create(play=self.play, title="Broadway 1987", event_type="theater")
+        page = self.client.get(self.play.get_absolute_url())
+        self.assertContains(page, "Santiago 2026")
+        self.assertContains(page, "Broadway 1987")
+        detail = self.client.get(self.staging.get_absolute_url())
+        self.assertContains(detail, "Valjean")
+        self.assertContains(detail, self.first.get_absolute_url())
+        self.assertContains(self.client.get(self.first.get_absolute_url()), self.staging.get_absolute_url())
+
+    def test_a_new_staging_of_a_play_gets_one_of_its_own(self):
+        data = {"title": "", "event_type": "theater", "date": "2027-01-10", "venue": str(self.venue.pk),
+                "play": str(self.play.pk), "staging": "", "image_url": "https://img.example/new.jpg",
+                "image_display": "fit", "eventartist_set-TOTAL_FORMS": "0", "eventartist_set-INITIAL_FORMS": "0",
+                "eventartist_set-MIN_NUM_FORMS": "0", "eventartist_set-MAX_NUM_FORMS": "1000"}
+        self.client.post(reverse("events:event_create"), data)
+        event = Event.objects.get(date=date(2027, 1, 10))
+        self.assertNotEqual(event.staging, self.staging)
+        self.assertEqual((event.staging.play, event.staging.image_url, event.image_url),
+                         (self.play, "https://img.example/new.jpg", ""))  # its photo became the staging's
+        # Picking an existing staging puts the date in it instead.
+        self.client.post(reverse("events:event_create"), {**data, "date": "2026-05-09", "staging": str(self.staging.pk),
+                                                          "image_url": ""})
+        self.assertEqual(Event.objects.get(date=date(2026, 5, 9)).staging, self.staging)
+
+    def test_a_date_can_keep_its_photo_or_give_it_to_the_whole_staging(self):
+        def edit(**extra):
+            data = {"title": "", "event_type": "theater", "date": "2026-05-01", "venue": str(self.venue.pk),
+                    "play": str(self.play.pk), "staging": str(self.staging.pk), "image_display": "fit",
+                    "image_url": "https://img.example/premiere.jpg",
+                    "eventartist_set-TOTAL_FORMS": "0", "eventartist_set-INITIAL_FORMS": "0",
+                    "eventartist_set-MIN_NUM_FORMS": "0", "eventartist_set-MAX_NUM_FORMS": "1000", **extra}
+            return self.client.post(reverse("events:event_edit", args=[self.first.pk]), data)
+
+        edit()  # box unticked: the photo is this date's only
+        self.first.refresh_from_db()
+        self.assertEqual(self.first.image_url, "https://img.example/premiere.jpg")
+        self.assertEqual(Staging.objects.get(pk=self.staging.pk).image_url, "https://img.example/miz.jpg")
+        edit(photo_for_staging="on")
+        self.first.refresh_from_db()
+        self.assertEqual((self.first.image_url, Staging.objects.get(pk=self.staging.pk).image_url),
+                         ("", "https://img.example/premiere.jpg"))
+
+    def test_editing_the_staging(self):
+        response = self.client.post(reverse("events:staging_edit", args=[self.staging.pk]), {
+            "title": "Teatro Municipal 2026", "play": str(self.play.pk), "description": "",
+            "image_url": "https://img.example/other.jpg", "image_display": "crop"})
+        self.assertRedirects(response, self.staging.get_absolute_url())
+        self.staging.refresh_from_db()
+        self.assertEqual((self.staging.title, self.staging.image_display), ("Teatro Municipal 2026", "crop"))
+        stranger = get_user_model().objects.create_user("beto", password="pw-test-123")
+        self.client.force_login(stranger)
+        self.assertEqual(self.client.get(reverse("events:staging_edit", args=[self.staging.pk])).status_code, 403)
 
 
 class FestivalNoLabelTests(BaseTestCase):

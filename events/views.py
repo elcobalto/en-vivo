@@ -12,7 +12,7 @@ from django.contrib.auth.views import redirect_to_login
 from django.core.exceptions import PermissionDenied
 from django.core.paginator import Paginator
 from django.db import models, transaction
-from django.db.models import Avg, Count, Exists, F, Max, OuterRef, Prefetch, Q, Subquery
+from django.db.models import Avg, Count, Exists, F, Max, Min, OuterRef, Prefetch, Q, Subquery
 from django.db.models.functions import ExtractYear
 from django.http import Http404, HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -46,6 +46,7 @@ from .models import (
     Play,
     Profile,
     Production,
+    Staging,
     Setlist,
     SetlistSong,
     Song,
@@ -918,6 +919,10 @@ def event_form(request: HttpRequest, pk: int | None = None) -> HttpResponse:
         play = Play.objects.filter(pk=request.GET["play"]).first()
         if play:
             initial.update(play=play, event_type=EventType.THEATER)
+    if not event and request.GET.get("staging"):
+        staging = Staging.objects.select_related("play").filter(pk=request.GET["staging"]).first()
+        if staging:
+            initial.update(staging=staging, play=staging.play, event_type=staging.event_type)
 
     form = EventForm(request.POST or None, instance=event, initial=initial)
     formset = EventArtistFormSet(request.POST or None, instance=event or Event())
@@ -932,6 +937,13 @@ def event_form(request: HttpRequest, pk: int | None = None) -> HttpResponse:
             saved.save()
             formset.instance = saved
             formset.save()
+            runs.place_in_staging(saved, request.user)
+            if form.cleaned_data.get("photo_for_staging") and saved.staging_id and saved.image_url:
+                # The date's photo becomes the whole staging's (and this date shows it from there).
+                Staging.objects.filter(pk=saved.staging_id).update(
+                    image_url=saved.image_url, image_display=saved.image_display)
+                Event.objects.filter(pk=saved.pk).update(image_url="")
+                saved.image_url = ""
             if saved.play_id:
                 _credit_play_authors(saved)
             saved.order_bill()  # headliners (if any: an event doesn't need one) go above everyone else
@@ -1230,8 +1242,13 @@ def play_list(request: HttpRequest) -> HttpResponse:
 
 def play_detail(request: HttpRequest, pk: int) -> HttpResponse:
     play = get_object_or_404(Play.objects.prefetch_related("authors", "music_by", "lyrics_by"), pk=pk)
-    stagings = play.stagings.with_stats().select_related("venue").order_by(F("date").desc(nulls_last=True))
-    return render(request, "events/play_detail.html", {"play": play, "stagings": stagings})
+    stagings = list(play.stagings.annotate(
+        n_dates=Count("dates", distinct=True), first_date=Min("dates__date"), last_date=Max("dates__date"),
+    ).order_by(F("last_date").desc(nulls_last=True), "-pk"))
+    # Dates staged before stagings existed, or by someone who left them out of one.
+    loose = play.performances.filter(staging=None).with_stats().select_related("venue") \
+        .order_by(F("date").desc(nulls_last=True))
+    return render(request, "events/play_detail.html", {"play": play, "stagings": stagings, "loose": loose})
 
 
 @login_required

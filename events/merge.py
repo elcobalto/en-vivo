@@ -122,7 +122,11 @@ def merge_events(keep: Event, remove: Event, *, mode: str) -> Event:
     _move_logs(keep, remove)
     _move_saves(keep, remove)
 
+    if mode == "duplicate" and not keep.staging_id and remove.staging_id:
+        keep.staging_id = remove.staging_id  # the same date of a staging, entered twice
     for field in ("image_url", "description"):
+        if field == "image_url" and keep.staging_id and keep.staging.image_url:
+            continue  # it shows its staging's photo: the duplicate's isn't needed
         if not getattr(keep, field) and getattr(remove, field):
             setattr(keep, field, getattr(remove, field))
     if not keep.production_id and remove.production_id:

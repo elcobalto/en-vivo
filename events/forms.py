@@ -24,6 +24,7 @@ from .models import (
     Play,
     Production,
     Profile,
+    Staging,
     Venue,
 )
 from .templatetags.event_extras import stars
@@ -46,6 +47,7 @@ class BootstrapMixin:
 
 class EventForm(BootstrapMixin, forms.ModelForm):
     photo_for_all_days = forms.BooleanField(required=False)
+    photo_for_staging = forms.BooleanField(required=False)
     new_venue_name = forms.CharField(label=_("New venue name"), max_length=200, required=False)
     new_venue_city = forms.CharField(label=_("City"), max_length=120, required=False)
     new_venue_country = forms.ChoiceField(
@@ -61,6 +63,7 @@ class EventForm(BootstrapMixin, forms.ModelForm):
             "date",
             "venue",
             "play",
+            "staging",
             "production",
             "description",
             "image_url",
@@ -74,6 +77,8 @@ class EventForm(BootstrapMixin, forms.ModelForm):
         labels = {"title": _("Title"), "event_type": _("Type"), "date": _("Date"), "venue": _("Venue"),
                   "description": _("Description"), "image_url": _("Poster / image URL")}
         help_texts = {"play": _("Only for theater and dance: the original play this staging is of. Its name becomes the event's name."),
+                      "staging": _("Which production of the play this date belongs to (the West End, Broadway, a "
+                                   "season in Santiago…). Its dates share the staging's photo."),
                       "production": _("Only for festivals: the festival this day belongs to. Tours are set per act in the lineup.")}
 
     def __init__(self, *args, **kwargs):
@@ -83,7 +88,8 @@ class EventForm(BootstrapMixin, forms.ModelForm):
         self.fields["image_display"].required = False
         from .merge import photo_siblings
 
-        siblings = photo_siblings(self.instance)
+        self._setup_staging()
+        siblings = None if self.instance.staging_id else photo_siblings(self.instance)
         if siblings:
             self.fields["photo_for_all_days"].label = gettext("Use this photo for %(what)s (%(others)s)") % {
                 "what": siblings["label"], "others": siblings["others"]}
@@ -97,9 +103,11 @@ class EventForm(BootstrapMixin, forms.ModelForm):
                     "Off because %(n)s of them have a different photo; tick it to replace them.", n) % {"n": n}
         else:
             del self.fields["photo_for_all_days"]
-        order = [n for n in self.fields if n != "photo_for_all_days"]
-        if "photo_for_all_days" in self.fields:
-            order.insert(order.index("image_url") + 1, "photo_for_all_days")
+        extras = ("photo_for_all_days", "photo_for_staging")
+        order = [n for n in self.fields if n not in extras]
+        for name in reversed(extras):
+            if name in self.fields:
+                order.insert(order.index("image_url") + 1, name)
         self.order_fields(order)
         self.fields["title"].required = False
         placeholder = gettext("Leave blank to use the headliner's name")
@@ -108,6 +116,39 @@ class EventForm(BootstrapMixin, forms.ModelForm):
             self.initial["title"] = ""
             placeholder = gettext("Automatic: %(title)s") % {"title": self.instance.title}
         self.fields["title"].widget.attrs["placeholder"] = placeholder
+
+    def _setup_staging(self) -> None:
+        """The Staging choice lists the stagings of the event's play (only shown when there's a play); the
+        "whole staging" photo box shows on dates that belong to one."""
+        instance = self.instance
+        staging = instance.staging if instance.staging_id else None
+        initial_staging = self.initial.get("staging")
+        initial_staging = initial_staging if isinstance(initial_staging, Staging) else None  # (an id when editing)
+        initial_play = self.initial.get("play")
+        initial_play = initial_play if isinstance(initial_play, Play) else None
+        play = instance.play if instance.play_id else (initial_play or
+                                                        (initial_staging.play if initial_staging else None))
+        sent = self.data.get(self.add_prefix("play")) if self.is_bound else None
+        if sent and str(sent).isdigit():
+            play = Play.objects.filter(pk=sent).first() or play
+        if play:
+            field = self.fields["staging"]
+            field.queryset = Staging.objects.filter(play=play).select_related("play")
+            field.empty_label = gettext("New staging")
+            field.label_from_instance = lambda s: s.title or s.where_and_when or s.name  # the play is chosen above
+        else:
+            del self.fields["staging"]
+        if staging:
+            n = staging.dates.count()
+            self.fields["photo_for_staging"].label = ngettext(
+                "Use this photo for the whole staging (%(n)s date)",
+                "Use this photo for the whole staging (%(n)s dates)", n) % {"n": n}
+            self.fields["photo_for_staging"].help_text = gettext(
+                "Dates without a photo of their own show the staging's. Untick it to keep this photo for this date only.")
+            self.fields["photo_for_staging"].initial = not staging.image_url
+            self.fields["image_url"].help_text = gettext("Leave blank to show the staging's photo.")
+        else:
+            del self.fields["photo_for_staging"]
 
     def clean_title(self) -> str:
         title = (self.cleaned_data.get("title") or "").strip()
@@ -125,6 +166,9 @@ class EventForm(BootstrapMixin, forms.ModelForm):
         event_type = cleaned.get("event_type")
         if event_type not in PLAY_TYPES:
             cleaned["play"] = None
+        staging = cleaned.get("staging")
+        if staging and staging.pk != self.instance.staging_id and staging.play_id != getattr(cleaned.get("play"), "pk", None):
+            cleaned["staging"] = None  # a staging of another play: the date gets one of its own play
         if event_type != EventType.FESTIVAL:
             cleaned["production"] = None
         # City/country only matter when a new venue name is typed (they may be pre-filled from the profile).
@@ -676,3 +720,20 @@ class FeedbackForm(BootstrapMixin, forms.ModelForm):
             "message": forms.Textarea(attrs={"rows": 6, "placeholder": _("What happened, or what would you like? "
                                                                          "For bugs: what you did and what you expected.")}),
         }
+
+
+class StagingForm(BootstrapMixin, forms.ModelForm):
+    """A staging's own details: its name, play, description and the photo its dates share."""
+
+    class Meta:
+        model = Staging
+        fields = ["title", "play", "description", "image_url", "image_display"]
+        widgets = {"description": forms.Textarea(attrs={"rows": 4})}
+        help_texts = {"image_url": _("Every date without a photo of its own shows this one.")}
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["image_display"].required = False
+
+    def clean_image_display(self) -> str:
+        return self.cleaned_data.get("image_display") or Event.Thumbnail.FIT

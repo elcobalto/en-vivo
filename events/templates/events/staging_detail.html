@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% load i18n event_extras %}
+
+{% block title %}{{ staging.name }} · en vivo{% endblock %}
+
+{% block content %}
+  <div class="row g-4 mb-4">
+    <div class="col-5 col-md-3">
+      {% if staging.image_url %}
+        <img class="event-photo" src="{{ staging.image_url }}" alt="{{ staging.name }}" referrerpolicy="no-referrer" />
+        {% if can_edit %}<a class="btn btn-sm btn-outline-secondary w-100 mt-2" href="{% url 'events:staging_photo' staging.pk %}">{% translate "Change photo" %}</a>{% endif %}
+      {% else %}
+        <div class="poster position-relative">
+          {% if can_edit %}
+            <a class="poster-placeholder text-decoration-none flex-column gap-1" href="{% url 'events:staging_photo' staging.pk %}"><span class="fs-4">＋</span><span>{% translate "Find photo" %}</span></a>
+          {% else %}<div class="poster-placeholder">{{ staging.get_event_type_display }}</div>{% endif %}
+        </div>
+      {% endif %}
+      {% if can_edit %}<div class="form-text">{% translate "Every date without a photo of its own shows this one." %}</div>{% endif %}
+    </div>
+    <div class="col-12 col-md-6">
+      <div class="mb-1"><span class="badge text-bg-secondary type-badge">{% translate "Staging" %}</span></div>
+      <h1 class="h3 fw-bold mb-1">{{ staging.show_title|default:staging.name }}</h1>
+      {% with where=staging.where_and_when %}
+        <div class="fs-5 text-body-secondary mb-2">{% if staging.title %}{{ staging.title }}{% if where %} · {% endif %}{% endif %}{{ where }}</div>
+      {% endwith %}
+      {% if staging.play %}
+        <p class="small mb-2">{% translate "Staging of" %} <a href="{{ staging.play.get_absolute_url }}">{{ staging.play.title }}</a>
+          {% with credits=staging.play.credits %}{% for label, people in credits %} · {{ label }}: {% for a in people %}<a class="link-secondary" href="{{ a.get_absolute_url }}">{{ a.name }}</a>{% if not forloop.last %}, {% endif %}{% endfor %}{% endfor %}{% endwith %}
+        </p>
+      {% endif %}
+      {% if staging.description %}<p>{{ staging.description|linebreaksbr }}</p>{% endif %}
+      {% if credits %}
+        <p class="small mb-2">{% for row in credits %}{{ row.link.credit_label }} <a href="{{ row.artist.get_absolute_url }}">{{ row.artist.name }}</a>{% if row.dates < n_dates %} <span class="text-body-secondary">({% blocktranslate count counter=row.dates %}{{ counter }} date{% plural %}{{ counter }} dates{% endblocktranslate %})</span>{% endif %}{% if not forloop.last %} · {% endif %}{% endfor %}</p>
+      {% endif %}
+      {% if cast %}
+        <h2 class="section-title mt-3 mb-2">{% if staging.event_type == "theater" %}{% translate "Cast" %}{% else %}{% translate "Lineup" %}{% endif %}</h2>
+        <p class="small">{% for row in cast %}<a href="{{ row.artist.get_absolute_url }}">{{ row.artist.name }}</a>{% if row.dates < n_dates %} <span class="text-body-secondary">({% blocktranslate count counter=row.dates %}{{ counter }} date{% plural %}{{ counter }} dates{% endblocktranslate %})</span>{% endif %}{% if not forloop.last %} · {% endif %}{% endfor %}</p>
+      {% endif %}
+      {% if can_edit %}
+        <div class="d-flex flex-wrap gap-2 mt-3">
+          <a class="btn btn-sm btn-outline-secondary" href="{% url 'events:staging_edit' staging.pk %}">{% translate "Edit staging" %}</a>
+          <form method="post" action="{% url 'events:staging_add_date' staging.pk %}" class="d-flex gap-2">
+            {% csrf_token %}
+            <input class="form-control form-control-sm" type="date" name="date" required aria-label="{% translate 'New date' %}" />
+            <button class="btn btn-sm btn-outline-success text-nowrap" type="submit" title="{% translate 'Copies the latest date: venue and cast' %}">{% translate "+ Add date" %}</button>
+          </form>
+        </div>
+      {% endif %}
+    </div>
+    <div class="col-7 col-md-3">
+      <div class="card"><div class="card-body text-center">
+        {% if avg_rating %}<div class="display-6 fw-bold">{{ avg_rating|avg_stars }}</div><div class="stars">{{ avg_rating|stars }}</div>{% else %}<div class="small text-body-secondary">{% translate "No ratings yet" %}</div>{% endif %}
+        <div class="small text-body-secondary mt-1">{% blocktranslate count counter=log_count %}{{ counter }} log across all dates{% plural %}{{ counter }} logs across all dates{% endblocktranslate %}</div>
+        <div class="mt-3 text-start">{% rating_histogram staging_logs _("Ratings") %}</div>
+      </div></div>
+    </div>
+  </div>
+
+  <h2 class="section-title mb-2">{% translate "Dates" %}{% if n_dates > 1 %} · {{ n_dates }}{% endif %}</h2>
+  <div class="list-group mb-4">
+    {% for event in dates %}
+      <a class="list-group-item list-group-item-action d-flex align-items-center gap-3" href="{{ event.get_absolute_url }}">
+        {% with img=event.display_image %}
+          {% if img %}<img class="flex-shrink-0 rounded" src="{{ img }}" alt="" loading="lazy" referrerpolicy="no-referrer" style="width:2.6rem;height:3.6rem;object-fit:cover">
+          {% else %}<span class="flex-shrink-0 rounded border border-warning-subtle text-warning small d-flex align-items-center justify-content-center text-center lh-1" style="width:2.6rem;height:3.6rem;border-style:dashed!important;font-size:.6rem">{% translate "No photo" %}</span>{% endif %}
+        {% endwith %}
+        <span class="flex-grow-1">
+          <span class="event-date me-2">{% if event.date %}{{ event.date|date:"D j M Y" }}{% else %}{% translate "TBA" %}{% endif %}</span>{% if event.venue %}{{ event.venue.name }}{% endif %}
+          {% if event.image_url %}<span class="badge text-bg-light ms-1">{% translate "own photo" %}</span>{% endif %}
+        </span>
+        {% if event.avg_rating %}<span class="stars">{{ event.avg_rating|stars }}</span>{% endif %}
+      </a>
+    {% empty %}
+      <div class="list-group-item text-body-secondary">{% translate "No dates yet." %}</div>
+    {% endfor %}
+  </div>
+
+  <h2 class="section-title mb-1">{% translate "Reviews" %}</h2>
+  {% for log in reviews %}{% include "events/_review.html" with show_event=True %}{% empty %}<p class="small text-body-secondary mt-2">{% translate "No reviews yet." %}</p>{% endfor %}
+  {% include "events/_pager.html" with pager=reviews param="rpage" %}
+{% endblock %}

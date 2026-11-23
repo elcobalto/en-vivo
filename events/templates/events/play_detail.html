@@ -25,11 +25,26 @@
       </div>
       <h2 class="section-title mb-3">{% translate "Stagings" %}</h2>
       {% if stagings %}
-        <div class="row row-cols-2 row-cols-sm-3 row-cols-lg-5 g-3">
-          {% for event in stagings %}<div class="col">{% include "events/_event_card.html" %}</div>{% endfor %}
+        <div class="list-group mb-4">
+          {% for staging in stagings %}
+            <a class="list-group-item list-group-item-action d-flex align-items-center gap-3" href="{{ staging.get_absolute_url }}">
+              {% if staging.image_url %}<img class="flex-shrink-0 rounded" src="{{ staging.image_url }}" alt="" loading="lazy" referrerpolicy="no-referrer" style="width:2.6rem;height:3.6rem;object-fit:cover">
+              {% else %}<span class="flex-shrink-0 rounded border small d-flex align-items-center justify-content-center text-body-secondary" style="width:2.6rem;height:3.6rem;font-size:.6rem">{% translate "No photo" %}</span>{% endif %}
+              <span class="flex-grow-1">
+                <span class="fw-semibold">{% if staging.title %}{{ staging.title }}{% else %}{{ staging.where_and_when|default:_("Staging") }}{% endif %}</span>
+                <span class="d-block small text-body-secondary">{% blocktranslate count counter=staging.n_dates %}{{ counter }} date{% plural %}{{ counter }} dates{% endblocktranslate %}{% if staging.first_date %}{% with first=staging.first_date|date:"M Y" last=staging.last_date|date:"M Y" %} · {{ first }}{% if last != first %} – {{ last }}{% endif %}{% endwith %}{% endif %}</span>
+              </span>
+            </a>
+          {% endfor %}
         </div>
-      {% else %}
+      {% elif not loose %}
         <p class="text-body-secondary">{% translate "No stagings yet." %}</p>
+      {% endif %}
+      {% if loose %}
+        <h2 class="section-title mb-3">{% translate "Other dates" %}</h2>
+        <div class="row row-cols-2 row-cols-sm-3 row-cols-lg-5 g-3">
+          {% for event in loose %}<div class="col">{% include "events/_event_card.html" %}</div>{% endfor %}
+        </div>
       {% endif %}
     </div>
   </div>

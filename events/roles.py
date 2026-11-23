@@ -26,3 +26,8 @@ def can_edit_event(user, event) -> bool:
 
 def can_delete_event(user, event) -> bool:
     return is_admin(user)
+
+
+def can_edit_staging(user, staging) -> bool:
+    """Like events: admins, or whoever added the staging."""
+    return can_edit_event(user, staging)

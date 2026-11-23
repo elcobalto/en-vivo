@@ -54,7 +54,9 @@
           <a class="small ms-2" href="{% url 'events:event_edit' event.pk %}">{% if not event.venue %}{% if not event.date %}{% translate "Add venue &amp; date" %}{% else %}{% translate "Add venue" %}{% endif %}{% else %}{% translate "Add date" %}{% endif %}</a>
         {% endif %}
       </div>
-      {% if event.play %}<p class="small mb-2">{% translate "Staging of" %} <a href="{{ event.play.get_absolute_url }}">{{ event.play.title }}</a></p>{% endif %}
+      {% if event.staging %}
+        <p class="small mb-2"><a href="{{ event.staging.get_absolute_url }}">{% if event.staging.title %}{{ event.staging.title }}{% else %}{{ event.staging.where_and_when|default:_("All dates") }}{% endif %}</a>{% if event.play %}, {% translate "staging of" %} <a href="{{ event.play.get_absolute_url }}">{{ event.play.title }}</a>{% endif %}</p>
+      {% elif event.play %}<p class="small mb-2">{% translate "Staging of" %} <a href="{{ event.play.get_absolute_url }}">{{ event.play.title }}</a></p>{% endif %}
       {% if other_dates %}
         <div class="small mt-3">
           <span class="text-body-secondary">{% translate "Other dates:" %}</span>
