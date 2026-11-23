@@ -5279,3 +5279,50 @@ class HeardSongsTests(BaseTestCase):
         every = self.client.get(url, {"min": "3"})
         self.assertEqual(list(every.context["page"].object_list), [])
         self.assertEqual(self.client.get(url, {"min": "7"}).context["min_times"], 2)  # not a choice: the default
+
+
+class VenueRenameTests(BaseTestCase):
+    def setUp(self):
+        super().setUp()
+        self.arena = Venue.objects.create(name="Arena Santiago", city="Santiago", country="CL")
+        self.movistar = Venue.objects.create(name="Movistar Arena", city="Santiago", country="CL")
+        self.santander = Venue.objects.create(name="Santander Arena", city="Santiago", country="CL")
+        for i, venue in enumerate([self.arena, self.movistar, self.movistar]):
+            event = Event.objects.create(title=f"Show {i}", venue=venue, date=date(2005 + i * 5, 1, 1))
+            Log.objects.create(user=self.user, event=event)
+        call_command("make_admin", "ana", stdout=open("/dev/null", "w"))
+        self.client.force_login(self.user)
+
+    def _rename(self, old, new, day):
+        return self.client.post(reverse("events:venue_rename", args=[old.pk]),
+                                {"renamed_to": new.pk, "renamed_on": day})
+
+    def test_names_over_time_keep_their_shows(self):
+        self.assertRedirects(self._rename(self.arena, self.movistar, "2008-03-01"), self.movistar.get_absolute_url())
+        self._rename(self.movistar, self.santander, "2025-06-01")
+        self.arena.refresh_from_db()
+        self.assertEqual(self.arena.current, self.santander)
+        self.assertEqual([v.name for v in self.santander.names()], ["Arena Santiago", "Movistar Arena", "Santander Arena"])
+        page = self.client.get(self.santander.get_absolute_url())
+        self.assertEqual(len(page.context["events"]), 3)  # every name's shows…
+        self.assertEqual(Event.objects.get(title="Show 0").venue, self.arena)  # …each still under its own name
+        self.assertContains(page, "Names over time:")
+        self.assertContains(self.client.get(self.arena.get_absolute_url()), "Now called")
+        # Stats: one place, under its name now.
+        stats = self.client.get(reverse("events:user_stats", args=["ana"]))
+        self.assertEqual([(r["name"], r["n"]) for r in stats.context["top_venues"]][0], ("Santander Arena", 3))
+
+    def test_no_loops_and_undo(self):
+        self._rename(self.arena, self.movistar, "2008-03-01")
+        self._rename(self.movistar, self.arena, "")  # already one of its names
+        self.movistar.refresh_from_db()
+        self.assertIsNone(self.movistar.renamed_to)
+        self.client.post(reverse("events:venue_rename", args=[self.arena.pk]), {"undo": "1"})
+        self.arena.refresh_from_db()
+        self.assertIsNone(self.arena.renamed_to)
+
+    def test_only_admins_rename(self):
+        bob = get_user_model().objects.create_user("bob", password="pw-test-456")
+        self.client.force_login(bob)
+        self.assertEqual(self._rename(self.arena, self.movistar, "").status_code, 403)
+        self.assertNotContains(self.client.get(self.arena.get_absolute_url()), "It changed its name")

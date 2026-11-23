@@ -57,6 +57,7 @@ urlpatterns = [
     path("events/<int:pk>/merge-duplicate/", views_merge.event_merge_duplicate, name="event_merge_duplicate"),
     path("artists/<int:pk>/photo/", views_venues.artist_photo, name="artist_photo"),
     path("venues/<int:pk>/photo/", views_venues.venue_photo, name="venue_photo"),
+    path("venues/<int:pk>/rename/", views.venue_rename, name="venue_rename"),
     path("venues/new/", views.venue_create, name="venue_create"),
     path("import/setlistfm/", views_venues.setlistfm_shows, name="setlistfm_shows"),
     path("venues/search/", views_venues.venue_search, name="venue_search"),

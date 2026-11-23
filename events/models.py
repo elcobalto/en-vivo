@@ -10,6 +10,8 @@ Music-only enrichment (imported from setlist.fm):
 """
 from __future__ import annotations
 
+from datetime import date
+
 from django.conf import settings
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
@@ -127,6 +129,11 @@ class Venue(TimestampedModel):
     setlistfm_id = models.CharField(max_length=40, null=True, blank=True, unique=True)
     # Google Places id: venues picked from search are standardized and never duplicated.
     google_place_id = models.CharField(max_length=255, null=True, blank=True, unique=True, editable=False)
+    # A place that changed its name: this venue (the old name) became ``renamed_to`` on ``renamed_on``. Each name
+    # keeps its own record and shows, so a show stays under the name the place had that day.
+    renamed_to = models.ForeignKey("self", on_delete=models.SET_NULL, null=True, blank=True,
+                                   related_name="renamed_from", verbose_name=_("Renamed to"))
+    renamed_on = models.DateField(_("Renamed on"), null=True, blank=True)
 
     class Meta:
         ordering = ["name", "city"]
@@ -153,6 +160,27 @@ class Venue(TimestampedModel):
 
     def get_absolute_url(self) -> str:
         return reverse("events:venue_detail", args=[self.pk])
+
+    @property
+    def current(self) -> "Venue":
+        """The name the place goes by now (following its renames)."""
+        venue, seen = self, {self.pk}
+        while venue.renamed_to_id and venue.renamed_to_id not in seen:
+            seen.add(venue.renamed_to_id)
+            venue = venue.renamed_to
+        return venue
+
+    def names(self) -> list["Venue"]:
+        """Every name of this place, oldest first: the venues it was renamed from and to (chains included)."""
+        found, todo = {self.pk: self}, [self]
+        while todo:
+            venue = todo.pop()
+            linked = list(venue.renamed_from.all()) + ([venue.renamed_to] if venue.renamed_to_id else [])
+            for other in linked:
+                if other.pk not in found:
+                    found[other.pk] = other
+                    todo.append(other)
+        return sorted(found.values(), key=lambda v: (v.renamed_on is None, v.renamed_on or date.max, v.pk))
 
 
 class Artist(TimestampedModel):

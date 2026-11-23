@@ -53,13 +53,28 @@ def seen_artists(owner, types: list[str]):
     )
 
 
-def seen_venues(owner, types: list[str]):
-    seen = Q(events__logs__isnull=False) & _by(owner, "events__logs__user") & (Q(events__event_type__in=types) if types else Q())
-    return (
-        Venue.objects.filter(seen)
+def seen_venues(owner, types: list[str]) -> list:
+    """Venues by shows attended, most first. A renamed place counts once, under the name it goes by now (shows
+    under its earlier names included)."""
+    seen = Q(events__logs__isnull=False) & _by(owner, "events__logs__user") & (
+        Q(events__event_type__in=types) if types else Q())
+    venues = (
+        Venue.objects.filter(seen).select_related("renamed_to")
         .annotate(n=Count("events__logs", filter=seen, distinct=True), last_seen=Max("events__date", filter=seen))
-        .order_by("-n", F("last_seen").desc(nulls_last=True), "name")
     )
+    places: dict[int, Venue] = {}
+    tally: dict[int, list] = {}  # place id: [shows, last seen]
+    for venue in venues:
+        place = venue.current if venue.renamed_to_id else venue
+        places.setdefault(place.pk, place)
+        total = tally.setdefault(place.pk, [0, None])
+        total[0] += venue.n
+        if venue.last_seen and (total[1] is None or venue.last_seen > total[1]):
+            total[1] = venue.last_seen
+    for pk, place in places.items():
+        place.n, place.last_seen = tally[pk]
+    return sorted(places.values(), key=lambda v: (-v.n, -(v.last_seen.toordinal() if v.last_seen else 0),
+                                                  v.name.casefold()))
 
 
 def seen_cities(owner, types: list[str]):

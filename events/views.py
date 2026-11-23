@@ -756,16 +756,42 @@ def artist_detail(request: HttpRequest, pk: int) -> HttpResponse:
 
 def venue_detail(request: HttpRequest, pk: int) -> HttpResponse:
     venue = get_object_or_404(Venue, pk=pk)
-    events = venue.events.all()
+    # A renamed place: its shows under every name (each card says the name it had then).
+    names = venue.names()
+    events = Event.objects.filter(venue__in=names)
     seen_by = _seen_by(request)
     if seen_by:
         events = events.filter(logs__user=seen_by)
-    return render(
-        request,
-        "events/venue_detail.html",
-        {"venue": venue, "seen_by": seen_by,
-         "events": events.with_stats().select_related("venue").distinct().order_by(*LATEST_FIRST)},
-    )
+    context = {"venue": venue, "seen_by": seen_by, "names": names if len(names) > 1 else [],
+               "events": events.with_stats().select_related("venue").distinct().order_by(*LATEST_FIRST)}
+    if is_admin(request.user):  # "It changed its name": the venues it could have become (same city first)
+        others = Venue.objects.exclude(pk__in=[v.pk for v in names])
+        context["rename_choices"] = (others.filter(city__iexact=venue.city, country=venue.country) if venue.city
+                                     else others.filter(country=venue.country)).order_by("name")[:300]
+    return render(request, "events/venue_detail.html", context)
+
+
+@login_required
+@require_POST
+def venue_rename(request: HttpRequest, pk: int) -> HttpResponse:
+    """Admins: link a venue to the one it became when the place changed its name (or undo it)."""
+    if not is_admin(request.user):
+        raise PermissionDenied
+    venue = get_object_or_404(Venue, pk=pk)
+    if request.POST.get("undo"):
+        venue.renamed_to, venue.renamed_on = None, None
+        venue.save(update_fields=["renamed_to", "renamed_on", "updated_at"])
+        messages.success(request, gettext("“%(name)s” is no longer linked to a new name.") % {"name": venue.name})
+        return redirect(venue)
+    target = Venue.objects.filter(pk=request.POST.get("renamed_to") or 0).first()
+    if target is None or target in venue.names():
+        messages.error(request, gettext("Pick the venue it became (one that isn't already one of its names)."))
+        return redirect(venue)
+    venue.renamed_to, venue.renamed_on = target, _iso_date(request.POST.get("renamed_on"))
+    venue.save(update_fields=["renamed_to", "renamed_on", "updated_at"])
+    messages.success(request, gettext("“%(old)s” is now an earlier name of “%(new)s”.") % {
+        "old": venue.name, "new": target.name})
+    return redirect(target)
 
 
 def _iso_date(raw):

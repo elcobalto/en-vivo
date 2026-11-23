@@ -26,6 +26,35 @@
       {% if venue.latitude and venue.longitude %} · <a href="https://www.google.com/maps/search/?api=1&amp;query={{ venue.latitude }},{{ venue.longitude }}{% if venue.google_place_id %}&amp;query_place_id={{ venue.google_place_id|urlencode }}{% endif %}" target="_blank" rel="noreferrer">{% translate "Map" %}</a>{% endif %}
       {% if venue.capacity %} · {% blocktranslate with capacity=venue.capacity %}Capacity {{ capacity }}{% endblocktranslate %}{% endif %}
     </div>
+    {% if venue.renamed_to %}
+      {% with now=venue.current %}
+        <div class="alert alert-secondary py-2 mt-2 mb-0 small">{% if venue.renamed_on %}{% blocktranslate with url=now.get_absolute_url name=now.name day=venue.renamed_on|date:"j M Y" %}Now called <a href="{{ url }}">{{ name }}</a> (renamed {{ day }}).{% endblocktranslate %}{% else %}{% blocktranslate with url=now.get_absolute_url name=now.name %}Now called <a href="{{ url }}">{{ name }}</a>.{% endblocktranslate %}{% endif %}</div>
+      {% endwith %}
+    {% endif %}
+    {% if names %}
+      {# The place's names over time, oldest first; shows below are under every name. #}
+      <div class="small mt-2">
+        <span class="text-body-secondary">{% translate "Names over time:" %}</span>
+        {% for v in names %}{% if v == venue %}<strong>{{ v.name }}</strong>{% else %}<a href="{{ v.get_absolute_url }}">{{ v.name }}</a>{% endif %}{% if v.renamed_on %} <span class="text-body-secondary">({% blocktranslate with day=v.renamed_on|date:"Y" %}until {{ day }}{% endblocktranslate %})</span>{% endif %}{% if not forloop.last %} → {% endif %}{% endfor %}
+      </div>
+    {% endif %}
+    {% if user|is_admin %}
+      <details class="mt-2"><summary class="small text-warning">{% if venue.renamed_to %}{% translate "Change or undo the new name" %}{% else %}{% translate "It changed its name" %}{% endif %}</summary>
+        <form method="post" action="{% url 'events:venue_rename' venue.pk %}" class="d-flex flex-wrap align-items-end gap-2 mt-2 small">
+          {% csrf_token %}
+          <div><label class="form-label small mb-1" for="renamed-to">{% blocktranslate with name=venue.name %}{{ name }} became{% endblocktranslate %}</label>
+            <select class="form-select form-select-sm" style="max-width:20rem" id="renamed-to" name="renamed_to" required>
+              <option value="">{% translate "Choose the venue…" %}</option>
+              {% for v in rename_choices %}<option value="{{ v.pk }}"{% if venue.renamed_to_id == v.pk %} selected{% endif %}>{{ v.name }}{% if v.city %} · {{ v.city }}{% endif %}</option>{% endfor %}
+            </select></div>
+          <div><label class="form-label small mb-1" for="renamed-on">{% translate "on" %}</label>
+            <input class="form-control form-control-sm" type="date" id="renamed-on" name="renamed_on" value="{{ venue.renamed_on|date:'Y-m-d' }}" /></div>
+          <button class="btn btn-sm btn-warning" type="submit">{% translate "Save" %}</button>
+        </form>
+        {% if venue.renamed_to %}<form method="post" action="{% url 'events:venue_rename' venue.pk %}" class="mt-1">{% csrf_token %}<input type="hidden" name="undo" value="1" /><button class="btn btn-link btn-sm text-danger p-0" type="submit">{% translate "Undo: not renamed" %}</button></form>{% endif %}
+        <div class="form-text">{% translate "Add the new name as a venue first if it isn't here. Shows keep the name the place had then; the venue pages and stats treat the names as one place." %}</div>
+      </details>
+    {% endif %}
   </div>
   </div>
 
