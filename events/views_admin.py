@@ -35,6 +35,24 @@ def admin_tools(request: HttpRequest) -> HttpResponse:
 
 
 @login_required
+def site_stats_page(request: HttpRequest) -> HttpResponse:
+    """The stats page over everyone's diaries (admins only). (``site_stats``, the module, is the Admin page's.)"""
+    from .views_social import stats_context
+
+    _require_admin(request)
+    return render(request, "events/profile_stats.html", stats_context(request, None))
+
+
+@login_required
+def site_ranking_page(request: HttpRequest, kind: str) -> HttpResponse:
+    """A "See all" page of the site's stats (admins only)."""
+    from .views_social import ranking_context
+
+    _require_admin(request)
+    return render(request, "events/user_ranking.html", ranking_context(request, None, kind))
+
+
+@login_required
 def setlistfm_usage(request: HttpRequest) -> HttpResponse:
     """How much of setlist.fm's daily request limit En Vivo has used, and by whom."""
     _require_admin(request)

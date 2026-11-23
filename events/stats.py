@@ -1,6 +1,7 @@
 """A person's stats: what they've seen most, rated highest, and heard — for one or more event types, or all.
 
-Every function takes the person and the event types to count (an empty list: every event). Ratings of an act
+Every function takes the person and the event types to count (an empty list: every event). With no person
+(``owner=None``) they count everyone's diaries: the site's stats, for admins. Ratings of an act
 fall back to the rating of the event it was part of, so an artist seen in a rated show without a rating of their
 own still counts with the show's.
 """
@@ -17,16 +18,23 @@ from .models import ActLog, Artist, Event, EventType, Log, SetlistSong, Venue
 
 # A category (an event type, a country) needs more events than this to be among the highest rated.
 MIN_EVENTS_TO_RATE = 5
+# An artist needs at least this many ratings (acts rated, or rated shows they were in) to be among the highest rated.
+MIN_ARTIST_RATINGS = 5
+
+
+def _by(owner, path: str) -> Q:
+    """``path`` is the person (``owner``), or anyone when there's no owner."""
+    return Q(**{path: owner}) if owner is not None else Q()
 
 
 def logs_of(owner, types: list[str]):
-    logs = Log.objects.filter(user=owner)
+    logs = Log.objects.filter(_by(owner, "user"))
     return logs.filter(event__event_type__in=types) if types else logs
 
 
 def acts_of(owner, types: list[str]):
     """The acts the person saw, each with its rating (or the show's, when the act has none) as ``r``."""
-    acts = ActLog.objects.filter(log__user=owner)
+    acts = ActLog.objects.filter(_by(owner, "log__user"))
     if types:
         acts = acts.filter(log__event__event_type__in=types)
     return acts.annotate(r=Coalesce("rating", "log__rating"))
@@ -36,7 +44,7 @@ def acts_of(owner, types: list[str]):
 
 
 def seen_artists(owner, types: list[str]):
-    seen = Q(act_logs__log__user=owner) & (Q(act_logs__log__event__event_type__in=types) if types else Q())
+    seen = Q(act_logs__isnull=False) & _by(owner, "act_logs__log__user") & (Q(act_logs__log__event__event_type__in=types) if types else Q())
     return (
         Artist.objects.filter(seen)
         .annotate(n=Count("act_logs", filter=seen, distinct=True),
@@ -46,7 +54,7 @@ def seen_artists(owner, types: list[str]):
 
 
 def seen_venues(owner, types: list[str]):
-    seen = Q(events__logs__user=owner) & (Q(events__event_type__in=types) if types else Q())
+    seen = Q(events__logs__isnull=False) & _by(owner, "events__logs__user") & (Q(events__event_type__in=types) if types else Q())
     return (
         Venue.objects.filter(seen)
         .annotate(n=Count("events__logs", filter=seen, distinct=True), last_seen=Max("events__date", filter=seen))
@@ -67,10 +75,12 @@ def seen_cities(owner, types: list[str]):
 
 
 def rated_artists(owner, types: list[str]):
-    """Artists by the person's average rating of them (act ratings, or the show's when the act has none)."""
+    """Artists by the person's average rating of them (act ratings, or the show's when the act has none), among
+    those rated at least MIN_ARTIST_RATINGS times."""
     rows = list(
         acts_of(owner, types).exclude(r=None).values("artist")
         .annotate(avg=Avg("r"), n=Count("id"), last_seen=Max("log__event__date"))
+        .filter(n__gte=MIN_ARTIST_RATINGS)
         .order_by("-avg", "-n", F("last_seen").desc(nulls_last=True))
     )
     return RatedArtists(rows)
@@ -140,7 +150,7 @@ def highest_rated(categories: list[Category], limit: int = 5) -> list[Category]:
 def heard(owner, types: list[str]):
     """The songs the person heard live: setlist entries (no tapes) of the acts they saw, at the shows they went to."""
     entries = SetlistSong.objects.filter(
-        is_tape=False, setlist__event__logs__user=owner,
+        _by(owner, "setlist__event__logs__user"), is_tape=False,
         setlist__event__logs__acts__artist=F("setlist__artist"))
     if types:
         entries = entries.filter(setlist__event__event_type__in=types)
@@ -203,7 +213,8 @@ def venue_images(venues) -> None:
 def city_images(owner, cities: list[dict]) -> None:
     """Each city row's ``picture``: the photo of the latest show the person saw there."""
     for c in cities:
-        events = (Event.objects.filter(logs__user=owner, venue__city__iexact=c["event__venue__city"])
+        events = (Event.objects.filter(_by(owner, "logs__user"), logs__isnull=False,
+                                       venue__city__iexact=c["event__venue__city"]).distinct()
                   .select_related("venue").order_by(F("date").desc(nulls_last=True))[:5])
         c["picture"] = next((e.display_image for e in events if e.display_image), "")
 

@@ -55,8 +55,9 @@
         <div class="modal-header"><h2 class="modal-title h5" id="addAlbumTitle">{% blocktranslate with name=artist.name %}Add an album to {{ name }}{% endblocktranslate %}</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{% translate 'Close' %}"></button></div>
         <div class="modal-body row g-2">
           <p class="small text-body-secondary col-12 mb-1">{% translate "It shows in the charts even if nothing from it was played (unless “Skip empty albums” is on)." %}</p>
-          <div class="col-8"><label class="form-label small" for="add-album-title">{% translate "Title" %}</label><input class="form-control" id="add-album-title" name="title" maxlength="240" required placeholder="{% translate 'e.g. Kerplunk!' %}"></div>
-          <div class="col-4"><label class="form-label small" for="add-album-year">{% translate "Year" %}</label><input class="form-control" id="add-album-year" name="year" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" placeholder="1991"></div>
+          <div class="col-12"><label class="form-label small" for="add-album-title">{% translate "Title" %}</label><input class="form-control" id="add-album-title" name="title" maxlength="240" required placeholder="{% translate 'e.g. Kerplunk!' %}"></div>
+          <div class="col-6"><label class="form-label small" for="add-album-kind">{% translate "Type" %}</label><select class="form-select" id="add-album-kind" name="kind">{% for value, label in album_kinds %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select></div>
+          <div class="col-6"><label class="form-label small" for="add-album-year">{% translate "Year" %}</label><input class="form-control" id="add-album-year" name="year" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" placeholder="1991"></div>
         </div>
         <div class="modal-footer"><button class="btn btn-outline-secondary" type="button" data-bs-dismiss="modal">{% translate "Cancel" %}</button><button class="btn btn-success" type="submit">{% translate "Add album" %}</button></div>
       </form>

@@ -6,7 +6,10 @@
 {% block content %}
   <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
     <h1 class="h4 m-0">{% translate "Admin" %}</h1>
-    {% if user.is_staff %}<a class="btn btn-sm btn-outline-secondary" href="{% url 'admin:index' %}">{% translate "Database admin" %}</a>{% endif %}
+    <div class="d-flex gap-2">
+      <a class="btn btn-sm btn-warning" href="{% url 'events:site_stats' %}">{% translate "Site stats" %}</a>
+      {% if user.is_staff %}<a class="btn btn-sm btn-outline-secondary" href="{% url 'admin:index' %}">{% translate "Database admin" %}</a>{% endif %}
+    </div>
   </div>
 
   {# ------------------------------------------------------------ database #}

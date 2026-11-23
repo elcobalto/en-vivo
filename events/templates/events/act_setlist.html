@@ -8,9 +8,13 @@
     .setlist-n { min-width: 1.8rem; }
     .setlist .is-tape { color: var(--bs-secondary-color); opacity: .6; }
     .setlist > li { border-left: 4px solid transparent; padding-left: .4rem; }
-    .color-albums .setlist > li[data-album-color] { border-left-color: var(--album-color); }
-    .color-albums .setlist > li[data-album-color] .song-album { color: var(--album-color) !important; }
-    .color-albums .album-row[data-album-color] .album-bar { background: var(--album-color); }
+    /* Every album's colour, or with "Only LPs" just the LPs' (coloured in order among themselves). */
+    .color-albums:not(.only-lps) .setlist > li[data-album-color] { border-left-color: var(--album-color); }
+    .color-albums:not(.only-lps) .setlist > li[data-album-color] .song-album { color: var(--album-color) !important; }
+    .color-albums:not(.only-lps) .album-row[data-album-color] .album-bar { background: var(--album-color); }
+    .color-albums.only-lps .setlist > li[data-lp-color] { border-left-color: var(--lp-color); }
+    .color-albums.only-lps .setlist > li[data-lp-color] .song-album { color: var(--lp-color) !important; }
+    .color-albums.only-lps .album-row[data-lp-color] .album-bar { background: var(--lp-color); }
   </style>
   <p class="small mb-1"><a href="{{ event.get_absolute_url }}">← {{ event.title }}</a></p>
   <h1 class="h3 fw-bold mb-1"><a class="link-light" href="{{ setlist.artist.get_absolute_url }}">{{ setlist.artist.name }}</a>: {% translate "setlist" %}</h1>
@@ -20,14 +24,20 @@
 
   <div class="row g-4" id="setlist-page">
     <div class="col-12 col-md-7">
-      {% if entries %}<div class="form-check form-switch mb-2">
-        <input class="form-check-input" type="checkbox" role="switch" id="color-albums">
-        <label class="form-check-label small" for="color-albums">{% translate "Colour by album" %}</label>
+      {% if entries %}<div class="d-flex flex-wrap gap-3 mb-2">
+        <div class="form-check form-switch m-0">
+          <input class="form-check-input" type="checkbox" role="switch" id="color-albums">
+          <label class="form-check-label small" for="color-albums">{% translate "Colour by album" %}</label>
+        </div>
+        <div class="form-check form-switch m-0">
+          <input class="form-check-input" type="checkbox" role="switch" id="only-lps" checked>
+          <label class="form-check-label small" for="only-lps" title="{% translate 'Leave out EPs, singles, compilations, live albums and soundtracks' %}">{% translate "Only LPs" %}</label>
+        </div>
       </div>{% endif %}
       <ol class="list-unstyled mb-2 setlist">
         {% for entry in entries %}
           {% ifchanged entry.set_name %}{% if entry.set_name %}<li class="section-title mt-3 mb-2">{{ entry.set_name }}</li>{% endif %}{% endifchanged %}
-          <li class="d-flex gap-2 py-1{% if entry.is_tape %} is-tape{% endif %}"{% if entry.album_color %} data-album-color style="--album-color: {{ entry.album_color }}"{% endif %}>
+          <li class="d-flex gap-2 py-1{% if entry.is_tape %} is-tape{% endif %}"{% if entry.album_color %} data-album-color{% if entry.lp_color %} data-lp-color{% endif %} style="--album-color: {{ entry.album_color }}{% if entry.lp_color %}; --lp-color: {{ entry.lp_color }}{% endif %}"{% endif %}>
             <span class="setlist-n text-body-secondary text-end">{% if entry.number %}{{ entry.number }}.{% endif %}</span>
             <span>
               {{ entry.song.title }}{% if entry.is_tape %} <span class="badge text-bg-secondary" title="{% translate 'Played from a recording; not counted' %}">{% translate "tape" %}</span>{% endif %}{% if entry.note %} <span class="small text-body-secondary">({{ entry.note }})</span>{% endif %}
@@ -95,15 +105,26 @@
 
 {% block scripts %}
 <script>
-  // "Colour by album": remembered on this device.
+  // "Colour by album" (off by default) and "Only LPs" (on by default): remembered on this device.
   (function () {
-    var box = document.getElementById("color-albums");
+    var box = document.getElementById("color-albums"), lps = document.getElementById("only-lps");
     if (!box) return;
     var page = document.getElementById("setlist-page");
-    function apply() { page.classList.toggle("color-albums", box.checked); }
-    try { box.checked = localStorage.getItem("colorAlbums") === "1"; } catch (e) {}
+    function apply() {
+      page.classList.toggle("color-albums", box.checked);
+      page.classList.toggle("only-lps", lps.checked);
+      lps.disabled = !box.checked;
+    }
+    try {
+      box.checked = localStorage.getItem("colorAlbums") === "1";
+      lps.checked = localStorage.getItem("colorOnlyLps") !== "0";
+    } catch (e) {}
     box.addEventListener("change", function () {
       try { localStorage.setItem("colorAlbums", box.checked ? "1" : "0"); } catch (e) {}
+      apply();
+    });
+    lps.addEventListener("change", function () {
+      try { localStorage.setItem("colorOnlyLps", lps.checked ? "1" : "0"); } catch (e) {}
       apply();
     });
     apply();

@@ -635,9 +635,20 @@ class Song(TimestampedModel):
 class Album(TimestampedModel):
     """An artist's album, added by admins so albums nobody heard live still show (with 0 songs)."""
 
+    class Kind(models.TextChoices):
+        LP = "lp", _("LP")
+        EP = "ep", _("EP")
+        SINGLE = "single", _("Single")
+        COMPILATION = "compilation", _("Compilation")
+        LIVE = "live", _("Live")
+        SOUNDTRACK = "soundtrack", _("Soundtrack")
+        OTHER = "other", _("Other")
+
     artist = models.ForeignKey(Artist, on_delete=models.CASCADE, related_name="albums")
     title = models.CharField(max_length=240)
     year = models.PositiveSmallIntegerField(null=True, blank=True)
+    # A studio album (LP) unless marked otherwise; "Only LPs" on setlists colours just these.
+    kind = models.CharField(_("Type"), max_length=12, choices=Kind.choices, default=Kind.LP)
 
     class Meta:
         ordering = ["artist__name", F("year").desc(nulls_last=True), "title"]

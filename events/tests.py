@@ -3551,7 +3551,9 @@ class AlbumColourTests(BaseTestCase):
         self.assertEqual(rows["First"], "hsl(215 70% 58%)")
         self.assertIsNone(rows["No album"])
         self.assertContains(page, 'id="color-albums"')
-        self.assertContains(page, 'data-album-color style="--album-color: hsl(215 70% 58%)"')
+        # Both LPs: the same colours with "Only LPs" too.
+        self.assertContains(page, 'data-album-color data-lp-color style="--album-color: hsl(215 70% 58%); --lp-color: hsl(215 70% 58%)"')
+        self.assertContains(page, 'id="only-lps" checked')
 
 
 class BetaSetlistFmLimitTests(BaseTestCase):
@@ -5070,7 +5072,8 @@ class StatsReworkTests(BaseTestCase):
 
     def test_highest_rated_artists_use_the_show_rating_when_the_act_has_none(self):
         rated = self.client.get(self.url).context["rated_artists"]
-        self.assertEqual([(r["name"], r["avg"]) for r in rated], [("Comic", 10), ("Green Day", 9), ("Los Bunkers", 4)])
+        # The comic's one rating isn't enough (5 needed).
+        self.assertEqual([(r["name"], r["avg"]) for r in rated], [("Green Day", 9), ("Los Bunkers", 4)])
 
     def test_types_countries_and_highest_rated_need_more_than_five_events(self):
         page = self.client.get(self.url)
@@ -5124,7 +5127,7 @@ class StatsReworkTests(BaseTestCase):
         second = self.client.get(url, {"view": "grid", "page": 2})
         self.assertEqual([r["rank"] for r in second.context["rows"]][0], 25)
         rated = self.client.get(reverse("events:user_ranking", args=["ana", "rated-artists"]), {"view": "grid"})
-        self.assertEqual([r["name"] for r in rated.context["rows"]], ["Comic", "Green Day", "Los Bunkers"])
+        self.assertEqual([r["name"] for r in rated.context["rows"]], ["Green Day", "Los Bunkers"])
 
     def test_venue_photo_picker(self):
         self.client.force_login(self.user)
@@ -5133,3 +5136,74 @@ class StatsReworkTests(BaseTestCase):
         self.venue.refresh_from_db()
         self.assertEqual(self.venue.image_url, "https://img.example/v.jpg")
         self.assertEqual(self.client.get(reverse("events:venue_photo", args=[self.venue.pk])).status_code, 403)
+
+
+class AlbumKindTests(BaseTestCase):
+    def setUp(self):
+        super().setUp()
+        self.artist = Artist.objects.create(name="Green Day")
+        call_command("make_admin", "ana", stdout=open("/dev/null", "w"))
+        self.client.force_login(self.user)
+
+    def test_manage_albums_sets_the_type(self):
+        from .models import Album
+
+        url = reverse("events:artist_albums_edit", args=[self.artist.pk])
+        self.client.post(url, {"title": "Kerplunk!", "year": "1991"})
+        self.client.post(url, {"title": "Shenanigans", "year": "2002", "kind": "compilation"})
+        self.assertEqual(dict(Album.objects.values_list("title", "kind")), {"Kerplunk!": "lp", "Shenanigans": "compilation"})
+        album = Album.objects.get(title="Kerplunk!")
+        self.client.post(url, {"update": album.pk, "year": "1991", "kind": "ep"})
+        album.refresh_from_db()
+        self.assertEqual((album.kind, album.year), ("ep", 1991))
+        page = self.client.get(self.artist.get_absolute_url())
+        self.assertContains(page, '<option value="compilation" selected>')
+
+    def test_only_lps_colours_lps_in_order(self):
+        from .albums import album_color, album_colors
+        from .models import Album
+
+        Album.objects.create(artist=self.artist, title="Dookie", year=1994)
+        Album.objects.create(artist=self.artist, title="Bowling Bowling Bowling Parking Parking", year=1996, kind="ep")
+        Album.objects.create(artist=self.artist, title="Nimrod", year=1997)
+        self.assertEqual(list(album_colors(self.artist).values()), [album_color(0), album_color(1), album_color(2)])
+        self.assertEqual(album_colors(self.artist, lps_only=True), {"dookie": album_color(0), "nimrod": album_color(1)})
+
+
+class SiteStatsTests(BaseTestCase):
+    def test_admins_see_everyones_stats(self):
+        from .models import ActLog
+
+        bob = get_user_model().objects.create_user("bob", password="pw-test-456")
+        artist = Artist.objects.create(name="Green Day", country="US")
+        EventArtist.objects.create(event=self.event, artist=artist)
+        for person in (self.user, bob):
+            log = Log.objects.create(user=person, event=self.event, rating=8)
+            ActLog.objects.get_or_create(log=log, artist=artist)
+        url = reverse("events:site_stats")
+        self.client.force_login(bob)
+        self.assertEqual(self.client.get(url).status_code, 403)
+        call_command("make_admin", "ana", stdout=open("/dev/null", "w"))
+        self.client.force_login(self.user)
+        page = self.client.get(url)
+        self.assertEqual([(r["name"], r["n"]) for r in page.context["top_artists"]], [("Green Day", 2)])
+        self.assertEqual(page.context["owner_logs"].count(), 2)
+        self.assertEqual([c["code"] for c in page.context["world"]], ["CL"])
+        self.assertContains(page, f'{reverse("events:event_list")}?country=CL')
+        self.assertContains(page, f'{reverse("events:site_ranking", args=["artists"])}')
+        ranking = self.client.get(reverse("events:site_ranking", args=["venues"]), {"view": "grid"})
+        self.assertEqual([r["name"] for r in ranking.context["rows"]], ["Teatro Caupolicán"])
+        self.assertEqual(self.client.get(reverse("events:site_ranking", args=["local-artists"])).status_code, 404)
+        self.assertContains(self.client.get(reverse("events:admin_tools")), url)
+        listed = self.client.get(reverse("events:event_list"), {"country": "cl"})
+        self.assertEqual([e.title for e in listed.context["page"]], ["Green Day in Chile"])
+
+    def test_highest_rated_artists_need_five_ratings(self):
+        from .models import ActLog
+
+        artist = Artist.objects.create(name="Rare")
+        EventArtist.objects.create(event=self.event, artist=artist)
+        ActLog.objects.get_or_create(log=Log.objects.create(user=self.user, event=self.event, rating=10), artist=artist)
+        page = self.client.get(reverse("events:user_stats", args=["ana"]))
+        self.assertEqual(page.context["rated_artists"], [])
+        self.assertContains(page, "once they have 5 or more ratings")

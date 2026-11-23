@@ -221,9 +221,11 @@ def album_color(index: int) -> str:
     return f"hsl({ALBUM_HUES[index % len(ALBUM_HUES)]} {saturation}% {lightness}%)"
 
 
-def album_colors(artist: Artist) -> dict[str, str]:
-    """Normalized album title → colour, for the artist's albums in "Manage albums" (oldest first; undated last)."""
-    albums = sorted(artist.albums.all(), key=lambda a: (a.year is None, a.year or 0, a.title.casefold()))
+def album_colors(artist: Artist, lps_only: bool = False) -> dict[str, str]:
+    """Normalized album title → colour, for the artist's albums in "Manage albums" (oldest first; undated last).
+    With ``lps_only``, only their LPs, coloured in order among themselves (EPs, compilations… get none)."""
+    albums = artist.albums.filter(kind=Album.Kind.LP) if lps_only else artist.albums.all()
+    albums = sorted(albums, key=lambda a: (a.year is None, a.year or 0, a.title.casefold()))
     colors: dict[str, str] = {}
     for album in albums:
         colors.setdefault(normalize_name(album.title), album_color(len(colors)))

@@ -1,15 +1,21 @@
 {% extends "base.html" %}
 {% load i18n event_extras %}
 
-{% block title %}{% blocktranslate with name=owner.get_username %}{{ name }}'s stats{% endblocktranslate %} · en vivo{% endblock %}
+{% block title %}{% if owner %}{% blocktranslate with name=owner.get_username %}{{ name }}'s stats{% endblocktranslate %}{% else %}{% translate "Site stats" %}{% endif %} · en vivo{% endblock %}
 
 {% block content %}
-  {% include "events/_profile_nav.html" %}
-
-  <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
-    <h2 class="section-title m-0">{% translate "Stats" %}</h2>
-    {% include "events/_pro_badge.html" %}
-  </div>
+  {% if owner %}
+    {% include "events/_profile_nav.html" %}
+    <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+      <h2 class="section-title m-0">{% translate "Stats" %}</h2>
+      {% include "events/_pro_badge.html" %}
+    </div>
+  {% else %}
+    {# Admins only: the same stats, over everyone's diaries. #}
+    <a class="small text-body-secondary" href="{% url 'events:admin_tools' %}">← {% translate "Admin" %}</a>
+    <h1 class="h4 mt-1">{% translate "Site stats" %}</h1>
+    <p class="small text-body-secondary mb-3">{% translate "Everyone's diaries together: every show logged counts once per person who went." %}</p>
+  {% endif %}
   {% if event_types|length > 1 %}
     {# One filter for the whole page: every event, or any mix of types (each button adds or removes its type). #}
     <div class="d-flex flex-wrap gap-2 mb-4" role="group" aria-label="{% translate 'Type' %}">
@@ -26,9 +32,10 @@
       {% include "events/_rank_cards.html" with title=_("Most seen foreign artists") rows=foreign_artists kind="foreign-artists" %}
     {% else %}
       {% include "events/_rank_cards.html" with title=_("Most seen artists") rows=top_artists kind="artists" %}
-      {% if owner == user %}<p class="small text-body-secondary mt-n4 mb-5">{% url 'events:profile_edit' as profile_edit_url %}{% blocktranslate %}<a href="{{ profile_edit_url }}">Set your home country</a> to split local and foreign artists.{% endblocktranslate %}</p>{% endif %}
+      {% if owner and owner == user %}<p class="small text-body-secondary mt-n4 mb-5">{% url 'events:profile_edit' as profile_edit_url %}{% blocktranslate %}<a href="{{ profile_edit_url }}">Set your home country</a> to split local and foreign artists.{% endblocktranslate %}</p>{% endif %}
     {% endif %}
-    {% include "events/_rank_cards.html" with title=_("Highest rated artists") rows=rated_artists kind="rated-artists" %}
+    {% blocktranslate asvar rated_empty %}An artist shows here once they have {{ min_ratings }} or more ratings.{% endblocktranslate %}
+    {% include "events/_rank_cards.html" with title=_("Highest rated artists") rows=rated_artists kind="rated-artists" empty=rated_empty %}
     {% include "events/_rank_cards.html" with title=_("Most visited venues") rows=top_venues kind="venues" %}
     {% include "events/_rank_cards.html" with title=_("Most visited cities") rows=top_cities kind="cities" %}
 
@@ -156,7 +163,7 @@
         <span class="small text-body-secondary">{% blocktranslate count counter=world|length %}{{ counter }} country{% plural %}{{ counter }} countries{% endblocktranslate %}</span>
       </div>
       <div id="map-world" class="stats-map-world" role="img" aria-label="{% translate 'World map of the countries with shows attended' %}"></div>
-      <div class="small text-body-secondary mt-1">{% for c in world %}<a href="{% url 'events:user_diary' owner.get_username %}?{{ type_qs }}country={{ c.code }}">{{ c.name }}</a> <span class="text-body">{{ c.n }}</span>{% if not forloop.last %} · {% endif %}{% endfor %}</div>
+      <div class="small text-body-secondary mt-1">{% for c in world %}<a href="{{ country_base }}country={{ c.code }}">{{ c.name }}</a> <span class="text-body">{{ c.n }}</span>{% if not forloop.last %} · {% endif %}{% endfor %}</div>
     </div>
   {% endif %}
 
@@ -195,7 +202,7 @@
     (function () {
       var world = JSON.parse(document.getElementById("world-data").textContent),
           accent = getComputedStyle(document.documentElement).getPropertyValue("--ev-accent").trim() || "#ff8000",
-          diaryUrl = "{% url 'events:user_diary' owner.get_username %}?{{ type_qs }}";
+          diaryUrl = "{{ country_base|escapejs }}";
       function shows(n) { return (n === 1 ? "{{ one_show|escapejs }}" : "{{ many_shows|escapejs }}").replace("%(n)s", n); }
       var seen = {}, max = 1;
       world.forEach(function (c) { seen[c.id] = c; max = Math.max(max, c.n); });

@@ -246,6 +246,7 @@ def event_list(request: HttpRequest) -> HttpResponse:
     q = (request.GET.get("q") or "").strip()
     event_type = request.GET.get("type") or ""
     city = (request.GET.get("city") or "").strip()
+    country = (request.GET.get("country") or "").strip().upper()[:2]  # from the site stats' world map
     year = request.GET.get("year") or ""
     when = request.GET.get("when") or ""
     followed = "1" if request.GET.get("followed") == "1" and request.user.is_authenticated else ""
@@ -260,6 +261,8 @@ def event_list(request: HttpRequest) -> HttpResponse:
         events = events.filter(event_type=event_type)
     if city:  # a city, or a district in one (Ñuñoa)
         events = events.filter(Q(venue__city__iexact=city) | Q(venue__district__iexact=city))
+    if country:
+        events = events.filter(venue__country=country)
     if year.isdigit():
         events = events.filter(date__year=int(year))
     today = timezone.localdate()
@@ -288,7 +291,7 @@ def event_list(request: HttpRequest) -> HttpResponse:
         .values_list("y", flat=True).distinct().order_by("-y")
     )
 
-    filters = {"q": q, "type": event_type, "city": city, "year": year, "when": when, "sort": sort,
+    filters = {"q": q, "type": event_type, "city": city, "country": country, "year": year, "when": when, "sort": sort,
                "followed": followed}
     page = Paginator(events, 24).get_page(request.GET.get("page"))
     return render(
@@ -562,6 +565,7 @@ def artist_albums_edit(request: HttpRequest, pk: int) -> HttpResponse:
     artist = get_object_or_404(Artist, pk=pk)
     raw_year = (request.POST.get("year") or "").strip()
     year = int(raw_year) if raw_year.isdigit() and 1000 < int(raw_year) < 3000 else None
+    kind = request.POST.get("kind") if request.POST.get("kind") in Album.Kind.values else None
     if request.POST.get("delete"):
         Album.objects.filter(artist=artist, pk=request.POST["delete"]).delete()
         messages.success(request, gettext("Album removed."))
@@ -571,7 +575,8 @@ def artist_albums_edit(request: HttpRequest, pk: int) -> HttpResponse:
             messages.error(request, gettext("Type the year with four digits, e.g. 1994."))
         else:
             album.year = year
-            album.save(update_fields=["year", "updated_at"])
+            album.kind = kind or album.kind
+            album.save(update_fields=["year", "kind", "updated_at"])
             # Songs keep their album's year too (it decides which shows count as chances to play them).
             wanted = normalize_name(album.title)
             songs = [song.pk for song in Song.objects.filter(Q(artist=artist) | Q(cover_of_name__iexact=artist.name))
@@ -587,7 +592,7 @@ def artist_albums_edit(request: HttpRequest, pk: int) -> HttpResponse:
             messages.info(request, gettext("“%(title)s” is already in %(artist)s's albums.") % {
                 "title": title, "artist": artist.name})
         else:
-            Album.objects.create(artist=artist, title=title, year=year)
+            Album.objects.create(artist=artist, title=title, year=year, kind=kind or Album.Kind.LP)
             messages.success(request, gettext("Added “%(title)s”.") % {"title": title})
     return redirect(_safe_next(request, artist.get_absolute_url()))
 
@@ -611,6 +616,7 @@ def artist_songs(request: HttpRequest, pk: int) -> HttpResponse:
         "skip_empty": skip_empty, "album_sort": sort, "album_by": album_by,
         "album_keep": [("tab", "albums")] + ([("seen_by", seen_by.get_username())] if seen_by else []),
         "can_fix_albums": is_admin(request.user),
+        "album_kinds": Album.Kind.choices,
         "seen_q": f"seen_by={quote(seen_by.get_username())}" if seen_by else "",
     })
 
@@ -704,6 +710,7 @@ def artist_detail(request: HttpRequest, pk: int) -> HttpResponse:
             "album_keep": [("seen_by", seen_by.get_username())] if seen_by else [],
             "can_fix_albums": is_admin(request.user),
             "artist_albums": artist.albums.all() if is_admin(request.user) else [],
+            "album_kinds": Album.Kind.choices,
             "setlist_shows": setlist_shows,
             **stats,
         },
@@ -1049,10 +1056,12 @@ def act_setlist(request: HttpRequest, pk: int, artist_pk: int) -> HttpResponse:
     if is_admin(request.user):  # the "Edit albums" dropdowns
         album_choices = album_groups(setlist.artist, songs)
         mark_album_choices(songs, album_choices)
-    colors = album_colors(setlist.artist)  # "Colour by album": songs and their chart rows share a colour
+    # "Colour by album": songs and their chart rows share a colour. "Only LPs" (the default) uses the second set.
+    colors, lp_colors = album_colors(setlist.artist), album_colors(setlist.artist, lps_only=True)
     for row in timeline:
         if not row.get("is_none"):
             row["color"] = colors.get(normalize_name(row["title"]))
+            row["lp_color"] = lp_colors.get(normalize_name(row["title"]))
     number = 0
     for entry in entries:  # songs are numbered 1, 2, 3… skipping tapes
         if not entry.is_tape:
@@ -1060,6 +1069,7 @@ def act_setlist(request: HttpRequest, pk: int, artist_pk: int) -> HttpResponse:
         entry.number = None if entry.is_tape else number
         album = entry.song.album_title
         entry.album_color = colors.get(normalize_name(album)) if album and not entry.is_tape else None
+        entry.lp_color = lp_colors.get(normalize_name(album)) if album and not entry.is_tape else None
     return render(request, "events/act_setlist.html", {
         "event": event, "setlist": setlist, "entries": entries, "song_count": len(played_entries),
         "top_albums": top_albums(timeline), "pending": pending, "timeline": timeline, "band_charts": band_charts,

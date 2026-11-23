@@ -149,10 +149,11 @@
         <ul class="list-unstyled mb-3">
           {% for album in artist_albums %}
             <li class="d-flex justify-content-between align-items-center py-1 border-bottom border-secondary-subtle">
-              <span class="me-2">{{ album.title }}</span>
+              <span class="me-2">{{ album.title }}{% if album.kind != "lp" %} <span class="badge text-bg-secondary">{{ album.get_kind_display }}</span>{% endif %}</span>
               <span class="d-flex align-items-center gap-2 flex-shrink-0">
               <form method="post" action="{% url 'events:artist_albums_edit' artist.pk %}" class="d-flex align-items-center gap-1">
                 {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}#manage-albums"><input type="hidden" name="update" value="{{ album.pk }}">
+<select class="form-select form-select-sm w-auto" name="kind" aria-label="{% blocktranslate with album=album.title %}Type of {{ album }}{% endblocktranslate %}">{% for value, label in album_kinds %}<option value="{{ value }}"{% if album.kind == value %} selected{% endif %}>{{ label }}</option>{% endfor %}</select>
                 <input class="form-control form-control-sm" style="width: 5.5rem" name="year" value="{{ album.year|default_if_none:'' }}" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" placeholder="{% translate 'Year' %}" aria-label="{% blocktranslate with album=album.title %}Year of {{ album }}{% endblocktranslate %}">
                 <button class="btn btn-sm btn-outline-secondary" type="submit">{% translate "Save" %}</button>
               </form>
@@ -166,8 +167,9 @@
         </ul>
         <form method="post" action="{% url 'events:artist_albums_edit' artist.pk %}" class="row g-2 align-items-end">
           {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}#manage-albums">
-          <div class="col-8"><label class="form-label small" for="new-album-title">{% translate "Add an album" %}</label><input class="form-control form-control-sm" id="new-album-title" name="title" maxlength="240" required placeholder="{% translate 'Album title' %}"></div>
-          <div class="col-4"><label class="form-label small" for="new-album-year">{% translate "Year" %}</label><input class="form-control form-control-sm" id="new-album-year" name="year" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" placeholder="{% translate 'e.g. 1994' %}"></div>
+          <div class="col-12"><label class="form-label small" for="new-album-title">{% translate "Add an album" %}</label><input class="form-control form-control-sm" id="new-album-title" name="title" maxlength="240" required placeholder="{% translate 'Album title' %}"></div>
+          <div class="col-6"><label class="form-label small" for="new-album-kind">{% translate "Type" %}</label><select class="form-select form-select-sm" id="new-album-kind" name="kind">{% for value, label in album_kinds %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select></div>
+          <div class="col-6"><label class="form-label small" for="new-album-year">{% translate "Year" %}</label><input class="form-control form-control-sm" id="new-album-year" name="year" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" placeholder="{% translate 'e.g. 1994' %}"></div>
           <div class="col-12 text-end"><button class="btn btn-sm btn-success" type="submit">{% translate "Add album" %}</button></div>
         </form>
       </div>
