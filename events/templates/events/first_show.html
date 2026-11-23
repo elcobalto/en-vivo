@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block title %}{% translate "Your last show" %} · en vivo{% endblock %}
+
+{% block content %}
+  <div class="row justify-content-center">
+    <div class="col-12 col-md-10 col-lg-8">
+      <div class="small text-body-secondary text-uppercase mb-1">{% translate "Welcome to En Vivo" %}</div>
+      <h1 class="h4 mb-2">{% translate "What's the last show you went to?" %}</h1>
+      <p class="text-body-secondary">{% translate "Search for it by artist, show or venue and add it to your diary." %}</p>
+
+      <form method="get" class="d-flex gap-2 mb-4" role="search">
+        <input class="form-control" type="search" name="q" value="{{ q }}" autofocus
+               placeholder="{% translate 'e.g. Green Day, Movistar Arena…' %}" aria-label="{% translate 'Search shows' %}" />
+        <button class="btn btn-success" type="submit">{% translate "Search" %}</button>
+      </form>
+
+      {% if q %}
+        {% if results %}
+          <h2 class="section-title mb-2">{% translate "Is it one of these?" %}</h2>
+          <ul class="list-group mb-4">
+            {% for event in results %}
+              <li class="list-group-item d-flex flex-wrap justify-content-between align-items-center gap-2">
+                <div>
+                  <a class="fw-semibold" href="{{ event.get_absolute_url }}">{{ event.title }}</a>
+                  <div class="small text-body-secondary">{% if event.date %}{{ event.date|date:"j M Y" }}{% endif %}{% if event.venue %} · {{ event.venue.name }}{% if event.venue.city %}, {{ event.venue.city }}{% endif %}{% endif %}</div>
+                </div>
+                {% if event.pk in logged %}
+                  <span class="small text-success">{% translate "In your diary ✓" %}</span>
+                {% else %}
+                  <form method="post" class="m-0">
+                    {% csrf_token %}
+                    <input type="hidden" name="event" value="{{ event.pk }}" />
+                    <input type="hidden" name="q" value="{{ q }}" />
+                    <button class="btn btn-sm btn-success" type="submit">{% translate "I was there" %}</button>
+                  </form>
+                {% endif %}
+              </li>
+            {% endfor %}
+          </ul>
+        {% else %}
+          <p class="mb-4">{% blocktranslate %}No shows match “{{ q }}” yet.{% endblocktranslate %}</p>
+        {% endif %}
+
+        <h2 class="section-title mb-2">{% if results %}{% translate "Not there? Add it" %}{% else %}{% translate "Add it" %}{% endif %}</h2>
+        <div class="row g-3 mb-4">
+          <div class="col-12 col-sm-6">
+            <div class="card h-100 border-warning">
+              <div class="card-body">
+                <h3 class="h6">{% translate "A concert or festival" %}</h3>
+                <p class="small text-body-secondary">{% translate "Import it from setlist.fm: the venue, lineup and songs come along." %}</p>
+                <a class="btn btn-sm btn-warning" href="{% url 'events:setlistfm_shows' %}?artist={{ q|urlencode }}">{% translate "Find it on setlist.fm" %}</a>
+                <a class="btn btn-sm btn-link" href="{% url 'events:event_create' %}?type=music">{% translate "or add it by hand" %}</a>
+              </div>
+            </div>
+          </div>
+          <div class="col-12 col-sm-6">
+            <div class="card h-100">
+              <div class="card-body">
+                <h3 class="h6">{% translate "Theater, comedy, dance or other" %}</h3>
+                <p class="small text-body-secondary">{% translate "Add the show yourself: what it was, when and where." %}</p>
+                <div class="d-flex flex-wrap gap-1">
+                  {% for value, label in other_types %}<a class="btn btn-sm btn-outline-secondary" href="{% url 'events:event_create' %}?type={{ value }}">{{ label }}</a>{% endfor %}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      {% endif %}
+
+      <a class="small" href="{% url 'events:home' %}">{% translate "Skip for now →" %}</a>
+    </div>
+  </div>
+{% endblock %}

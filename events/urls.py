@@ -6,6 +6,7 @@ app_name = "events"
 
 urlpatterns = [
     path("", views.home, name="home"),
+    path("welcome/first-show/", views.first_show, name="first_show"),
     path("home/followed-only/", views.home_followed_only, name="home_followed_only"),
     path("events/", views.event_list, name="event_list"),
     path("events/new/", views.event_form, name="event_create"),

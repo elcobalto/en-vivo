@@ -1415,6 +1415,7 @@ class EventPhotoProportionsTests(BaseTestCase):
 
 class HomeOrderTests(BaseTestCase):
     def test_recently_happened_comes_before_just_added(self):
+        self.client.force_login(self.user)
         html = self.client.get(reverse("events:home")).content.decode()
         self.assertLess(html.index("Recently happened"), html.index("Just added"))
 
@@ -3468,6 +3469,7 @@ class HomeLayoutTests(BaseTestCase):
 
         Event.objects.create(title="Soon", date=timezone.localdate() + timedelta(days=5), venue=self.venue)
         Log.objects.create(user=self.user, event=self.event, rating=9, review="Great")
+        self.client.force_login(self.user)
         html = self.client.get(reverse("events:home")).content.decode()
         order = [html.index(t) for t in ["Upcoming", "Recently happened", "Latest reviews", "Just added"]]
         self.assertEqual(order, sorted(order))
@@ -4917,3 +4919,46 @@ class ArtistFollowTests(BaseTestCase):
         page = self.client.get(reverse("events:home"))
         self.assertContains(page, "Recently in Santiago")
         self.assertIn("city=Santiago", page.context["recent_query"])
+
+
+class SignInFirstTests(BaseTestCase):
+    def test_home_asks_anonymous_visitors_to_sign_in(self):
+        page = self.client.get(reverse("events:home"))
+        self.assertTemplateUsed(page, "events/landing.html")
+        self.assertContains(page, "Continue with Google")
+        self.assertNotIn("upcoming", page.context)
+        self.client.force_login(self.user)
+        self.assertTemplateUsed(self.client.get(reverse("events:home")), "events/home.html")
+
+    def test_welcome_profile_leads_to_last_show(self):
+        self.client.force_login(self.user)
+        response = self.client.post(reverse("events:profile_edit") + "?welcome=1", {"username": "ana"})
+        self.assertRedirects(response, reverse("events:first_show"))
+        response = self.client.post(reverse("events:profile_edit"), {"username": "ana"})
+        self.assertRedirects(response, reverse("events:profile", args=["ana"]))
+
+    def test_last_show_search_and_log(self):
+        self.client.force_login(self.user)
+        artist = Artist.objects.create(name="Green Day")
+        EventArtist.objects.create(event=self.event, artist=artist)
+        upcoming = Event.objects.create(title="Green Day 2099", venue=self.venue, date=date(2099, 1, 1))
+        page = self.client.get(reverse("events:first_show"), {"q": "green"})
+        self.assertEqual([e.title for e in page.context["results"]], ["Green Day in Chile"])  # past shows only
+        self.assertContains(page, "Find it on setlist.fm")
+        self.assertContains(page, reverse("events:setlistfm_shows") + "?artist=green")
+        response = self.client.post(reverse("events:first_show"), {"event": self.event.pk})
+        self.assertRedirects(response, self.event.get_absolute_url())
+        self.assertTrue(Log.objects.filter(user=self.user, event=self.event).exists())
+        self.client.post(reverse("events:first_show"), {"event": upcoming.pk})
+        self.assertFalse(Log.objects.filter(user=self.user, event=upcoming).exists())
+
+    def test_nothing_found_offers_to_add_it(self):
+        self.client.force_login(self.user)
+        page = self.client.get(reverse("events:first_show"), {"q": "zzz"})
+        self.assertContains(page, "No shows match")
+        self.assertContains(page, reverse("events:event_create") + "?type=theater")
+        form = self.client.get(reverse("events:event_create"), {"type": "theater"}).context["form"]
+        self.assertEqual(form["event_type"].value(), "theater")
+
+    def test_last_show_needs_login(self):
+        self.assertEqual(self.client.get(reverse("events:first_show")).status_code, 302)

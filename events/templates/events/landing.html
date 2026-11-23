@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block content %}
+  {# The home page for people who aren't signed in: sign in (or sign up) first. #}
+  <div class="row justify-content-center py-4">
+    <div class="col-12 col-md-8 col-lg-6 text-center">
+      <h1 class="display-6 fw-bold">{% translate "Track the shows you've seen." %}</h1>
+      <p class="lead text-body-secondary mb-4">{% translate "Concerts, theater, comedy and more. Log them, rate them, remember them." %}</p>
+      <div class="card shadow-sm mx-auto" style="max-width:24rem">
+        <div class="card-body p-4">
+          <h2 class="h5 mb-2">{% translate "Sign in to En Vivo" %}</h2>
+          <p class="small text-body-secondary mb-3">{% translate "New here? Signing in with Google creates your account." %}</p>
+          {% include "registration/_google_button.html" %}
+        </div>
+      </div>
+      {% if event_count %}
+        <p class="small text-body-secondary mt-4">{% blocktranslate count counter=event_count %}{{ counter }} show already on En Vivo.{% plural %}{{ counter }} shows already on En Vivo.{% endblocktranslate %}</p>
+      {% endif %}
+    </div>
+  </div>
+{% endblock %}

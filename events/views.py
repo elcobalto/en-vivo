@@ -97,6 +97,8 @@ def _can_edit(user, event: Event) -> bool:
 
 
 def home(request: HttpRequest) -> HttpResponse:
+    if not request.user.is_authenticated:  # people sign in (or up) before seeing the feed
+        return render(request, "events/landing.html", {"event_count": Event.objects.count()})
     today = timezone.localdate()
     events = Event.objects.with_stats().select_related("venue")
     logs = Log.objects.exclude(review="")
@@ -128,6 +130,36 @@ def home(request: HttpRequest) -> HttpResponse:
             "followed_artists": followed if followed_only else [],
         },
     )
+
+
+@login_required
+def first_show(request: HttpRequest) -> HttpResponse:
+    """After signing up: find the last show you went to and add it to your diary, or add it if it isn't here
+    (concerts from setlist.fm)."""
+    if request.method == "POST":
+        event = get_object_or_404(Event, pk=request.POST.get("event"))
+        if not event.has_happened:
+            messages.error(request, gettext("“%(title)s” hasn't happened yet.") % {"title": event.title})
+            return redirect(f"{reverse('events:first_show')}?{urlencode({'q': request.POST.get('q', '')})}")
+        Log.objects.get_or_create(user=request.user, event=event)
+        messages.success(request, gettext("Added to your diary. Rate it or write a review here."))
+        return redirect(event)
+    q = (request.GET.get("q") or "").strip()
+    results = []
+    if q:
+        today = timezone.localdate()
+        results = list(
+            Event.objects.select_related("venue")
+            .filter(Q(date__lte=today) | Q(date__isnull=True))
+            .filter(Q(title__icontains=q) | Q(artists__name__icontains=q) | Q(venue__name__icontains=q))
+            .distinct().order_by(F("date").desc(nulls_last=True))[:15]
+        )
+    logged = set(Log.objects.filter(user=request.user, event__in=results).values_list("event_id", flat=True))
+    music = {EventType.MUSIC, EventType.FESTIVAL}
+    return render(request, "events/first_show.html", {
+        "q": q, "results": results, "logged": logged,
+        "other_types": [(value, label) for value, label in EventType.choices if value not in music],
+    })
 
 
 def _followed_artists(request: HttpRequest) -> list | None:
@@ -794,6 +826,8 @@ def event_form(request: HttpRequest, pk: int | None = None) -> HttpResponse:
     initial = {}
     if not event:
         initial["new_venue_city"], initial["new_venue_country"] = home_place(request.user)
+    if not event and request.GET.get("type") in EventType.values:
+        initial["event_type"] = request.GET["type"]
     if not event and request.GET.get("production"):
         production = Production.objects.filter(pk=request.GET["production"]).first()
         if production:

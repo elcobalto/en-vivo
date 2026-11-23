@@ -314,6 +314,8 @@ def profile_edit(request: HttpRequest) -> HttpResponse:
         form.save()
         translation.activate(form.instance.language)  # "Profile saved." in the language just picked
         messages.success(request, gettext("Profile saved."))
+        if request.GET.get("welcome") == "1":  # signing up: next, the last show they went to
+            return redirect("events:first_show")
         # form.instance.user carries the (possibly new) username; request.user is a stale copy.
         return redirect("events:profile", username=form.instance.user.get_username())
     return render(
