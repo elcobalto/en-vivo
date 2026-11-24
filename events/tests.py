@@ -5060,11 +5060,10 @@ class ArtistFollowTests(BaseTestCase):
         self.client.post(reverse("events:log_save", args=[self.event.pk]), {"rating": "8"})
         page = self.client.get(reverse("events:profile_edit"))
         self.assertContains(page, "Also follow the 1 artist you&#x27;ve already logged")
-        page = self._edit_profile(follow_logged_now="on")  # needs the main option too
-        self.assertFalse(self.user.artist_follows.exists())
-        page = self._edit_profile(follow_logged_artists="on", follow_logged_now="on")
+        page = self._edit_profile(follow_logged_now="on")  # works on its own, without "Follow the artists I log"
         self.assertContains(page, "You now follow 1 more artist.")
         self.assertEqual(list(self.user.artist_follows.values_list("artist__name", flat=True)), ["Green Day"])
+        self.assertFalse(get_user_model().objects.get(pk=self.user.pk).profile.follow_logged_artists)
         self.assertNotIn("follow_logged_now", self.client.get(reverse("events:profile_edit")).context["form"].fields)
 
     def test_follow_and_unfollow_from_artist_page(self):

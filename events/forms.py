@@ -525,7 +525,7 @@ class ProfileForm(BootstrapMixin, forms.ModelForm):
         if self.instance.home_country:
             regions = regions.filter(country=self.instance.home_country)
         self.region_options = sorted(set(regions.values_list("region", flat=True)), key=str.casefold)[:300]
-        # With "Follow the artists I log": also follow, once, the artists already in the diary.
+        # Follow, once, every artist already in the diary (on its own, or along with "Follow the artists I log").
         from .models import seen_artist_ids
 
         unfollowed = len(seen_artist_ids(self.instance.user))
@@ -536,8 +536,7 @@ class ProfileForm(BootstrapMixin, forms.ModelForm):
                                "Also follow the %(n)s artists you've already logged", unfollowed) % {"n": unfollowed},
                 help_text=_("Every artist you saw at the shows in your diary that you don't follow yet."),
             )
-            self.fields["follow_logged_now"].widget.attrs.update(
-                {"class": "form-check-input", "data-shown-with": "id_follow_logged_artists"})
+            self.fields["follow_logged_now"].widget.attrs.update({"class": "form-check-input"})
             self.order_fields(self.field_order)
 
     def clean_upcoming_local(self) -> str:
@@ -565,7 +564,7 @@ class ProfileForm(BootstrapMixin, forms.ModelForm):
         if commit and username and user.get_username() != username:
             user.username = username
             user.save(update_fields=["username"])
-        if commit and self.cleaned_data.get("follow_logged_artists") and self.cleaned_data.get("follow_logged_now"):
+        if commit and self.cleaned_data.get("follow_logged_now"):
             from .models import follow_seen_artists
 
             self.followed_now = follow_seen_artists(user)
