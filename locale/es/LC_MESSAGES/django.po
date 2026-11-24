@@ -3,7 +3,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: En Vivo\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-23 22:43+0000\n"
+"POT-Creation-Date: 2026-11-24 03:04+0000\n"
 "PO-Revision-Date: 2026-11-20 18:00-0300\n"
 "Last-Translator: En Vivo\n"
 "Language-Team: Spanish\n"
@@ -383,49 +383,49 @@ msgstr[1] "Seguir también a los %(n)s artistas que ya registraste"
 msgid "Every artist you saw at the shows in your diary that you don't follow yet."
 msgstr "Todos los artistas que viste en los shows de tu diario y que aún no sigues."
 
-#: events/forms.py:558
+#: events/forms.py:557
 msgid "That username is taken."
 msgstr "Ese nombre de usuario ya está en uso."
 
-#: events/forms.py:592
+#: events/forms.py:591
 msgid "date not added"
 msgstr "sin fecha"
 
-#: events/forms.py:627
+#: events/forms.py:626
 #, python-format
 msgid "Favourite %(number)s"
 msgstr "Favorito %(number)s"
 
-#: events/forms.py:632
+#: events/forms.py:631
 msgid "Headliners"
 msgstr "Cabezas de cartel"
 
-#: events/forms.py:633
+#: events/forms.py:632
 #, python-format
 msgid "Act %(number)s"
 msgstr "Artista %(number)s"
 
-#: events/forms.py:655
+#: events/forms.py:654
 msgid "Each favourite must be a different event."
 msgstr "Cada favorito tiene que ser un evento distinto."
 
-#: events/forms.py:709
+#: events/forms.py:708
 msgid "Reply…"
 msgstr "Responder…"
 
-#: events/forms.py:717
+#: events/forms.py:716
 msgid "What is it?"
 msgstr "¿Qué es?"
 
-#: events/forms.py:717
+#: events/forms.py:716
 msgid "Tell us"
 msgstr "Cuéntanos"
 
-#: events/forms.py:720
+#: events/forms.py:719
 msgid "What happened, or what would you like? For bugs: what you did and what you expected."
 msgstr "¿Qué pasó o qué te gustaría? Si es un error: qué hiciste y qué esperabas que pasara."
 
-#: events/forms.py:732 events/templates/events/staging_detail.html:19
+#: events/forms.py:731 events/templates/events/staging_detail.html:19
 msgid "Every date without a photo of its own shows this one."
 msgstr "Todas las fechas sin foto propia muestran esta."
 
@@ -1385,7 +1385,7 @@ msgstr "Quitar esta fila"
 
 #: events/templates/events/_list_card.html:14
 #: events/templates/events/event_detail.html:285
-#: events/templates/events/home.html:102
+#: events/templates/events/home.html:98
 #: events/templates/events/play_list.html:20
 msgid "by"
 msgstr "de"
@@ -1394,7 +1394,7 @@ msgstr "de"
 #: events/templates/events/_person_row.html:6
 #: events/templates/events/_year_histogram.html:9
 #: events/templates/events/artist_list.html:38
-#: events/templates/events/home.html:102
+#: events/templates/events/home.html:98
 #: events/templates/events/profile_stats.html:154
 #: events/templates/events/search.html:26
 #: events/templates/events/search.html:40
@@ -2381,7 +2381,7 @@ msgstr "Ver los %(n)s shows →"
 
 #: events/templates/events/artist_detail.html:210
 #: events/templates/events/artist_shows.html:32
-#: events/templates/events/home.html:84
+#: events/templates/events/home.html:80
 #: events/templates/events/venue_detail.html:78
 msgid "No events yet."
 msgstr "Todavía no hay eventos."
@@ -3957,74 +3957,70 @@ msgid "Where the shows are"
 msgstr "Dónde son los shows"
 
 #: events/templates/events/home.html:39
-msgid "Following:"
-msgstr "Siguiendo:"
-
-#: events/templates/events/home.html:42
 #, python-format
 msgid "You don't follow any artists yet. Open an artist's page and press Follow, or <a href=\"%(artists_url)s\">browse artists</a>."
 msgstr "Aún no sigues a ningún artista. Abre la página de un artista y pulsa Seguir, o <a href=\"%(artists_url)s\">explora artistas</a>."
 
-#: events/templates/events/home.html:49
+#: events/templates/events/home.html:45
 #, python-format
 msgid "Upcoming in %(upcoming_place)s"
 msgstr "Próximamente en %(upcoming_place)s"
 
-#: events/templates/events/home.html:49 events/views.py:64
+#: events/templates/events/home.html:45 events/views.py:64
 msgid "Upcoming"
 msgstr "Próximos"
 
-#: events/templates/events/home.html:50
+#: events/templates/events/home.html:46
 msgid "All upcoming →"
 msgstr "Todos los próximos →"
 
-#: events/templates/events/home.html:59
+#: events/templates/events/home.html:55
 #, python-format
 msgid "Recently in %(recent_place)s"
 msgstr "Hace poco en %(recent_place)s"
 
-#: events/templates/events/home.html:59
+#: events/templates/events/home.html:55
 msgid "Recently happened"
 msgstr "Recién pasados"
 
-#: events/templates/events/home.html:60
+#: events/templates/events/home.html:56
 msgid "All events →"
 msgstr "Todos los eventos →"
 
-#: events/templates/events/home.html:68
+#: events/templates/events/home.html:64
 msgid "Latest reviews"
 msgstr "Últimas reseñas"
 
-#: events/templates/events/home.html:75
+#: events/templates/events/home.html:71
 msgid "Just added"
 msgstr "Recién agregados"
 
-#: events/templates/events/home.html:76
+#: events/templates/events/home.html:72
 msgid "Last added →"
 msgstr "Últimos agregados →"
 
-#: events/templates/events/home.html:82
+#: events/templates/events/home.html:78
 msgid "No shows yet by the artists you follow."
 msgstr "Aún no hay shows de los artistas que sigues."
 
-#: events/templates/events/home.html:84
+#: events/templates/events/home.html:80
 #, python-format
 msgid "<a href=\"%(create_url)s\">Add the first one</a>."
 msgstr "<a href=\"%(create_url)s\">Agrega el primero</a>."
 
-#: events/templates/events/home.html:89
+#: events/templates/events/home.html:85
 msgid "From people you follow"
 msgstr "De las personas que sigues"
 
-#: events/templates/events/home.html:90
+#: events/templates/events/home.html:86
 msgid "All activity →"
 msgstr "Toda la actividad →"
 
-#: events/templates/events/home.html:97
+#: events/templates/events/home.html:93
 msgid "New lists"
 msgstr "Listas nuevas"
 
-#: events/templates/events/home.html:98
+#: events/templates/events/home.html:94
 msgid "All lists →"
 msgstr "Todas las listas →"
 
@@ -4336,7 +4332,7 @@ msgid "A country shows here once you've seen its artists at %(min_events)s or mo
 msgstr "Un país aparece aquí cuando hayas visto a sus artistas en %(min_events)s o más shows calificados."
 
 #: events/templates/events/profile_stats.html:108
-#: events/templates/events/songs_ranking.html:4 events/views_social.py:376
+#: events/templates/events/songs_ranking.html:4 events/views_social.py:381
 msgid "Most heard songs"
 msgstr "Canciones más escuchadas"
 
@@ -5310,26 +5306,26 @@ msgstr "Se fusionó el duplicado “%(removed)s” con este evento."
 msgid "Week %(n)s (from %(date)s)"
 msgstr "Semana %(n)s (desde el %(date)s)"
 
-#: events/views_social.py:411
+#: events/views_social.py:416
 msgid "Profile saved."
 msgstr "Perfil guardado."
 
-#: events/views_social.py:414
+#: events/views_social.py:419
 #, python-format
 msgid "You now follow %(n)s more artist."
 msgid_plural "You now follow %(n)s more artists."
 msgstr[0] "Ahora sigues a %(n)s artista más."
 msgstr[1] "Ahora sigues a %(n)s artistas más."
 
-#: events/views_social.py:437
+#: events/views_social.py:442
 msgid "Favourites saved."
 msgstr "Favoritos guardados."
 
-#: events/views_social.py:471
+#: events/views_social.py:476
 msgid "You can't follow yourself."
 msgstr "No puedes seguirte a ti mismo."
 
-#: events/views_social.py:548
+#: events/views_social.py:553
 msgid "Your reply can't be empty."
 msgstr "Tu respuesta no puede estar vacía."
 

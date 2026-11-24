@@ -34,13 +34,9 @@
       </form>
     {% endif %}
     </div>
-    {% if followed_only %}
-      {% if followed_artists %}
-        <p class="small text-body-secondary text-center mb-4">{% translate "Following:" %} {% for a in followed_artists %}<a href="{{ a.get_absolute_url }}">{{ a.name }}</a>{% if not forloop.last %}, {% endif %}{% endfor %}</p>
-      {% else %}
-        {% url 'events:artist_list' as artists_url %}
-        <p class="text-body-secondary text-center mb-4">{% blocktranslate %}You don't follow any artists yet. Open an artist's page and press Follow, or <a href="{{ artists_url }}">browse artists</a>.{% endblocktranslate %}</p>
-      {% endif %}
+    {% if followed_only and not followed_artists %}
+      {% url 'events:artist_list' as artists_url %}
+      <p class="text-body-secondary text-center mb-4">{% blocktranslate %}You don't follow any artists yet. Open an artist's page and press Follow, or <a href="{{ artists_url }}">browse artists</a>.{% endblocktranslate %}</p>
     {% endif %}
   {% endif %}
 

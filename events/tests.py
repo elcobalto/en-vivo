@@ -5090,6 +5090,7 @@ class ArtistFollowTests(BaseTestCase):
         self.assertEqual({e.title for e in page.context["upcoming"]}, {"Green Day soon"})
         self.assertEqual([e.title for e in page.context["recent"]], ["Green Day in Chile"])
         self.assertIn("followed=1", page.context["upcoming_query"])
+        self.assertNotContains(page, "Following:")  # no list of the artists followed at the top
         self.client.post(reverse("events:home_followed_only"), {"followed_only": "0"})
         self.assertEqual(upcoming(), {"Green Day soon", "Other soon"})
 

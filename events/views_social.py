@@ -227,6 +227,10 @@ def _filtered_title(title: str, f) -> str:
     return " · ".join(bits)
 
 
+# How many each "Highest rated" list shows (artists, types, countries) on the stats page.
+RATED_TOP = 3
+
+
 def stats_context(request: HttpRequest, owner) -> dict:
     """What a person (or with ``owner=None``, everyone) saw most, rated highest and heard — for every event or
     the types picked (?type=, several allowed)."""
@@ -281,7 +285,7 @@ def stats_context(request: HttpRequest, owner) -> dict:
         "local_artists": _rank_rows("artists", seen.filter(country=home.code)[:5], owner, f) if home else [],
         "foreign_artists": _rank_rows("artists", seen.exclude(country=home.code).exclude(country="")[:5], owner,
                                       f) if home else [],
-        "rated_artists": _rank_rows("rated-artists", stats.rated_artists(owner, f)[:5], owner, f),
+        "rated_artists": _rank_rows("rated-artists", stats.rated_artists(owner, f)[:RATED_TOP], owner, f),
         "min_ratings": stats.MIN_ARTIST_RATINGS,
         "top_venues": _rank_rows("venues", venues, owner, f),
         "top_cities": _rank_rows("cities", cities, owner, f),
@@ -292,7 +296,8 @@ def stats_context(request: HttpRequest, owner) -> dict:
         event_types, countries_ = stats.event_types(owner, f), stats.artist_countries(owner, f)
         context.update(
             top_types=event_types[:5], top_countries=countries_[:5],
-            rated_types=stats.highest_rated(event_types), rated_countries=stats.highest_rated(countries_),
+            rated_types=stats.highest_rated(event_types, RATED_TOP),
+            rated_countries=stats.highest_rated(countries_, RATED_TOP),
             min_events=stats.MIN_EVENTS_TO_RATE + 1,
         )
     return context
