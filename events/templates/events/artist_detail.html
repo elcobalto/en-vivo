@@ -110,7 +110,7 @@
       <div class="col-12 col-md-6">
         <div class="d-flex justify-content-between align-items-end mb-2">
           <h2 class="section-title flex-grow-1 m-0">{% if seen_by == user %}{% translate "Most played songs you heard" %}{% elif seen_by %}{% translate "Most played songs they heard" %}{% else %}{% translate "Most played songs" %}{% endif %}</h2>
-          {% if top_songs %}<a class="small ms-2 text-nowrap" href="{% url 'events:artist_songs' artist.pk %}{% if seen_by %}?seen_by={{ seen_q }}{% endif %}">{% translate "All songs →" %}</a>{% endif %}
+          {% if top_songs %}<a class="small ms-2 text-nowrap" href="{% url 'events:artist_songs' artist.pk %}?{% if seen_by %}seen_by={{ seen_q }}&{% endif %}{% if split_medleys %}medleys=split{% endif %}">{% translate "All songs →" %}</a>{% endif %}
         </div>
         <ol class="list-unstyled mb-0">
           {% for s in top_songs %}
@@ -124,14 +124,14 @@
       <div class="col-12 col-md-6">
         <div class="d-flex justify-content-between align-items-end mb-2">
           <h2 class="section-title flex-grow-1 m-0">{% if seen_by == user %}{% translate "Albums you heard" %}{% elif seen_by %}{% translate "Albums they heard" %}{% else %}{% translate "Albums" %}{% endif %}</h2>
-          {% if album_chart %}<a class="small ms-2 text-nowrap" href="{% url 'events:artist_songs' artist.pk %}?tab=albums{% if seen_by %}&seen_by={{ seen_q }}{% endif %}">{% translate "All albums →" %}</a>{% endif %}
+          {% if album_chart %}<a class="small ms-2 text-nowrap" href="{% url 'events:artist_songs' artist.pk %}?tab=albums{% if seen_by %}&seen_by={{ seen_q }}{% endif %}{% if split_medleys %}&medleys=split{% endif %}">{% translate "All albums →" %}</a>{% endif %}
         </div>
         {% if top_albums %}<div class="small text-body-secondary mb-2">{% if album_by == "songs" %}{% if top_albums|length > 1 %}{% translate "Most songs played (tied):" %}{% else %}{% translate "Most songs played:" %}{% endif %}{% else %}{% if top_albums|length > 1 %}{% translate "Most played (tied):" %}{% else %}{% translate "Most played:" %}{% endif %}{% endif %} {% for a in top_albums %}<strong class="text-body">{{ a.title }}</strong>{% if a.year %} ({{ a.year }}){% endif %}{% if not forloop.last %}, {% endif %}{% endfor %} · {% with t=top_albums.0 %}{% if album_by == "songs" %}{% if top_albums|length > 1 %}{% blocktranslate count counter=t.songs %}{{ counter }} song each{% plural %}{{ counter }} songs each{% endblocktranslate %}{% else %}{% blocktranslate count counter=t.songs %}{{ counter }} song{% plural %}{{ counter }} songs{% endblocktranslate %}{% endif %}{% else %}{% if top_albums|length > 1 %}{% blocktranslate count counter=t.n %}{{ counter }} play each{% plural %}{{ counter }} plays each{% endblocktranslate %}{% else %}{% blocktranslate count counter=t.n %}{{ counter }} play{% plural %}{{ counter }} plays{% endblocktranslate %}{% endif %}{% endif %}{% endwith %}</div>{% endif %}
         {% if album_chart or skip_empty %}
           {% include "events/_album_chart.html" with rows=album_chart unit="play" keep=album_keep %}
         {% for chart in band_charts %}
           <div class="mt-3">
-            <div class="small text-body-secondary mb-1">{% translate "As a member of" %} <a href="{{ chart.band.get_absolute_url }}">{{ chart.band.name }}</a></div>
+            <div class="small text-body-secondary mb-1">{% if chart.is_member %}{% translate "By its member" %}{% else %}{% translate "As a member of" %}{% endif %} <a href="{{ chart.band.get_absolute_url }}">{{ chart.band.name }}</a></div>
             {% include "events/_album_chart.html" with rows=chart.rows top=None unit="play" keep=None hide_controls=True %}
           </div>
         {% endfor %}

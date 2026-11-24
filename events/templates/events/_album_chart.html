@@ -1,5 +1,6 @@
 {% load i18n %}{% comment %}
 Songs-per-album bars. Pass: rows (from albums.album_rows; albums.top_albums marks the green ones), album_sort, skip_empty,
+split_medleys (artist pages: the "Split medleys" switch),
 hide_controls (for extra charts under one set of controls),
 keep (list of (name, value) query params to carry, e.g. tab/seen_by) and unit ("song" or "play").
 With unit="play" each row shows plays / different songs, and album_by ("n" or "songs") picks which one the bars measure.
@@ -41,6 +42,12 @@ With unit="play" each row shows plays / different songs, and album_by ("n" or "s
     <input class="form-check-input" type="checkbox" role="switch" name="empty" value="skip" id="skip-empty-{{ unit }}" {% if skip_empty %}checked{% endif %} onchange="this.form.submit()">
     <label class="form-check-label small" for="skip-empty-{{ unit }}">{% translate "Skip empty albums" %}</label>
   </div>
+  {% if split_medleys is not None %}
+  <div class="form-check form-switch m-0" title="{% translate 'Songs with no album named “A / B” are split into their songs, half a play each.' %}">
+    <input class="form-check-input" type="checkbox" role="switch" name="medleys" value="split" id="split-medleys-{{ unit }}" {% if split_medleys %}checked{% endif %} onchange="this.form.submit()">
+    <label class="form-check-label small" for="split-medleys-{{ unit }}">{% translate "Split medleys" %}</label>
+  </div>
+  {% endif %}
   <noscript><button class="btn btn-sm btn-outline-secondary">{% translate "Apply" %}</button></noscript>
 </form>{% endif %}
 {% if rows %}

@@ -92,14 +92,24 @@ def remember_album(song: Song) -> None:
         existing.save(update_fields=["year", "updated_at"])
 
 
+def related_acts(artist: Artist) -> list[Artist]:
+    """The bands the artist was in, then (for a band) its members: covers of their songs get their own chart."""
+    return [*artist.member_of.order_by("name"), *artist.members.order_by("name")]
+
+
+def band_chart(artist: Artist, band: Artist, rows: list[dict]) -> dict:
+    """One extra chart under the artist's: a band they were in, or (on a band's page) a member's solo songs."""
+    return {"band": band, "rows": rows, "is_member": not artist.member_of.filter(pk=band.pk).exists()}
+
+
 def split_plays(artist: Artist, songs: list[dict]) -> tuple[list[dict], dict, dict]:
-    """Split played songs into the artist's own, per band they were in, and other covers.
+    """Split played songs into the artist's own, per band they were in (or member, for a band), and other covers.
 
     ``songs`` are dicts with "title", "album_title", "album_year", "cover_of", "n" (plays) and maybe "of".
     A cover filed under one of the artist's own albums (they recorded it) counts with that album, marked
     ``is_cover``. Returns (own songs, {band: [songs]}, "No album covers" row {"n", "songs", "tracks"}).
     """
-    bands = {normalize_name(b.name): b for b in artist.member_of.all()}
+    bands = {normalize_name(b.name): b for b in related_acts(artist)}
     own_albums = {normalize_name(title) for title in artist.albums.values_list("title", flat=True)}
     own, by_band = [], {}
     covers = {"n": 0, "songs": 0, "tracks": []}
@@ -139,6 +149,57 @@ def played_by_album(songs: list[dict]) -> tuple[dict, dict]:
     return played, no_album
 
 
+# --------------------------------------------------------------------------- medleys
+
+MEDLEY_SEPARATOR = "/"
+
+
+def medley_parts(title: str, album_title: str) -> list[str]:
+    """The songs in a medley (a song with no album whose title joins several with “/”), or [] if it isn't one."""
+    if album_title or MEDLEY_SEPARATOR not in (title or ""):
+        return []
+    parts = [" ".join(p.split()) for p in title.split(MEDLEY_SEPARATOR)]
+    parts = [p for p in parts if p]
+    return parts if len(parts) > 1 else []
+
+
+def split_medleys(artist: Artist, songs: list[dict]) -> list[dict]:
+    """Medleys become their songs, each counting half a play per time the medley was played.
+
+    ``songs`` are rows with "song__title", "song__album_title", "song__album_year", "song__cover_of_name", "n" and
+    "of". A part joins the played song with the same name; else the artist's song with that name (so it lands on
+    its album); else it's a song of its own with no album."""
+    medleys = [s for s in songs if medley_parts(s["song__title"], s["song__album_title"])]
+    if not medleys:
+        return songs
+    out = [s for s in songs if s not in medleys]
+    by_title = {normalize_name(s["song__title"]): s for s in out}
+    catalog = {}
+    for song in artist.songs.order_by("-album_year"):
+        catalog.setdefault(normalize_name(song.title), song)
+    for medley in medleys:
+        for part in medley_parts(medley["song__title"], medley["song__album_title"]):
+            key = normalize_name(part)
+            row = by_title.get(key)
+            if row is None:
+                known = catalog.get(key)
+                if known is not None and medley_parts(known.title, known.album_title):
+                    known = None
+                row = {"song_id": known.pk if known else None, "song__title": known.title if known else part,
+                       "song__album_title": known.album_title if known else "",
+                       "song__album_year": known.album_year if known else None,
+                       "song__cover_of_name": known.cover_of_name if known else "", "n": 0, "of": medley["of"]}
+                by_title[key] = row
+                out.append(row)
+            row["n"] += medley["n"] / 2
+            row["of"] = max(row["of"], medley["of"])
+    for row in out:
+        if isinstance(row["n"], float) and row["n"].is_integer():
+            row["n"] = int(row["n"])
+    out.sort(key=lambda s: (-s["n"], s["of"], s["song__title"].casefold()))
+    return out
+
+
 # --------------------------------------------------------------------------- album dropdowns (admins)
 #
 # Songs are filed under albums picked from a list; new albums are added in "Manage albums" only.
@@ -147,7 +208,7 @@ def played_by_album(songs: list[dict]) -> tuple[dict, dict]:
 def album_groups(artist: Artist, songs=()) -> list[dict]:
     """The albums a song of ``artist`` can be filed under, as [{"artist", "albums"}]: the artist's own, then
     each band they were in, then the original artist of any of ``songs`` that are covers (if we know them)."""
-    owners = [artist, *artist.member_of.order_by("name")]
+    owners = [artist, *related_acts(artist)]
     for song in songs:
         if song.cover_of_name:
             owner = album_owner(song)

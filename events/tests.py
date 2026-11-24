@@ -3299,6 +3299,22 @@ class CoversAndBandsTests(BaseTestCase):
         self.assertContains(self.client.get(self.beatles.get_absolute_url()), "Members: ")
         self.assertTrue(next(r for r in chart["rows"] if r["title"] == "Hey Jude").get("is_top"))  # green in band chart
 
+    def test_a_band_playing_a_members_solo_songs_gets_a_chart_for_that_member(self):
+        from events.models import SetlistSong, Song
+        Album.objects.create(artist=self.paul, title="Ram", year=1971)
+        gig = Event.objects.create(title="Beatles live", venue=self.venue, date=date(1969, 1, 30))
+        EventArtist.objects.create(event=gig, artist=self.beatles)
+        sl = Setlist.objects.create(event=gig, artist=self.beatles)
+        SetlistSong.objects.create(setlist=sl, position=1, song=Song.objects.create(
+            artist=self.beatles, title="Too Many People", cover_of_name="Paul McCartney", album_title="Ram",
+            album_year=1971))
+        page = self.client.get(self.beatles.get_absolute_url())
+        [chart] = page.context["band_charts"]
+        self.assertEqual((chart["band"], chart["is_member"]), (self.paul, True))
+        self.assertEqual([(r["title"], r["n"]) for r in chart["rows"]], [("Ram", 1)])
+        self.assertContains(page, "By its member")
+        self.assertFalse(self.client.get(self.paul.get_absolute_url()).context["band_charts"][0]["is_member"])
+
     def test_covers_recorded_on_the_artists_album_count_there_in_italics(self):
         from events.models import SetlistSong, Song
         Album.objects.create(artist=self.paul, title="Run Devil Run", year=1999)
@@ -4592,6 +4608,42 @@ class EventLogsPageTests(BaseTestCase):
         self.assertEqual([log.pk for log in page.context["logs"]], [new.pk, old.pk])
         self.assertContains(page, "@bea")
         self.assertContains(page, "★★★★")
+
+
+class MedleyTests(BaseTestCase):
+    """Songs with no album named “A / B” can be split into their songs, half a play each."""
+
+    def setUp(self):
+        super().setUp()
+        from events.models import SetlistSong, Song
+
+        self.band = Artist.objects.create(name="Los Prisioneros")
+        EventArtist.objects.create(event=self.event, artist=self.band)
+        song = lambda title, album="": Song.objects.create(artist=self.band, title=title, album_title=album,  # noqa: E731
+                                                          album_year=1986 if album else None)
+        self.sl = Setlist.objects.create(event=self.event, artist=self.band)
+        for i, s in enumerate([song("El baile de los que sobran", "Pateando piedras"),
+                               song("El baile de los que sobran / Muevan las industrias"),
+                               song("Sexo / Quién mató a Marilyn")], start=1):
+            SetlistSong.objects.create(setlist=self.sl, song=s, position=i)
+        song("Muevan las industrias", "Corazones")  # never played on its own
+
+    def _songs(self, **params):
+        page = self.client.get(reverse("events:artist_songs", args=[self.band.pk]), params)
+        return {s["song__title"]: s["n"] for s in page.context["songs"]}
+
+    def test_off_by_default(self):
+        self.assertEqual(self._songs(), {"El baile de los que sobran": 1, "El baile de los que sobran / Muevan las industrias": 1,
+                                         "Sexo / Quién mató a Marilyn": 1})
+
+    def test_split_adds_half_a_play_to_each_song(self):
+        songs = self._songs(medleys="split")
+        self.assertEqual(songs, {"El baile de los que sobran": 1.5, "Muevan las industrias": 0.5, "Sexo": 0.5,
+                                 "Quién mató a Marilyn": 0.5})
+        page = self.client.get(reverse("events:artist_songs", args=[self.band.pk]), {"medleys": "split", "tab": "albums"})
+        albums = {r["title"]: r["n"] for r in page.context["albums"]}
+        self.assertEqual(albums["Corazones"], 0.5)  # the part joins the song of that name on its album
+        self.assertContains(page, 'name="medleys" value="split"')
 
 
 class FestivalNoLabelTests(BaseTestCase):

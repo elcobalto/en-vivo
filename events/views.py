@@ -64,9 +64,8 @@ SORTS = {
 WHEN = {"": gettext_lazy("Any time"), "upcoming": gettext_lazy("Upcoming"), "past": gettext_lazy("Past")}
 from . import runs
 from .roles import can_delete_event, can_edit_event, home_place, is_admin
-from .albums import (album_colors, album_groups, album_rows, choose_album, mark_album_choices, played_by_album,
-                     remember_album,
-                     split_plays, top_albums)
+from .albums import (album_colors, album_groups, album_rows, band_chart, choose_album, mark_album_choices,
+                     played_by_album, remember_album, split_medleys, split_plays, top_albums)
 from .merge import merge_into_same_festival_day, share_photo, shared_photo_message
 from .views_merge import (
     festival_admin_actions,
@@ -523,14 +522,15 @@ def _songs_to_show(albums: list, band_charts: list) -> int:
     return max(10, min(50, round(rows * 1.5) + 3))  # +3: the controls above the chart
 
 
-def _artist_plays(artist: Artist, events, *, skip_empty: bool = False, sort: str = "count", by: str = "n"):
+def _artist_plays(artist: Artist, events, *, skip_empty: bool = False, sort: str = "count", by: str = "n",
+                  medleys: bool = False):
     """How often each song and album was played by this act across these events' setlists (no tapes).
 
     Each song's ``of`` counts only the shows since it came out (shows in or after its album's year,
     plus undated shows) whose setlist has songs, so a new song isn't measured against shows from before it existed.
     Returns (songs, own album rows, [{"band", "rows"}] for bands the artist was in, number of shows).
     Covers filed under the artist's own albums count there; covers of those bands go to the band's chart;
-    other covers to a "No album covers" row.
+    other covers to a "No album covers" row. With ``medleys``, a medley's songs count half a play each.
     """
     plays = SetlistSong.objects.filter(setlist__artist=artist, setlist__event__in=events, is_tape=False)
     # Only setlists with at least one song played live count as chances to play a song (an empty setlist
@@ -547,6 +547,8 @@ def _artist_plays(artist: Artist, events, *, skip_empty: bool = False, sort: str
         song["of"] = sum(1 for y in show_years if y is None or not released or y >= released)
     # Most plays first; on a tie, the song that had fewer chances ranks higher (5/5 above 5/6, 5/6 above 4/4).
     songs.sort(key=lambda s: (-s["n"], s["of"], s["song__title"].casefold()))
+    if medleys:
+        songs = split_medleys(artist, songs)
     plain = [{"title": s["song__title"], "album_title": s["song__album_title"], "album_year": s["song__album_year"],
               "cover_of": s["song__cover_of_name"], "n": s["n"], "of": s["of"]} for s in songs]
     own, by_band, covers = split_plays(artist, plain)
@@ -558,7 +560,7 @@ def _artist_plays(artist: Artist, events, *, skip_empty: bool = False, sort: str
         band_played, band_none = played_by_album(band_songs)
         rows = album_rows(band, band_played, no_album=band_none, **options)
         top_albums(rows, by)  # the band's most played album(s) get the green bar too
-        band_charts.append({"band": band, "rows": rows})
+        band_charts.append(band_chart(artist, band, rows))
     return songs, albums, band_charts, len(show_years)
 
 
@@ -653,13 +655,14 @@ def artist_songs(request: HttpRequest, pk: int) -> HttpResponse:
     skip_empty = request.GET.get("empty") == "skip"
     sort = "newest" if request.GET.get("sort") == "newest" else "count"
     album_by = "songs" if request.GET.get("by") == "songs" else "n"
+    medleys = request.GET.get("medleys") == "split"
     songs, albums, band_charts, shows = _artist_plays(artist, events.distinct(), skip_empty=skip_empty, sort=sort,
-                                                      by=album_by)
+                                                      by=album_by, medleys=medleys)
     tab = "albums" if request.GET.get("tab") == "albums" else "songs"
     return render(request, "events/artist_songs.html", {
         "artist": artist, "seen_by": seen_by, "tab": tab, "artist_tab": "stats", "shows": shows,
         "songs": songs, "albums": albums, "band_charts": band_charts, "top_albums": top_albums(albums, album_by),
-        "skip_empty": skip_empty, "album_sort": sort, "album_by": album_by,
+        "skip_empty": skip_empty, "album_sort": sort, "album_by": album_by, "split_medleys": medleys,
         "album_keep": [("tab", "albums")] + ([("seen_by", seen_by.get_username())] if seen_by else []),
         "can_fix_albums": is_admin(request.user),
         "album_kinds": Album.Kind.choices,
@@ -719,8 +722,9 @@ def artist_detail(request: HttpRequest, pk: int) -> HttpResponse:
     skip_empty = request.GET.get("empty") == "skip"
     album_sort = "count" if request.GET.get("sort") == "count" else "newest"
     album_by = "songs" if request.GET.get("by") == "songs" else "n"
+    medleys = request.GET.get("medleys") == "split"
     songs, albums, band_charts, setlist_shows = _artist_plays(artist, events.distinct(), skip_empty=skip_empty,
-                                                              sort=album_sort, by=album_by)
+                                                              sort=album_sort, by=album_by, medleys=medleys)
     return render(
         request,
         "events/artist_detail.html",
@@ -752,6 +756,7 @@ def artist_detail(request: HttpRequest, pk: int) -> HttpResponse:
             "members": artist.members.all(),
             "top_albums": top_albums(albums, album_by),  # ties all count; the green bars follow the toggle
             "skip_empty": skip_empty,
+            "split_medleys": medleys,
             "album_sort": album_sort,
             "album_by": album_by,
             "album_keep": [("seen_by", seen_by.get_username())] if seen_by else [],
@@ -1134,7 +1139,7 @@ def act_setlist(request: HttpRequest, pk: int, artist_pk: int) -> HttpResponse:
         rows = album_rows(band, band_played, no_album=band_none, skip_empty=skip_empty, sort=album_sort,
                           released_by=released_by)
         top_albums(rows)  # the band's most played album(s) get the green bar too
-        band_charts.append({"band": band, "rows": rows})
+        band_charts.append(band_chart(setlist.artist, band, rows))
     songs = list({e.song_id: e.song for e in played_entries}.values())
     album_choices = []
     if is_admin(request.user):  # the "Edit albums" dropdowns
