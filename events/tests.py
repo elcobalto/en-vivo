@@ -4646,6 +4646,11 @@ class MedleyTests(BaseTestCase):
         self.assertContains(page, 'name="medleys" value="split"')
 
 
+class DonateLinkTests(BaseTestCase):
+    def test_every_page_links_to_ko_fi(self):
+        self.assertContains(self.client.get(reverse("events:event_list")), 'href="https://ko-fi.com/elcobalto"')
+
+
 class FestivalNoLabelTests(BaseTestCase):
     """Festival acts that aren't headliners or hosts have no label: offered and shown blank, never "Support"."""
 

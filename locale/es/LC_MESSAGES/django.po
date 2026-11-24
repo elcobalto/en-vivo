@@ -3,7 +3,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: En Vivo\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-24 03:14+0000\n"
+"POT-Creation-Date: 2026-11-24 03:23+0000\n"
 "PO-Revision-Date: 2026-11-20 18:00-0300\n"
 "Last-Translator: En Vivo\n"
 "Language-Team: Spanish\n"
@@ -1057,6 +1057,10 @@ msgstr "Salir"
 #: events/templates/base.html:144 events/templates/registration/login.html:4
 msgid "Login"
 msgstr "Iniciar sesión"
+
+#: events/templates/base.html:158
+msgid "Support En Vivo on Ko-fi"
+msgstr "Apoya a En Vivo en Ko-fi"
 
 #: events/templates/events/_activity_item.html:7
 msgid "reviewed"
