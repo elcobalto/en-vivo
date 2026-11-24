@@ -4803,6 +4803,9 @@ msgstr "%(name)s pasó a ser"
 msgid "Choose the venue…"
 msgstr "Elige el recinto…"
 
+msgid "Search the venue it became"
+msgstr "Busca el recinto en que se convirtió"
+
 #: events/templates/events/venue_detail.html:54
 msgid "Undo: not renamed"
 msgstr "Deshacer: no cambió de nombre"

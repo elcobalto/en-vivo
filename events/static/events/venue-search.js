@@ -5,6 +5,7 @@
  *   select: picking a venue fills the hidden <input class="vs-value"> (event form)
  *   create: picking opens the venue (or `data-next`) — used on "New venue"
  *   link:   picking a Google place re-standardizes an existing venue (admins)
+ *   local:  like select, but only our own venues (no Google); `data-exclude` = ids to leave out
  */
 (function () {
   "use strict";
@@ -23,6 +24,8 @@
 
   function init(root) {
     var mode = root.dataset.mode || "select";
+    var localOnly = mode === "local";
+    if (localOnly) mode = "select";
     var input = root.querySelector(".vs-input");
     var list = root.querySelector(".vs-results");
     var hidden = root.querySelector(".vs-value");
@@ -144,7 +147,7 @@
         google.forEach(function (p) { addItem(p.main, p.secondary, function () { pickGoogle(p); }); });
       }
       if (!local.length && !google.length) {
-        showMessage(data.error || (data.google_enabled ? gettext("No matches.") : gettext("No matches. Google search isn't configured, add it by hand below.")));
+        showMessage(data.error || (data.google_enabled || localOnly ? gettext("No matches.") : gettext("No matches. Google search isn't configured, add it by hand below.")));
         return;
       }
       if (data.error) list.append(el("div", "list-group-item small text-warning", data.error));
@@ -156,7 +159,9 @@
       var q = input.value.trim();
       if (q.length < 2) { hide(); return; }
       var mine = ++seq;
-      var url = root.dataset.searchUrl + "?" + new URLSearchParams({ q: q, session: session });
+      var params = { q: q, session: session };
+      if (localOnly) { params.local = "1"; params.exclude = root.dataset.exclude || ""; }
+      var url = root.dataset.searchUrl + "?" + new URLSearchParams(params);
       fetch(url, { credentials: "same-origin" })
         .then(function (r) { return r.json(); })
         .then(function (data) { if (mine === seq) render(data); })

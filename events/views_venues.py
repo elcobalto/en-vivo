@@ -5,7 +5,7 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.cache import cache
 from django.core.exceptions import PermissionDenied
-from django.db.models import Q
+from django.db.models import Case, Q, When
 from django.http import Http404, HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -20,6 +20,8 @@ from .setlistfm import SetlistFmError, _as_list, parse_event_date, search_setlis
 from .views_social import get_profile
 
 SEARCHES_PER_MINUTE = 60
+LOCAL_RESULTS = 5  # our venues above the Google suggestions
+LOCAL_RESULTS_ONLY = 15  # when only our venues are searched
 
 
 def _rate_limited(request: HttpRequest) -> bool:
@@ -51,12 +53,16 @@ def venue_search(request: HttpRequest) -> JsonResponse:
     if len(q) < 2:
         return JsonResponse({"local": [], "google": [], "google_enabled": google_places.enabled()})
 
+    local_only = request.GET.get("local") == "1"  # picking one of our venues (e.g. what a venue was renamed to)
+    exclude = [int(pk) for pk in (request.GET.get("exclude") or "").split(",") if pk.strip().isdigit()]
     local = list(
-        Venue.objects.filter(Q(name__icontains=q) | Q(city__icontains=q)).order_by("name")[:5]
+        Venue.objects.filter(Q(name__icontains=q) | Q(city__icontains=q)).exclude(pk__in=exclude)
+        .annotate(starts=Case(When(name__istartswith=q, then=0), default=1))
+        .order_by("starts", "name")[:LOCAL_RESULTS_ONLY if local_only else LOCAL_RESULTS]
     )
     data = {"local": [_venue_json(v) for v in local], "google": [], "google_enabled": google_places.enabled()}
 
-    if google_places.enabled() and len(q) >= 3:
+    if not local_only and google_places.enabled() and len(q) >= 3:
         if _rate_limited(request):
             return JsonResponse({**data, "error": gettext("Too many searches, wait a moment.")}, status=429)
         try:

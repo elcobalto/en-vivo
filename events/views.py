@@ -769,6 +769,9 @@ def artist_detail(request: HttpRequest, pk: int) -> HttpResponse:
     )
 
 
+VENUE_EVENTS_PER_PAGE = 24
+
+
 def venue_detail(request: HttpRequest, pk: int) -> HttpResponse:
     venue = get_object_or_404(Venue, pk=pk)
     # A renamed place: its shows under every name (each card says the name it had then).
@@ -777,12 +780,12 @@ def venue_detail(request: HttpRequest, pk: int) -> HttpResponse:
     seen_by = _seen_by(request)
     if seen_by:
         events = events.filter(logs__user=seen_by)
+    events = (events.with_stats().select_related("venue", "staging", "production", "play")
+              .distinct().order_by(*LATEST_FIRST))
     context = {"venue": venue, "seen_by": seen_by, "names": names if len(names) > 1 else [],
-               "events": events.with_stats().select_related("venue").distinct().order_by(*LATEST_FIRST)}
-    if is_admin(request.user):  # "It changed its name": the venues it could have become (same city first)
-        others = Venue.objects.exclude(pk__in=[v.pk for v in names])
-        context["rename_choices"] = (others.filter(city__iexact=venue.city, country=venue.country) if venue.city
-                                     else others.filter(country=venue.country)).order_by("name")[:300]
+               "events": Paginator(events, VENUE_EVENTS_PER_PAGE).get_page(request.GET.get("page"))}
+    if is_admin(request.user):  # "It changed its name": searched among the other venues, minus its own names
+        context["rename_exclude"] = ",".join(str(v.pk) for v in names)
     return render(request, "events/venue_detail.html", context)
 
 

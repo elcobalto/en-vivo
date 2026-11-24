@@ -1849,6 +1849,17 @@ class ArtistVenueEventsTests(BaseTestCase):
         self.assertEqual(len(venue_page.context["events"]), 3)  # venue visits count every logged event
         self.assertContains(venue_page, "3 times")
 
+    def test_venue_page_lists_its_events_a_page_at_a_time(self):
+        for day in range(1, 31):
+            Event.objects.create(title=f"Night {day}", date=date(2001, 1, day), venue=self.venue)
+        total = Event.objects.filter(venue=self.venue).count()
+        first = self.client.get(self.venue.get_absolute_url())
+        self.assertEqual((len(first.context["events"]), first.context["events"].paginator.count), (24, total))
+        self.assertContains(first, "Next →")
+        last = self.client.get(self.venue.get_absolute_url(), {"page": 2})
+        self.assertEqual(len(last.context["events"]), total - 24)
+        self.assertContains(last, "← Previous")
+
     def test_artist_page_toggles_to_only_the_shows_i_saw(self):
         url = self.artist.get_absolute_url()
         self.assertNotContains(self.client.get(url), "Shows I saw")  # signed out: no toggle
@@ -5623,6 +5634,23 @@ class VenueRenameTests(BaseTestCase):
         # Stats: one place, under its name now.
         stats = self.client.get(reverse("events:user_stats", args=["ana"]))
         self.assertEqual([(r["name"], r["n"]) for r in stats.context["top_venues"]][0], ("Santander Arena", 3))
+
+    @mock.patch("events.google_places.autocomplete")
+    def test_rename_picker_searches_every_other_venue(self, autocomplete):
+        for i in range(400):  # more than a dropdown would list
+            Venue.objects.create(name=f"Sala {i:03d}", city="Valparaíso", country="CL")
+        page = self.client.get(self.arena.get_absolute_url())
+        self.assertContains(page, 'data-mode="local"')
+        self.assertContains(page, f'data-exclude="{self.arena.pk}"')
+        search = reverse("events:venue_search")
+        data = self.client.get(search, {"q": "sala 399", "local": "1"}).json()
+        self.assertEqual([v["name"] for v in data["local"]], ["Sala 399"])
+        autocomplete.assert_not_called()  # our venues only
+        # Names that start with the words come first; the venue itself is left out.
+        data = self.client.get(search, {"q": "arena", "local": "1", "exclude": str(self.arena.pk)}).json()
+        self.assertEqual([v["name"] for v in data["local"]], ["Movistar Arena", "Santander Arena"])
+        data = self.client.get(search, {"q": "arena", "local": "1"}).json()
+        self.assertEqual(data["local"][0]["name"], "Arena Santiago")
 
     def test_no_loops_and_undo(self):
         self._rename(self.arena, self.movistar, "2008-03-01")

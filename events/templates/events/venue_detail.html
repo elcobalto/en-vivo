@@ -1,5 +1,7 @@
 {% extends "base.html" %}
-{% load i18n event_extras %}
+{% load i18n static event_extras %}
+
+{% block scripts %}{% if user|is_admin %}<script src="{% static 'events/venue-search.js' %}"></script>{% endif %}{% endblock %}
 
 {% block title %}{{ venue.name }} · en vivo{% endblock %}
 
@@ -42,11 +44,9 @@
       <details class="mt-2"><summary class="small text-warning">{% if venue.renamed_to %}{% translate "Change or undo the new name" %}{% else %}{% translate "It changed its name" %}{% endif %}</summary>
         <form method="post" action="{% url 'events:venue_rename' venue.pk %}" class="d-flex flex-wrap align-items-end gap-2 mt-2 small">
           {% csrf_token %}
-          <div><label class="form-label small mb-1" for="renamed-to">{% blocktranslate with name=venue.name %}{{ name }} became{% endblocktranslate %}</label>
-            <select class="form-select form-select-sm" style="max-width:20rem" id="renamed-to" name="renamed_to" required>
-              <option value="">{% translate "Choose the venue…" %}</option>
-              {% for v in rename_choices %}<option value="{{ v.pk }}"{% if venue.renamed_to_id == v.pk %} selected{% endif %}>{{ v.name }}{% if v.city %} · {{ v.city }}{% endif %}</option>{% endfor %}
-            </select></div>
+          <div style="width:20rem;max-width:100%"><div class="form-label small mb-1">{% blocktranslate with name=venue.name %}{{ name }} became{% endblocktranslate %}</div>
+            {% translate "Search the venue it became" as rename_placeholder %}
+            {% include "events/_venue_search.html" with mode="local" hidden_name="renamed_to" initial=venue.renamed_to exclude=rename_exclude placeholder=rename_placeholder %}</div>
           <div><label class="form-label small mb-1" for="renamed-on">{% translate "on" %}</label>
             <input class="form-control form-control-sm" type="date" id="renamed-on" name="renamed_on" value="{{ venue.renamed_on|date:'Y-m-d' }}" /></div>
           <button class="btn btn-sm btn-warning" type="submit">{% translate "Save" %}</button>
@@ -61,7 +61,7 @@
   {% if seen_by %}
     <div class="alert alert-secondary d-flex flex-wrap justify-content-between align-items-center gap-2 py-2">
       {% url 'events:profile' seen_by.get_username as seen_by_url %}
-      <span>{% blocktranslate trimmed count counter=events|length with username=seen_by.get_username name=venue.name %}
+      <span>{% blocktranslate trimmed count counter=events.paginator.count with username=seen_by.get_username name=venue.name %}
         <a href="{{ seen_by_url }}">@{{ username }}</a> has been to {{ name }} <strong>{{ counter }} time</strong>
       {% plural %}
         <a href="{{ seen_by_url }}">@{{ username }}</a> has been to {{ name }} <strong>{{ counter }} times</strong>
@@ -74,6 +74,7 @@
     <div class="row row-cols-2 row-cols-sm-3 row-cols-lg-6 g-3">
       {% for event in events %}<div class="col">{% include "events/_event_card.html" %}</div>{% endfor %}
     </div>
+    {% include "events/_pager.html" with pager=events %}
   {% else %}
     <p class="text-body-secondary">{% translate "No events yet." %}</p>
   {% endif %}
