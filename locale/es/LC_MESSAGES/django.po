@@ -3,7 +3,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: En Vivo\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-24 03:04+0000\n"
+"POT-Creation-Date: 2026-11-24 03:08+0000\n"
 "PO-Revision-Date: 2026-11-20 18:00-0300\n"
 "Last-Translator: En Vivo\n"
 "Language-Team: Spanish\n"
@@ -313,6 +313,7 @@ msgstr "♥ Me gustó"
 
 #: events/forms.py:467 events/templates/events/admin_tools.html:159
 #: events/templates/events/diary.html:75
+#: events/templates/events/event_logs.html:20
 msgid "Review"
 msgstr "Reseña"
 
@@ -1100,6 +1101,7 @@ msgid "Sort albums"
 msgstr "Ordenar álbumes"
 
 #: events/templates/events/_album_chart.html:28
+#: events/templates/events/event_logs.html:11
 msgid "Newest first"
 msgstr "Más nuevos primero"
 
@@ -1632,6 +1634,7 @@ msgstr "setlist"
 
 #: events/templates/events/act_setlist.html:22
 #: events/templates/events/event_detail.html:49
+#: events/templates/events/event_logs.html:11
 #: events/templates/events/festival_add_artists.html:27
 msgid "j F Y"
 msgstr "j \\d\\e F \\d\\e Y"
@@ -3156,6 +3159,7 @@ msgid "No ratings yet"
 msgstr "Todavía no hay calificaciones"
 
 #: events/templates/events/event_detail.html:141
+#: events/templates/events/event_logs.html:10
 #, python-format
 msgid "%(counter)s log"
 msgid_plural "%(counter)s logs"
@@ -3591,6 +3595,23 @@ msgstr "Cualquier ciudad"
 #: events/templates/events/home.html:22
 msgid "Artists I follow"
 msgstr "Artistas que sigo"
+
+#: events/templates/events/event_logs.html:4
+msgid "Logs"
+msgstr "Registros"
+
+#: events/templates/events/event_logs.html:17
+msgid "j M Y"
+msgstr "j M Y"
+
+#: events/templates/events/event_logs.html:17
+#, python-format
+msgid "logged %(when)s"
+msgstr "registró el %(when)s"
+
+#: events/templates/events/event_logs.html:23
+msgid "No one has logged it yet."
+msgstr "Nadie lo ha registrado todavía."
 
 #: events/templates/events/event_photo.html:4
 msgid "Find a photo"
@@ -4332,7 +4353,7 @@ msgid "A country shows here once you've seen its artists at %(min_events)s or mo
 msgstr "Un país aparece aquí cuando hayas visto a sus artistas en %(min_events)s o más shows calificados."
 
 #: events/templates/events/profile_stats.html:108
-#: events/templates/events/songs_ranking.html:4 events/views_social.py:381
+#: events/templates/events/songs_ranking.html:4 events/views_social.py:382
 msgid "Most heard songs"
 msgstr "Canciones más escuchadas"
 
@@ -5301,31 +5322,31 @@ msgstr "Se fusionó “%(removed)s” con “%(kept)s”."
 msgid "Merged the duplicate “%(removed)s” into this event."
 msgstr "Se fusionó el duplicado “%(removed)s” con este evento."
 
-#: events/views_social.py:186
+#: events/views_social.py:187
 #, python-format
 msgid "Week %(n)s (from %(date)s)"
 msgstr "Semana %(n)s (desde el %(date)s)"
 
-#: events/views_social.py:416
+#: events/views_social.py:417
 msgid "Profile saved."
 msgstr "Perfil guardado."
 
-#: events/views_social.py:419
+#: events/views_social.py:420
 #, python-format
 msgid "You now follow %(n)s more artist."
 msgid_plural "You now follow %(n)s more artists."
 msgstr[0] "Ahora sigues a %(n)s artista más."
 msgstr[1] "Ahora sigues a %(n)s artistas más."
 
-#: events/views_social.py:442
+#: events/views_social.py:443
 msgid "Favourites saved."
 msgstr "Favoritos guardados."
 
-#: events/views_social.py:476
+#: events/views_social.py:477
 msgid "You can't follow yourself."
 msgstr "No puedes seguirte a ti mismo."
 
-#: events/views_social.py:553
+#: events/views_social.py:554
 msgid "Your reply can't be empty."
 msgstr "Tu respuesta no puede estar vacía."
 

@@ -4578,6 +4578,22 @@ class StagingTests(BaseTestCase):
         self.assertEqual(self.client.get(reverse("events:staging_edit", args=[self.staging.pk])).status_code, 403)
 
 
+class EventLogsPageTests(BaseTestCase):
+    def test_the_log_count_opens_who_logged_it_newest_first(self):
+        from django.utils import timezone
+
+        bea = get_user_model().objects.create_user("bea", password="pw-test-123")
+        old = Log.objects.create(user=self.user, event=self.event, rating=8)
+        new = Log.objects.create(user=bea, event=self.event)
+        Log.objects.filter(pk=old.pk).update(created_at=timezone.now() - timedelta(days=30))
+        url = reverse("events:event_logs", args=[self.event.pk])
+        self.assertContains(self.client.get(self.event.get_absolute_url()), url)
+        page = self.client.get(url)
+        self.assertEqual([log.pk for log in page.context["logs"]], [new.pk, old.pk])
+        self.assertContains(page, "@bea")
+        self.assertContains(page, "★★★★")
+
+
 class FestivalNoLabelTests(BaseTestCase):
     """Festival acts that aren't headliners or hosts have no label: offered and shown blank, never "Support"."""
 

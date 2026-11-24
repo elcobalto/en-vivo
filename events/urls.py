@@ -21,6 +21,7 @@ urlpatterns = [
     path("events/<int:pk>/photo/", views_venues.event_photo, name="event_photo"),
     path("events/<int:pk>/poster-image/", views_venues.event_poster_image, name="event_poster_image"),
     path("events/<int:pk>/videos/", views.event_videos, name="event_videos"),
+    path("events/<int:pk>/logs/", views_social.event_logs, name="event_logs"),
     path("events/<int:pk>/videos/add/", views_venues.video_add, name="video_add"),
     path("events/<int:pk>/videos/<int:video_pk>/remove/", views_venues.video_remove, name="video_remove"),
     path("events/<int:pk>/merge/", views_merge.event_merge, name="event_merge"),

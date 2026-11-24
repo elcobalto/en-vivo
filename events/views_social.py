@@ -22,6 +22,7 @@ from django.views.decorators.http import require_POST
 from .forms import CommentForm, FavoritesForm, ProfileForm
 from .models import (
     Comment,
+    Event,
     EventList,
     EventType,
     FavoriteEvent,
@@ -635,3 +636,16 @@ def activity(request: HttpRequest) -> HttpResponse:
         "events/activity.html",
         {"items": activity_for(user_ids) if user_ids else [], "mode": mode, "suggestions": suggestions},
     )
+
+
+EVENT_LOGS_PER_PAGE = 50
+
+
+def event_logs(request: HttpRequest, pk: int) -> HttpResponse:
+    """Everyone who logged an event, the newest log first."""
+    from django.core.paginator import Paginator
+
+    event = get_object_or_404(Event.objects.select_related("venue"), pk=pk)
+    logs = event.logs.select_related("user__profile").order_by("-created_at", "-pk")
+    page = Paginator(logs, EVENT_LOGS_PER_PAGE).get_page(request.GET.get("page"))
+    return render(request, "events/event_logs.html", {"event": event, "logs": page, "page": page})

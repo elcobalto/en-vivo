@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% load i18n event_extras social %}
+
+{% block title %}{% translate "Logs" %} · {{ event.title }} · en vivo{% endblock %}
+
+{% block content %}
+  <div class="row justify-content-center">
+    <div class="col-12 col-md-9 col-lg-7">
+      <a class="small" href="{{ event.get_absolute_url }}">← {{ event.title }}</a>
+      <h1 class="h4 mt-1 mb-1">{% blocktranslate count counter=page.paginator.count %}{{ counter }} log{% plural %}{{ counter }} logs{% endblocktranslate %}</h1>
+      <p class="small text-body-secondary">{% if event.venue %}{{ event.venue.name }} · {% endif %}{% if event.date %}{{ event.date|date:_("j F Y") }} · {% endif %}{% translate "Newest first" %}</p>
+      {% for log in logs %}
+        <div class="d-flex align-items-center gap-3 py-2 border-bottom border-secondary-subtle">
+          <a href="{% url 'events:profile' log.user.get_username %}">{% avatar log.user 40 %}</a>
+          <div class="flex-grow-1">
+            <a class="fw-semibold" href="{% url 'events:profile' log.user.get_username %}">{{ log.user|display_name }}</a>
+            <div class="small text-body-secondary">@{{ log.user.get_username }} · {% blocktranslate with when=log.created_at|date:_("j M Y") %}logged {{ when }}{% endblocktranslate %}</div>
+          </div>
+          {% if log.rating %}<span class="stars">{{ log.rating|stars }}</span>{% endif %}
+          {% if log.review %}<a class="small" href="{% url 'events:review_detail' log.pk %}">{% translate "Review" %}</a>{% endif %}
+        </div>
+      {% empty %}
+        <p class="text-body-secondary mt-3">{% translate "No one has logged it yet." %}</p>
+      {% endfor %}
+      {% include "events/_pager.html" with pager=page %}
+    </div>
+  </div>
+{% endblock %}
