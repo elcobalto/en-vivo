@@ -79,7 +79,8 @@
         {{ form.non_field_errors }}
         <div class="row g-3">
           {% for field in form %}
-            {% if field.name == 'venue' %}
+            {% if field.name == 'lineup_by_time' or field.name == 'headliners_first' %}{# shown in the lineup section #}
+            {% elif field.name == 'venue' %}
             <div class="col-12">
               <div class="form-label">{% translate "Venue" %}</div>
               {% include "events/_venue_search.html" with mode="select" hidden_field=field initial=form.selected_venue %}

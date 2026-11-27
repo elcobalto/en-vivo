@@ -10,7 +10,7 @@ Music-only enrichment (imported from setlist.fm):
 """
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, time
 
 from django.conf import settings
 from django.core.validators import MaxValueValidator, MinValueValidator
@@ -462,6 +462,14 @@ class Event(TimestampedModel):
         help_text=_("How the photo fits the poster-shaped thumbnails on cards and lists."),
     )
 
+    # How the lineup is ordered when it's saved: acts with a set time in the order they played, and/or the
+    # headliners above everyone else (whatever time they went on).
+    lineup_by_time = models.BooleanField(
+        _("Order acts by set time"), default=True,
+        help_text=_("Acts with a set time are listed in the order they played. Acts without one keep their place."))
+    headliners_first = models.BooleanField(
+        _("Headliners first"), default=True, help_text=_("Headliners stay at the top, whatever time they played."))
+
     artists = models.ManyToManyField(Artist, through="EventArtist", related_name="events")
 
     created_by = models.ForeignKey(
@@ -586,8 +594,13 @@ class Event(TimestampedModel):
 
     @property
     def headliner(self) -> Artist | None:
-        """The top-billed act on stage (authors and directors are credits, not acts)."""
-        link = self.acts_on_stage().select_related("artist").first()
+        """The top-billed headliner, else the top-billed act on stage (authors and directors are credits, not acts).
+
+        A lineup ordered by set time without headliners first can open with a support act: it's still not the
+        headliner.
+        """
+        acts = self.acts_on_stage().select_related("artist")
+        link = acts.filter(role=EventArtist.Role.HEADLINER).first() or acts.first()
         return link.artist if link else None
 
     def acts_on_stage(self):
@@ -602,15 +615,24 @@ class Event(TimestampedModel):
                     .order_by("billing_order", "pk").values_list("artist__name", flat=True))
 
     def order_bill(self) -> None:
-        """Headliners are always billed above everyone else on stage; credits (authors, directors) go last.
+        """Put the bill in order. Credits (authors, directors) always go last.
 
-        The order within each group is kept. Only billing numbers that change are saved.
+        With ``headliners_first`` the headliners are billed above everyone else on stage; with ``lineup_by_time``
+        the acts that have a set time are ordered by it (within each group), while acts without a time keep their
+        place. Anything else keeps the order it had. Only billing numbers that change are saved.
         """
         links = list(self.eventartist_set.order_by("billing_order", "pk"))
-        headliners = [l for l in links if l.role == EventArtist.Role.HEADLINER]
         credits = [l for l in links if l.role in CREDIT_ROLES]
-        others = [l for l in links if l not in headliners and l not in credits]
-        for position, link in enumerate(headliners + others + credits, start=1):
+        stage = [l for l in links if l.role not in CREDIT_ROLES]
+        if self.headliners_first:
+            groups = [[l for l in stage if l.role == EventArtist.Role.HEADLINER],
+                      [l for l in stage if l.role != EventArtist.Role.HEADLINER]]
+        else:
+            groups = [stage]
+        if self.lineup_by_time:
+            groups = [sort_by_set_time(g) for g in groups]
+        ordered = [l for g in groups for l in g] + credits
+        for position, link in enumerate(ordered, start=1):
             if link.billing_order != position:
                 link.billing_order = position
                 link.save(update_fields=["billing_order"])
@@ -618,6 +640,21 @@ class Event(TimestampedModel):
     def credits(self):
         return self.eventartist_set.filter(role__in=CREDIT_ROLES).select_related("artist")
 
+
+
+# Sets that start before this belong to the night before (a 1:00 set comes after a 23:00 one).
+NIGHT_ENDS = time(6, 0)
+
+
+def set_time_key(t: time) -> tuple[bool, time]:
+    return (t < NIGHT_ENDS, t)
+
+
+def sort_by_set_time(links: list) -> list:
+    """The acts with a set time in the order they played, in the slots they already filled; the rest stay put."""
+    timed = sorted((l for l in links if l.start_time), key=lambda l: set_time_key(l.start_time))
+    it = iter(timed)
+    return [next(it) if l.start_time else l for l in links]
 
 
 # Roles that credit someone without them being an act you watch (theater authors, directors, choreographers,

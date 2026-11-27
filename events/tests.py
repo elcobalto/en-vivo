@@ -3048,6 +3048,33 @@ class BillOrderTests(BaseTestCase):
         self.assertEqual(list(self.event.eventartist_set.order_by("billing_order").values_list("artist__name", flat=True)),
                          ["Late headliner", "Opener", "Second opener", "Director"])
 
+    def _bill(self, *acts):
+        """acts: (name, role, "HH:MM" or None), in billing order."""
+        from datetime import time
+        for i, (n, r, t) in enumerate(acts, start=1):
+            EventArtist.objects.create(event=self.event, artist=Artist.objects.create(name=n), role=r, billing_order=i,
+                                       start_time=time.fromisoformat(t) if t else None)
+        self.event.order_bill()
+        return list(self.event.eventartist_set.order_by("billing_order").values_list("artist__name", flat=True))
+
+    def test_acts_with_set_times_go_in_the_order_they_played_headliners_first(self):
+        order = self._bill(("Late", "support", "23:30"), ("Star", "headliner", "00:45"), ("Early", "support", "20:00"),
+                           ("Untimed", "support", None), ("After midnight", "support", "01:30"))
+        # Untimed acts keep their slot; 01:30 is later than 23:30.
+        self.assertEqual(order, ["Star", "Early", "Late", "Untimed", "After midnight"])
+        self.assertEqual(self.event.headliner.name, "Star")
+
+    def test_time_order_without_headliners_first(self):
+        self.event.headliners_first = False
+        order = self._bill(("Star", "headliner", "22:00"), ("Opener", "support", "20:00"))
+        self.assertEqual(order, ["Opener", "Star"])
+        self.assertEqual(self.event.headliner.name, "Star")  # still the headliner, though billed second
+
+    def test_both_off_keeps_the_order_given(self):
+        self.event.headliners_first = self.event.lineup_by_time = False
+        order = self._bill(("Opener", "support", "20:00"), ("Star", "headliner", "22:00"), ("Early", "support", "19:00"))
+        self.assertEqual(order, ["Opener", "Star", "Early"])
+
 
 class TapesAndAlbumsTests(BaseTestCase):
     def setUp(self):

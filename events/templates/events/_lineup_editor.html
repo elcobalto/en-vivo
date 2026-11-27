@@ -7,6 +7,11 @@
             <span class="small text-body-secondary" id="poster-sort-status" aria-live="polite">{% translate "Reads the photo and orders these acts as they appear on it, top to bottom; the first line becomes the headliners. Nothing is saved until you press Save." %}</span>
           </div>
         {% endif %}
+        <div class="d-flex flex-wrap gap-3 small">
+          <div class="form-check">{{ form.lineup_by_time }} <label class="form-check-label" for="{{ form.lineup_by_time.id_for_label }}">{{ form.lineup_by_time.label }}</label></div>
+          <div class="form-check">{{ form.headliners_first }} <label class="form-check-label" for="{{ form.headliners_first.id_for_label }}">{{ form.headliners_first.label }}</label></div>
+        </div>
+        <div class="form-text mb-2">{% translate "When you save, acts with a set time go in the order they played (a set before 6:00 counts as the night before) and headliners stay on top. Untick either to keep your own order." %}</div>
         {{ artist_options|json_script:"artist-options" }}{{ tour_options|json_script:"tour-options" }}
         {{ formset.management_form }}
         {{ formset.non_form_errors }}

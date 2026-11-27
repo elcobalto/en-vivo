@@ -5577,3 +5577,28 @@ msgid "Imported %(n)s setlist (%(songs)s songs): %(artists)s."
 msgid_plural "Imported %(n)s setlists (%(songs)s songs): %(artists)s."
 msgstr[0] "Se importó %(n)s setlist (%(songs)s canciones): %(artists)s."
 msgstr[1] "Se importaron %(n)s setlists (%(songs)s canciones): %(artists)s."
+
+msgid "Order acts by set time"
+msgstr "Ordenar por horario"
+
+msgid ""
+"Acts with a set time are listed in the order they played. Acts without one "
+"keep their place."
+msgstr ""
+"Los artistas con horario aparecen en el orden en que tocaron. Los que no "
+"tienen horario mantienen su lugar."
+
+msgid "Headliners first"
+msgstr "Cabezas de cartel primero"
+
+msgid "Headliners stay at the top, whatever time they played."
+msgstr "Los cabezas de cartel quedan arriba, sin importar a qué hora tocaron."
+
+msgid ""
+"When you save, acts with a set time go in the order they played (a set before "
+"6:00 counts as the night before) and headliners stay on top. Untick either to "
+"keep your own order."
+msgstr ""
+"Al guardar, los artistas con horario quedan en el orden en que tocaron (un "
+"show antes de las 6:00 cuenta como de la noche anterior) y los cabezas de "
+"cartel quedan arriba. Desmarca cualquiera para mantener tu propio orden."

@@ -68,6 +68,8 @@ class EventForm(BootstrapMixin, forms.ModelForm):
             "description",
             "image_url",
             "image_display",
+            "lineup_by_time",
+            "headliners_first",
         ]
         widgets = {
             "venue": forms.HiddenInput(attrs={"class": "vs-value"}),
