@@ -1505,6 +1505,10 @@ def setlist_search(request: HttpRequest, pk: int) -> HttpResponse:
         .exclude(artist__setlists__event=event)
         .select_related("artist").order_by("billing_order", "pk").first()
     )
+    lineup = list(EventArtist.objects.filter(event=event).exclude(role__in=CREDIT_ROLES)
+                  .select_related("artist").order_by("billing_order", "pk"))
+    if request.GET.get("all") == "1" and event.date and lineup:
+        return _setlist_search_all(request, event, lineup)
     default = next_act.artist.name if next_act else (event.headliner.name if event.headliner else "")
     artist = (request.GET.get("artist") or default).strip()
     match_date = request.GET.get("any_date") != "1" and event.date is not None
@@ -1522,8 +1526,51 @@ def setlist_search(request: HttpRequest, pk: int) -> HttpResponse:
     return render(
         request,
         "events/setlist_search.html",
-        {"event": event, "artist": artist, "match_date": match_date, "results": results, "error": error},
+        {"event": event, "artist": artist, "match_date": match_date, "results": results, "error": error,
+         "can_search_all": bool(event.date) and len(lineup) > 1},
     )
+
+
+def _same_artist(artist: Artist, payload: dict) -> bool:
+    """A search by name also returns similarly named artists: keep the act's own setlists."""
+    mbid = (payload.get("mbid") or "").strip()
+    if artist.mbid and mbid:
+        return artist.mbid == mbid
+    return (payload.get("name") or "").strip().casefold() == artist.name.strip().casefold()
+
+
+def _setlist_search_all(request: HttpRequest, event: Event, lineup) -> HttpResponse:
+    """Every act on the bill searched on the event's date, ready to import in one go."""
+    have = set(Setlist.objects.filter(event=event).values_list("artist_id", flat=True))
+    rows = []
+    error = None
+    for link in lineup:
+        row = {"artist": link.artist, "has_setlist": link.artist_id in have, "results": []}
+        rows.append(row)
+        if error:
+            continue  # setlist.fm stopped answering: list the rest without searching
+        try:
+            if link.artist.mbid:
+                found = search_setlists(artist_mbid=link.artist.mbid, on_date=event.date)
+            else:
+                found = search_setlists(artist_name=link.artist.name, on_date=event.date)
+        except SetlistFmError as e:
+            error = str(e)
+            row["skipped"] = True
+            continue
+        found = [r for r in found if _same_artist(link.artist, r.get("artist") or {})]
+        for r in found:
+            r["parsed_date"] = parse_event_date(r.get("eventDate"))
+        row["results"] = found
+        # Tick it when there's exactly one setlist that day and the act has none here yet.
+        row["preselect"] = found[0]["id"] if len(found) == 1 and not row["has_setlist"] else None
+    for row in rows:
+        row.setdefault("skipped", False)
+        row.setdefault("preselect", None)
+    return render(request, "events/setlist_search_all.html", {
+        "event": event, "rows": rows, "error": error,
+        "found_any": any(r["results"] for r in rows),
+    })
 
 
 @login_required
@@ -1532,10 +1579,13 @@ def setlist_import(request: HttpRequest, pk: int) -> HttpResponse:
     event = get_object_or_404(Event, pk=pk)
     if not event.is_music:  # only music shows (and festivals) have setlists
         raise Http404
-    setlist_id = (request.POST.get("setlist_id") or "").strip()
-    if not setlist_id:
+    ids = list(dict.fromkeys(i.strip() for i in request.POST.getlist("setlist_id") if i.strip()))
+    if not ids:
         messages.error(request, gettext("Missing setlist id."))
         return redirect("events:setlist_search", pk=event.pk)
+    if len(ids) > 1:
+        return _setlist_import_many(request, event, ids)
+    setlist_id = ids[0]
     try:
         setlist = import_setlist(event, get_setlist(setlist_id))
     except SetlistFmError as e:
@@ -1549,6 +1599,29 @@ def setlist_import(request: HttpRequest, pk: int) -> HttpResponse:
     count = setlist.entries.count()
     messages.success(request, ngettext("Imported %(n)s song for %(artist)s.", "Imported %(n)s songs for %(artist)s.",
                                        count) % {"n": count, "artist": setlist.artist})
+    return redirect(event)
+
+
+def _setlist_import_many(request: HttpRequest, event: Event, ids: list[str]) -> HttpResponse:
+    """Import several setlists (one per act); each stands on its own, so one failing keeps the rest."""
+    imported, songs = [], 0
+    for setlist_id in ids:
+        try:
+            setlist = import_setlist(event, get_setlist(setlist_id))
+        except SetlistFmError as e:
+            messages.error(request, str(e))
+            continue
+        except Exception:
+            logging.getLogger(__name__).exception("Importing setlist %s into event %s failed", setlist_id, event.pk)
+            messages.error(request, gettext("Something went wrong importing one of the setlists. It was skipped."))
+            continue
+        imported.append(str(setlist.artist))
+        songs += setlist.entries.count()
+    if imported:
+        messages.success(request, ngettext(
+            "Imported %(n)s setlist (%(songs)s songs): %(artists)s.",
+            "Imported %(n)s setlists (%(songs)s songs): %(artists)s.",
+            len(imported)) % {"n": len(imported), "songs": songs, "artists": ", ".join(imported)})
     return redirect(event)
 
 

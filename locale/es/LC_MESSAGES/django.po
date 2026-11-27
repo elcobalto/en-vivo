@@ -5528,3 +5528,52 @@ msgstr "Un poco sobre ti"
 #: events/views_welcome.py:28
 msgid "A photo and a few words for your profile. Optional."
 msgstr "Una foto y unas palabras para tu perfil. Es opcional."
+
+msgid "Or look up every act on the bill on %(date)s and import them together."
+msgstr "O busca a todos los artistas del cartel el %(date)s e impórtalos juntos."
+
+msgid "Search all performers"
+msgstr "Buscar a todos los artistas"
+
+msgid "Import setlists for every act of “%(title)s”"
+msgstr "Importar setlists de todos los artistas de “%(title)s”"
+
+msgid "Search one artist"
+msgstr "Buscar un artista"
+
+msgid ""
+"Setlists on setlist.fm on %(date)s. Acts with a single match are ticked; "
+"untick anything that isn't right."
+msgstr ""
+"Setlists en setlist.fm del %(date)s. Los artistas con una sola coincidencia "
+"vienen marcados; desmarca lo que no corresponda."
+
+msgid "Already has a setlist"
+msgstr "Ya tiene setlist"
+
+msgid "Not searched."
+msgstr "No se buscó."
+
+msgid "No setlist that day."
+msgstr "No hay setlist ese día."
+
+msgid "Search this artist"
+msgstr "Buscar este artista"
+
+msgid "Import selected setlists"
+msgstr "Importar los setlists marcados"
+
+msgid ""
+"Only the song lists are imported. The event, venue and date stay as they are "
+"in En Vivo."
+msgstr ""
+"Solo se importan las listas de canciones. El evento, el lugar y la fecha "
+"quedan como están en En Vivo."
+
+msgid "Something went wrong importing one of the setlists. It was skipped."
+msgstr "Algo falló al importar uno de los setlists. Se omitió."
+
+msgid "Imported %(n)s setlist (%(songs)s songs): %(artists)s."
+msgid_plural "Imported %(n)s setlists (%(songs)s songs): %(artists)s."
+msgstr[0] "Se importó %(n)s setlist (%(songs)s canciones): %(artists)s."
+msgstr[1] "Se importaron %(n)s setlists (%(songs)s canciones): %(artists)s."

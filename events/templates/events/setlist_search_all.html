@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block title %}{% translate "Import setlists" %} · {{ event.title }} · en vivo{% endblock %}
+
+{% block content %}
+  <div class="row justify-content-center">
+    <div class="col-12 col-lg-9">
+      <div class="d-flex align-items-center justify-content-between mb-3 gap-2">
+        <h1 class="h4 m-0">{% blocktranslate with title=event.title %}Import setlists for every act of “{{ title }}”{% endblocktranslate %}</h1>
+        <a class="btn btn-sm btn-outline-secondary" href="{% url 'events:setlist_search' event.pk %}">{% translate "Search one artist" %}</a>
+      </div>
+      <p class="small text-body-secondary">{% blocktranslate with date=event.date|date:"j M Y" %}Setlists on setlist.fm on {{ date }}. Acts with a single match are ticked; untick anything that isn't right.{% endblocktranslate %}</p>
+
+      {% if error %}<div class="alert alert-danger">{{ error }}</div>{% endif %}
+
+      <form method="post" action="{% url 'events:setlist_import' event.pk %}">
+        {% csrf_token %}
+        {% for row in rows %}
+          <div class="card mb-2"><div class="card-body">
+            <div class="d-flex justify-content-between align-items-center gap-2 mb-1">
+              <div class="fw-semibold">{{ row.artist.name }}</div>
+              {% if row.has_setlist %}<span class="badge text-bg-secondary">{% translate "Already has a setlist" %}</span>{% endif %}
+            </div>
+            {% for s in row.results %}
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" name="setlist_id" value="{{ s.id }}" id="sl-{{ s.id }}" {% if s.id == row.preselect %}checked{% endif %} />
+                <label class="form-check-label small" for="sl-{{ s.id }}">
+                  {% if s.venue.name %}{{ s.venue.name }}{% endif %}{% if s.venue.city.name %} · {{ s.venue.city.name }}{% endif %}{% if s.venue.city.country.code %}, {{ s.venue.city.country.code }}{% endif %}
+                  {% if s.tour.name %} · {{ s.tour.name }}{% endif %}
+                  {% if s.url %} · <a href="{{ s.url }}" target="_blank" rel="noreferrer">{% translate "View on setlist.fm" %}</a>{% endif %}
+                </label>
+              </div>
+            {% empty %}
+              <div class="small text-body-secondary">
+                {% if row.skipped %}{% translate "Not searched." %}{% else %}{% translate "No setlist that day." %}{% endif %}
+                <a href="{% url 'events:setlist_search' event.pk %}?artist={{ row.artist.name|urlencode }}">{% translate "Search this artist" %}</a>
+              </div>
+            {% endfor %}
+          </div></div>
+        {% endfor %}
+
+        {% if found_any %}
+          <div class="d-grid d-md-flex justify-content-md-end mt-3">
+            <button class="btn btn-success" type="submit">{% translate "Import selected setlists" %}</button>
+          </div>
+        {% endif %}
+      </form>
+
+      <p class="small text-body-secondary mt-3">{% translate "Only the song lists are imported. The event, venue and date stay as they are in En Vivo." %}</p>
+    </div>
+  </div>
+{% endblock %}

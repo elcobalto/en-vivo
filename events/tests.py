@@ -215,6 +215,61 @@ class SetlistViewTests(BaseTestCase):
         self.assertContains(page, "Setlist.fm error 403")
 
 
+OPENER_PAYLOAD = {
+    "id": "7bd6aa11",
+    "eventDate": "10-11-1992",
+    "artist": {"mbid": "", "name": "Pinhead Gunpowder"},
+    "sets": {"set": [{"song": [{"name": "Freight Train"}]}]},
+}
+
+
+@override_settings(ALLOWED_HOSTS=["testserver"])
+class SetlistAllPerformersTests(BaseTestCase):
+    def setUp(self):
+        super().setUp()
+        self.client.force_login(self.user)
+        self.green_day = Artist.objects.create(name="Green Day", mbid="084308bd-1654-436f-ba03-df6697104e19")
+        self.opener = Artist.objects.create(name="Pinhead Gunpowder")
+        self.nobody = Artist.objects.create(name="Nobody Played")
+        for i, a in enumerate([self.green_day, self.opener, self.nobody], 1):
+            EventArtist.objects.create(event=self.event, artist=a, billing_order=i)
+
+    def _search(self, **kwargs):
+        if kwargs.get("artist_mbid"):
+            return [dict(SETLIST_PAYLOAD)]
+        if kwargs.get("artist_name") == "Pinhead Gunpowder":
+            # A name search also turns up other artists: only the act's own setlist counts.
+            return [dict(OPENER_PAYLOAD), {"id": "zz", "artist": {"name": "Pinhead Gunpowder Tribute"}}]
+        return []
+
+    def test_lists_every_act_and_ticks_single_matches(self):
+        with mock.patch("events.views.search_setlists", side_effect=self._search) as search:
+            page = self.client.get(reverse("events:setlist_search", args=[self.event.pk]) + "?all=1")
+        self.assertEqual(search.call_count, 3)
+        self.assertEqual(search.call_args_list[0].kwargs["on_date"], self.event.date)
+        rows = {r["artist"].name: r for r in page.context["rows"]}
+        self.assertEqual(rows["Green Day"]["preselect"], "63de4613")
+        self.assertEqual([r["id"] for r in rows["Pinhead Gunpowder"]["results"]], ["7bd6aa11"])
+        self.assertEqual(rows["Nobody Played"]["results"], [])
+        self.assertContains(page, 'value="7bd6aa11" id="sl-7bd6aa11" checked')
+
+    def test_stops_searching_after_an_api_error(self):
+        with mock.patch("events.views.search_setlists", side_effect=SetlistFmError("too many")) as search:
+            page = self.client.get(reverse("events:setlist_search", args=[self.event.pk]) + "?all=1")
+        self.assertEqual(search.call_count, 1)
+        self.assertContains(page, "too many")
+
+    def test_imports_several_setlists_at_once(self):
+        payloads = {"63de4613": SETLIST_PAYLOAD, "7bd6aa11": OPENER_PAYLOAD}
+        with mock.patch("events.views.get_setlist", side_effect=payloads.__getitem__):
+            response = self.client.post(reverse("events:setlist_import", args=[self.event.pk]),
+                                        {"setlist_id": ["63de4613", "7bd6aa11"]})
+        self.assertRedirects(response, self.event.get_absolute_url())
+        self.assertEqual(set(self.event.setlists.values_list("artist__name", flat=True)),
+                         {"Green Day", "Pinhead Gunpowder"})
+        self.assertEqual(EventArtist.objects.filter(event=self.event).count(), 3)  # no duplicate acts
+
+
 # --------------------------------------------------------------------------- Phase 2: discovery
 
 from .models import EventList, EventListItem, WantToGo  # noqa: E402
